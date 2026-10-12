@@ -6,6 +6,8 @@
 
 ![Splat-Werkstatt (Beispiel-Screenshot, Vorschaubilder durch Platzhalter ersetzt)](docs/screenshot.png)
 
+Räume, eine Person, eine Statue, dein Auto, ein Garten – alles, um das du mit der Kamera herumgehen kannst, wird zu einer Szene, in die du hineinsteigen kannst.
+
 Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork bereit. Bis eine Aufnahme als Szene in [Gaussian XR](https://store.steampowered.com/app/3977540/Arcturus_Vision_Gaussian_XR/) auftaucht, sind aber viele Handgriffe nötig. Die Splat-Werkstatt packt den ganzen Weg in eine lokale Weboberfläche:
 
 1. **Aufnahme wählen** – direkt von der Frame (per SSH) oder vom PC, mit Vorschaubildern.
@@ -40,9 +42,14 @@ Nach dem Übertragen **Gaussian XR auf der Frame neu starten**, damit die Szene 
 ## Aufnahmetipps
 
 - Viel Licht (Tageslicht plus Raumlicht), **HDR mit 30 fps** in der Kamera-App, nicht „Linear“.
-- **30–90 s pro Raum**, langsam gehen und langsam drehen, Dinge von mehreren Seiten zeigen.
+- **Räume**: 30–90 s pro Raum, langsam gehen und langsam drehen, Dinge von mehreren Seiten zeigen.
+- **Gegenstände und Personen**: langsam im Kreis darum herumgehen (15–40 s), Motiv in der Bildmitte halten; Personen sollten ganz still stehen.
 - Nicht lange auf kahle Wände, Decke oder Fliesen halten.
 - Bewegte Personen werden zu Geisterschleiern.
+
+## Transparenzhinweis
+
+Dieses Projekt ist mit Hilfe einer KI entstanden: Code, Dokumentation und die Platzhalter im Beispiel-Screenshot wurden gemeinsam mit **Claude (Opus 5.5) von Anthropic** in Claude Code erstellt. Ideen, Tests auf echter Hardware, Entscheidungen und Durchsicht kamen von mir. Fehlermeldungen sind willkommen – wenn etwas komisch aussieht, kann es gut ein Fehler sein, den keiner von uns bemerkt hat.
 
 ## Lizenz
 

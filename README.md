@@ -8,6 +8,8 @@
 
 <sub>Example screenshot – the recording thumbnails are replaced by placeholder art.</sub>
 
+Rooms, a person, a statue, your car, a garden – anything you can walk around with the camera can become a scene you step into.
+
 Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, but turning a recording into a scene you can open in [Gaussian XR](https://store.steampowered.com/app/3977540/Arcturus_Vision_Gaussian_XR/) means a lot of manual steps. Splat Workshop wraps the whole path in a local web interface:
 
 1. **Pick a recording** directly from the Frame (over SSH) or from your PC, with thumbnails.
@@ -85,9 +87,10 @@ Set `lan = true` in `[server]`. The page is then reachable at `http://<pc addres
 
 ## Recording tips
 
-- **Light**: daylight plus room lights. Dark recordings get noisy and patchy.
+- **Light**: daylight plus room lights indoors. Dark recordings get noisy and patchy.
 - **HDR, 30 fps** in the camera app works best; the pipeline tone-maps HLG automatically. Don't use “Linear”.
-- **30–90 s per room**, walk slowly, turn slowly. Look at things from several sides.
+- **Rooms**: 30–90 s each, walk slowly, turn slowly, look at things from several sides.
+- **Objects and people**: walk around them in a slow circle (15–40 s), keep them in the middle of the picture, and ask people to stay completely still.
 - Avoid pointing at **bare walls, ceilings or tiles** for long – there is nothing for the software to hold on to.
 - Moving people or pets become ghostly smears.
 
@@ -129,6 +132,10 @@ internal state:    next to runs/ in .splat-workshop/ (logs, thumbnails, check re
 ## Uninstall
 
 `./install.sh --uninstall` removes the menu entry, icon and autostart. Your config and scenes stay.
+
+## Transparency note
+
+This project was written with the help of AI: the code, the documentation and the example screenshot placeholders were created together with **Claude (Opus 5.5) by Anthropic**, using Claude Code. Ideas, testing on real hardware, decisions and review were done by me. Bug reports are welcome – if something looks off, it may well be a mistake neither of us noticed.
 
 ## Credits & license
 
