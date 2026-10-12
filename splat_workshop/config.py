@@ -25,6 +25,7 @@ DEFAULTS = {
         "recordings": "~/SplatWorkshop/recordings",
         "runs": "~/SplatWorkshop/runs",
         "extra_recording_dirs": ["~/Downloads", "~/Videos"],
+        "video_player": "",
     },
     "frame": {"host": ""},
     "server": {"port": 8771, "lan": False, "idle_minutes": 20, "language": "auto"},
@@ -48,6 +49,8 @@ class Config:
         self.recordings = path(p["recordings"])
         self.runs = path(p["runs"])
         self.extra_recording_dirs = [path(d) for d in p.get("extra_recording_dirs", [])]
+        # Command for "Open in video player" (e.g. "mpv"); empty = system default via xdg-open
+        self.video_player = shlex.split(p.get("video_player", "")) or ["xdg-open"]
         self.frame_host = os.environ.get("FRAME_HOST", f.get("host", "")).strip()
         self.port = int(os.environ.get("SPLAT_PORT", s["port"]))
         lan = os.environ.get("SPLAT_LAN")

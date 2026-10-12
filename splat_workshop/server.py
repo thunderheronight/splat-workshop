@@ -860,7 +860,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not local:
                 e = err("err.not_local")
             else:
-                subprocess.Popen(["xdg-open", local], start_new_session=True,
+                subprocess.Popen([*CFG.video_player, local], start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif path == "/api/open":
             d = scene_dir(p.get("slug", ""))

@@ -23,6 +23,10 @@ runs = "~/SplatWorkshop/runs"
 # Additional folders that are scanned for *_stereo.mp4 recordings.
 extra_recording_dirs = ["~/Downloads", "~/Videos"]
 
+# Program for "Open in video player", e.g. "mpv" or "vlc --fullscreen".
+# Leave empty to use the system default for MP4 files.
+video_player = ""
+
 [frame]
 # SSH target of your Steam Frame. Leave empty to work without the Frame
 # (no downloading of recordings, no copying into the Gaussian XR gallery).
