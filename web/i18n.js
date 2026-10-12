@@ -1,0 +1,276 @@
+/* Splat Workshop – interface texts.
+   To add a language: copy the "en" block, translate the values, keep the {placeholders}.
+   Desktop notifications and the tray icon have their own texts in splat_workshop/i18n.py. */
+const I18N = {
+  en: {
+    "app": "Splat Workshop",
+    "lang.name": "English",
+    // header
+    "frame.connected": "Frame connected", "frame.offline": "Frame not reachable", "frame.none": "No Frame configured",
+    "frame.checking": "Frame …",
+    "lan.pill": "In your network: {addr}", "lan.title": "Address for other devices in your home network – click to copy",
+    "copied": "Address copied",
+    // setup
+    "setup.title": "Almost ready – a few things are missing",
+    "setup.hint": "Settings are in {file}. Restart Splat Workshop after changing them.",
+    "setup.pipeline": "Arcturus pipeline not found in {path} (av1_to_3dgs.py). Download it from arcturus.vision/apps.",
+    "setup.spirula": "Spirula Studio not found at {path}. Build it as described in the pipeline README.",
+    "setup.splat_transform": "splat-transform not found – install it with: npm install -g @playcanvas/splat-transform",
+    "setup.tool": "{tool} is not installed.",
+    // job card
+    "job.cancel": "Cancel", "job.dismiss": "Hide", "job.log": "Log",
+    "job.psnr": "Image quality (PSNR) during training",
+    "job.sub": "{rec} · {q} · {target} · for {time}", "job.toFrame": "→ Frame", "job.pcOnly": "PC only",
+    "job.left": " · about {time} left",
+    "phase.0": "Extracting images", "phase.1": "Camera positions", "phase.2": "Training", "phase.3": "Converting",
+    "phase.4": "Copying to the Frame",
+    "tile.cameras": "Images placed", "tile.rms": "Alignment (RMS)", "tile.psnr": "PSNR", "tile.splats": "Splats",
+    "tile.step": "Step", "million": "{n} M",
+    "res.ok.frame": "Done – “{name}” is in the Gaussian XR gallery{folder}. Restart Gaussian XR to see it.",
+    "res.ok.local": "Done – “{name}” is in {path}.",
+    "res.cancelled": "Cancelled. Start again with the same name and choose “Resume” to continue.",
+    "res.upload_failed": "The scene is finished, but copying to the Frame did not work (Frame off?). Use “To the Frame” in the list of finished scenes once it is on.",
+    "res.failed": "Failed – the last lines of the log show why.",
+    "confirm.cancel": "Really cancel the conversion? With “Resume” you can continue later from the last saved state.",
+    // step 1
+    "s1.title": "Choose a recording", "tab.frame": "On the Frame", "tab.local": "On this PC",
+    "checkAll": "Check all", "checkAll.title": "Check all recordings on this PC that have not been checked yet",
+    "pick": "Choose file …", "refresh.title": "Reload list", "loading": "Loading …",
+    "frame.unreachable": "The Frame is not reachable – is it on and in the same network?",
+    "frame.unreachable.hint": "Recordings you already downloaded are under “On this PC”.",
+    "frame.notConfigured": "No Frame configured. Set [frame] host in the config file to download recordings directly.",
+    "noRecordings": "No recordings found.", "onPc": "on this PC",
+    "play.title": "Watch in the video player", "play.opening": "Opening in the video player …",
+    "play.button": "▶ Watch in video player",
+    "badge.ok": "Checked: well suited", "badge.warn": "Checked: with limitations", "badge.bad": "Checked: problematic",
+    "probe.running": "Reading recording …", "probe.length": "Length", "probe.format": "Format", "probe.fps": "Frame rate",
+    "probe.size": "Resolution", "probe.ok": "✓ Format OK",
+    "probe.onFrame": "Still on the Frame ({size}). It is downloaded automatically when you start.",
+    "probe.fetch": "Download & check now", "probe.fetching": "Downloading from the Frame … {done} of {total}",
+    "probe.missing": "File not found", "probe.unreadable": "ffprobe cannot read the file",
+    "probe.not_stereo": "Not a stereo recording (two video tracks are needed)",
+    "probe.no_gpmd": "No calibration/pose track (gpmd) – only Arcturus recordings work",
+    "probe.too_short": "Only {secs} s long – the pipeline needs at least ~8–10 s",
+    "probe.short": "Short ({secs} s) – works, but a room will have gaps",
+    // check
+    "check.run": "Check recording", "check.again": "Check again",
+    "check.title": "Measures brightness, structure, pans and both cameras second by second",
+    "check.queued": "Waiting for the other recordings to be checked …", "check.progress": "Checking second {done} of {total} …",
+    "check.failed": "Check failed", "check.head.ok": "✓ Well suited", "check.head.warn": "! Works, with limitations",
+    "check.head.bad": "✕ Problematic", "check.summary": "Brightness ⌀ {bright} · Detail ⌀ {detail} · {secs} s measured",
+    "check.none": "Nothing noticeable", "check.none.text": "Bright enough, structure throughout, steady camera, both cameras alike.",
+    "check.note": "Plain measurement per second (brightness, edge strength, image difference, left vs. right camera) – no image recognition. People or moving objects are not detected.",
+    "check.allChecked": "All recordings on this PC are already checked", "check.queuedN": "Checking {n} recording(s) one after another",
+    "check.finished": "Check finished",
+    "tl.ok": "good", "tl.flat": "little structure / blurry", "tl.dark": "dark", "tl.fast": "fast pan",
+    "tl.eye": "cameras differ", "tl.over": "blown out",
+    "and_more": " and {n} more",
+    "f.unreadable": ["Images not readable", "ffmpeg could not decode any keyframes."],
+    "f.too_dark": ["Too dark", "Average brightness {bright} of 255. With this little light the software finds hardly any reference points; the result gets noisy or patchy. Turn on the lights and record again."],
+    "f.dark": ["Dark passages", "{secs} s ({pct} %) are very dark: {where}. The splat gets mushy there."],
+    "f.flat": ["Little structure", "{secs} s ({pct} %) show almost only plain surfaces (bare wall, ceiling, tiles) or are blurry: {where}. The camera position can't be determined reliably there; single images may drop out."],
+    "f.fast": ["Fast pans", "The camera moved very fast for {secs} s: {where}. Motion blur and gaps are possible."],
+    "f.overexposed": ["Blown-out areas", "{secs} s with many almost white pixels (windows, lamps): {where}. These areas usually turn white and blotchy in the splat."],
+    "f.cameras_differ": ["Cameras differ", "Left and right camera differ clearly for {secs} s: {where}. This points to a covered or dirty lens (finger, hair, smudge)."],
+    "f.color_cast": ["Colour cast", "The recording has an overall {tone} tint (artificial light?). It doesn't affect the reconstruction, but the splat will look the same."],
+    "f.short": ["Short", "Only {secs} s – enough for an object, a room will have gaps."],
+    "f.long": ["Long", "{secs} s – “High” uses at most 500 image pairs, i.e. fewer than 3 per second. More doesn't help here; better split very large areas into several recordings."],
+    "tone.yellow": "yellow/orange", "tone.blue": "blue", "tone.green": "green", "tone.red": "red",
+    // step 2
+    "s2.title": "Settings", "name.label": "Name in the gallery", "name.placeholder": "e.g. Living room",
+    "name.auto": "Recording {date}",
+    "quality": "Quality",
+    "q.fast": "Fast", "q.fast.sub": "For trying out · half resolution",
+    "q.high": "High", "q.high.sub": "Full resolution · up to 2 M splats",
+    "q.max": "Maximum", "q.max.sub": "More images · up to 3 M · experimental",
+    "adv": "Fine-tuning", "adv.hint": "Leave empty = value of the chosen quality (shown in grey).",
+    "adv.frames": "Image pairs (100–500)",
+    "adv.frames.help": "How many stereo image pairs from the video go into training. More pairs = more viewpoints and fewer gaps, especially for long recordings. Mostly costs preparation time. Rule of thumb: ~5 per second of video.",
+    "adv.scale": "Image scale (0.25–1)",
+    "adv.scale.help": "Resolution of the training images. 1 = full 2464 px: sharpest, but slow. 0.5 = half resolution: about 3× faster, but softer. Good for trying out; use 1 for final results.",
+    "adv.maxg": "Max. splats (millions)",
+    "adv.maxg.help": "Upper limit of Gaussians (the “blobs of colour” the scene is made of). More = finer details, but a bigger file, longer computation and more graphics memory. 2 M is proven, above 3 M untested.",
+    "adv.iter": "Training steps",
+    "adv.iter.help": "How long the scene is refined. 30,000 is the usual value; beyond that it usually improves only a little, while time grows linearly.",
+    "target": "Destination",
+    "t.frame": "Gaussian XR gallery on the Frame", "t.frame.sub": "Copied automatically after computing, with preview image and name plate",
+    "t.pc": "This PC only", "t.pc.sub": "The result stays in the runs folder – e.g. to look at it in Spirula",
+    "t.offline": "The Frame is not reachable right now. Computing works anyway – it just has to be on at the end.",
+    "start": "Start conversion", "est.none": "Choose a recording first.", "est.busy": "A conversion is already running.",
+    "est": "{frames} image pairs · {maxg} M splats · {iter}k steps · <b>about {mins} min</b> <span class=\"faint\">(rough estimate)</span>",
+    "started": "Conversion started", "unusable": "This recording can't be used like this",
+    // exists dialog
+    "exists.title": "This scene already exists",
+    "exists.text": "There is already a run named “{name}”. Resume uses its saved intermediate results (e.g. after cancelling); Start over discards it.",
+    "exists.cancel": "Cancel", "exists.resume": "Resume", "exists.fresh": "Start over",
+    // scenes
+    "scenes.title": "Finished scenes", "scenes.none": "No finished scenes yet.",
+    "sc.uploading": "Copying to the Frame …", "sc.uploadFailed": "Copying failed – Frame on?",
+    "sc.onFrame": "✓ in the Frame's gallery", "sc.notOnFrame": "Not on the Frame yet", "sc.frameOffline": "Frame not reachable",
+    "sc.toFrame": "To the Frame", "sc.reupload": "Copy again",
+    "sc.toFrame.title": "Copy the scene with preview image and name plate into the Gaussian XR gallery",
+    "sc.reupload.title": "Recreate the gallery files and replace the scene on the Frame",
+    "sc.folder": "Folder", "sc.spirula": "Spirula", "sc.spirula.title": "Open the scene in Spirula Studio",
+    "sc.spirula.starting": "Starting Spirula …", "sc.uploadStarted": "Copying to the Frame …",
+    "sc.splats": "{n} M splats",
+    // errors from the server
+    "err.not_local": "The recording is not on this PC", "err.download_busy": "A download is already running",
+    "err.job_busy": "A conversion is already running", "err.unknown_recording": "Unknown recording",
+    "err.bad_name": "Please enter a name (letters/digits)", "err.bad_quality": "Unknown quality",
+    "err.bad_value": "Invalid value for {key}", "err.range": "{key} must be between {lo} and {hi}",
+    "err.no_job": "No conversion is running", "err.no_frame": "No Frame configured", "err.no_scene": "Scene not found",
+    "err.upload_busy": "Already copying", "err.not_on_frame": "Recording not found on the Frame",
+    "err.pc_only": "Only possible directly on the PC", "err.forbidden": "Not allowed", "err.bad_request": "Invalid request",
+    "err.not_found": "Not found", "err.generic": "Something went wrong",
+  },
+
+  de: {
+    "app": "Splat-Werkstatt",
+    "lang.name": "Deutsch",
+    "frame.connected": "Frame verbunden", "frame.offline": "Frame nicht erreichbar", "frame.none": "Keine Frame eingerichtet",
+    "frame.checking": "Frame …",
+    "lan.pill": "Im Heimnetz: {addr}", "lan.title": "Adresse für andere Geräte im Heimnetz – klicken zum Kopieren",
+    "copied": "Adresse kopiert",
+    "setup.title": "Fast fertig – es fehlt noch etwas",
+    "setup.hint": "Die Einstellungen stehen in {file}. Nach Änderungen die Splat-Werkstatt neu starten.",
+    "setup.pipeline": "Arcturus-Pipeline nicht gefunden in {path} (av1_to_3dgs.py). Download: arcturus.vision/apps.",
+    "setup.spirula": "Spirula Studio nicht gefunden unter {path}. Bauen wie in der Pipeline-README beschrieben.",
+    "setup.splat_transform": "splat-transform fehlt – installieren mit: npm install -g @playcanvas/splat-transform",
+    "setup.tool": "{tool} ist nicht installiert.",
+    "job.cancel": "Abbrechen", "job.dismiss": "Ausblenden", "job.log": "Protokoll",
+    "job.psnr": "Bildqualität (PSNR) im Training",
+    "job.sub": "{rec} · {q} · {target} · seit {time}", "job.toFrame": "→ Frame", "job.pcOnly": "nur PC",
+    "job.left": " · noch ca. {time}",
+    "phase.0": "Bilder extrahieren", "phase.1": "Kamerapositionen", "phase.2": "Training", "phase.3": "Umwandeln",
+    "phase.4": "Auf die Frame",
+    "tile.cameras": "Bilder zugeordnet", "tile.rms": "Ausrichtung (RMS)", "tile.psnr": "PSNR", "tile.splats": "Splats",
+    "tile.step": "Schritt", "million": "{n} Mio.",
+    "res.ok.frame": "Fertig – „{name}“ liegt in der Gaussian-XR-Galerie{folder}. Gaussian XR neu starten, damit sie erscheint.",
+    "res.ok.local": "Fertig – „{name}“ liegt unter {path}.",
+    "res.cancelled": "Abgebrochen. Mit gleichem Namen erneut starten und „Fortsetzen“ wählen, um weiterzumachen.",
+    "res.upload_failed": "Die Szene ist fertig gerechnet, aber das Kopieren auf die Frame hat nicht geklappt (Frame aus?). In der Liste der fertigen Szenen „Auf die Frame“ nutzen, sobald sie an ist.",
+    "res.failed": "Fehlgeschlagen – die letzten Zeilen im Protokoll zeigen warum.",
+    "confirm.cancel": "Umwandlung wirklich abbrechen? Mit „Fortsetzen“ geht es später ab dem letzten Zwischenstand weiter.",
+    "s1.title": "Aufnahme wählen", "tab.frame": "Auf der Frame", "tab.local": "Auf dem PC",
+    "checkAll": "Alle prüfen", "checkAll.title": "Alle Aufnahmen auf dem PC prüfen, die noch nicht geprüft sind",
+    "pick": "Datei wählen …", "refresh.title": "Liste neu laden", "loading": "Lade …",
+    "frame.unreachable": "Die Frame ist nicht erreichbar – ist sie an und im selben Netz?",
+    "frame.unreachable.hint": "Bereits geholte Aufnahmen findest du unter „Auf dem PC“.",
+    "frame.notConfigured": "Keine Frame eingerichtet. Trage in der Konfiguration unter [frame] host ihre Adresse ein, um Aufnahmen direkt zu holen.",
+    "noRecordings": "Keine Aufnahmen gefunden.", "onPc": "auf dem PC",
+    "play.title": "Im Videoplayer ansehen", "play.opening": "Öffne im Videoplayer …",
+    "play.button": "▶ Im Videoplayer ansehen",
+    "badge.ok": "Geprüft: gut geeignet", "badge.warn": "Geprüft: mit Einschränkungen", "badge.bad": "Geprüft: problematisch",
+    "probe.running": "Lese Aufnahme …", "probe.length": "Länge", "probe.format": "Format", "probe.fps": "Bildrate",
+    "probe.size": "Auflösung", "probe.ok": "✓ Format passt",
+    "probe.onFrame": "Liegt noch auf der Frame ({size}). Wird beim Start automatisch geholt.",
+    "probe.fetch": "Jetzt holen & prüfen", "probe.fetching": "Hole von der Frame … {done} von {total}",
+    "probe.missing": "Datei nicht gefunden", "probe.unreadable": "ffprobe kann die Datei nicht lesen",
+    "probe.not_stereo": "Keine Stereo-Aufnahme (es braucht zwei Videospuren)",
+    "probe.no_gpmd": "Keine Kalibrierungs-/Posen-Spur (gpmd) – nur Arcturus-Aufnahmen funktionieren",
+    "probe.too_short": "Nur {secs} s lang – die Pipeline braucht mindestens ~8–10 s",
+    "probe.short": "Kurz ({secs} s) – klappt, aber der Raum wird eher lückenhaft",
+    "check.run": "Aufnahme prüfen", "check.again": "Erneut prüfen",
+    "check.title": "Helligkeit, Struktur, Schwenks und beide Kameras Sekunde für Sekunde messen",
+    "check.queued": "Wartet auf die Prüfung der anderen Aufnahmen …", "check.progress": "Prüfe Sekunde {done} von {total} …",
+    "check.failed": "Prüfung fehlgeschlagen", "check.head.ok": "✓ Gut geeignet", "check.head.warn": "! Geht, mit Einschränkungen",
+    "check.head.bad": "✕ Problematisch", "check.summary": "Helligkeit Ø {bright} · Detail Ø {detail} · {secs} s gemessen",
+    "check.none": "Keine Auffälligkeiten", "check.none.text": "Hell genug, durchgehend Struktur, ruhige Kameraführung, beide Kameras gleich.",
+    "check.note": "Reine Messung je Sekunde (Helligkeit, Kantenstärke, Bildunterschied, linke vs. rechte Kamera) – keine Bilderkennung. Personen oder bewegte Gegenstände im Bild erkennt die Prüfung nicht.",
+    "check.allChecked": "Alle Aufnahmen auf dem PC sind schon geprüft", "check.queuedN": "{n} Aufnahme(n) werden nacheinander geprüft",
+    "check.finished": "Prüfung abgeschlossen",
+    "tl.ok": "gut", "tl.flat": "wenig Struktur / unscharf", "tl.dark": "dunkel", "tl.fast": "schneller Schwenk",
+    "tl.eye": "Kameras unterschiedlich", "tl.over": "ausgebrannt",
+    "and_more": " und {n} weitere Stellen",
+    "f.unreadable": ["Bilder nicht lesbar", "ffmpeg konnte keine Keyframes dekodieren."],
+    "f.too_dark": ["Zu dunkel", "Mittlere Helligkeit {bright} von 255. Bei so wenig Licht findet die Software kaum Anhaltspunkte, das Ergebnis wird verrauscht oder lückenhaft. Licht an und neu aufnehmen."],
+    "f.dark": ["Dunkle Stellen", "{secs} s ({pct} %) sind sehr dunkel: {where}. Dort wird der Splat eher matschig."],
+    "f.flat": ["Wenig Struktur", "{secs} s ({pct} %) zeigen fast nur glatte Flächen (kahle Wand, Decke, Fliesen) oder sind unscharf: {where}. Dort kann die Kameraposition nicht sicher bestimmt werden; einzelne Bilder fallen dann heraus."],
+    "f.fast": ["Schnelle Schwenks", "An {secs} s wurde die Kamera sehr schnell bewegt: {where}. Bewegungsunschärfe und Lücken möglich."],
+    "f.overexposed": ["Ausgebrannte Bereiche", "{secs} s mit vielen fast weißen Pixeln (Fenster, Lampen): {where}. Diese Flächen werden im Splat meist weiß und fleckig."],
+    "f.cameras_differ": ["Kameras unterschiedlich", "Linke und rechte Kamera weichen {secs} s deutlich voneinander ab: {where}. Das deutet auf eine verdeckte oder verschmutzte Linse hin (Finger, Haare, Schliere)."],
+    "f.color_cast": ["Farbstich", "Die Aufnahme ist insgesamt {tone}stichig (Kunstlicht?). Das stört die Rekonstruktion nicht, der Splat sieht aber genauso aus."],
+    "f.short": ["Kurz", "Nur {secs} s – reicht für einen Gegenstand, für einen Raum wird es lückenhaft."],
+    "f.long": ["Lang", "{secs} s – bei „Hoch“ werden höchstens 500 Bildpaare genutzt, also weniger als 3 pro Sekunde. Mehr bringt hier nichts; sehr große Bereiche besser auf mehrere Aufnahmen aufteilen."],
+    "tone.yellow": "gelb/orange", "tone.blue": "blau", "tone.green": "grün", "tone.red": "rot",
+    "s2.title": "Einstellungen", "name.label": "Name in der Galerie", "name.placeholder": "z. B. Wohnzimmer",
+    "name.auto": "Aufnahme {date}",
+    "quality": "Qualität",
+    "q.fast": "Schnell", "q.fast.sub": "Zum Ausprobieren · halbe Auflösung",
+    "q.high": "Hoch", "q.high.sub": "Volle Auflösung · bis 2 Mio. Splats",
+    "q.max": "Maximal", "q.max.sub": "Mehr Bilder · bis 3 Mio. · experimentell",
+    "adv": "Feineinstellungen", "adv.hint": "Leer lassen = Wert der gewählten Qualitätsstufe (steht grau im Feld).",
+    "adv.frames": "Bildpaare (100–500)",
+    "adv.frames.help": "Wie viele Stereo-Bildpaare aus dem Video ins Training gehen. Mehr Paare = mehr Blickwinkel und weniger Lücken, vor allem bei langen Aufnahmen. Kostet vor allem Vorbereitungszeit. Faustregel: ~5 pro Sekunde Video.",
+    "adv.scale": "Bildskala (0,25–1)",
+    "adv.scale.help": "Auflösung der Trainingsbilder. 1 = volle 2464 px: am schärfsten, aber langsam. 0,5 = halbe Auflösung: etwa 3× schneller, dafür weicher. Zum Ausprobieren gut, für Endergebnisse 1.",
+    "adv.maxg": "Max. Splats (Mio.)",
+    "adv.maxg.help": "Obergrenze an Gaussians (den „Farbklecksen“, aus denen die Szene besteht). Mehr = feinere Details, aber größere Datei, längere Rechenzeit und mehr Grafikspeicher. 2 Mio. sind erprobt, über 3 Mio. ungetestet.",
+    "adv.iter": "Trainingsschritte",
+    "adv.iter.help": "Wie lange die Szene verfeinert wird. 30.000 ist der übliche Wert; ab da wird es meist nur noch wenig besser, die Zeit wächst aber linear mit.",
+    "target": "Ziel",
+    "t.frame": "Gaussian-XR-Galerie auf der Frame", "t.frame.sub": "Wird nach dem Rechnen automatisch kopiert, mit Vorschaubild und Namensschild",
+    "t.pc": "Nur auf dem PC", "t.pc.sub": "Ergebnis bleibt im runs-Ordner – z. B. zum Ansehen in Spirula",
+    "t.offline": "Die Frame ist gerade nicht erreichbar. Gerechnet wird trotzdem – sie muss nur am Ende eingeschaltet sein.",
+    "start": "Umwandlung starten", "est.none": "Erst eine Aufnahme wählen.", "est.busy": "Es läuft schon eine Umwandlung.",
+    "est": "{frames} Bildpaare · {maxg} Mio. Splats · {iter}k Schritte · <b>ca. {mins} min</b> <span class=\"faint\">(grobe Schätzung)</span>",
+    "started": "Umwandlung gestartet", "unusable": "Die Aufnahme ist so nicht verwendbar",
+    "exists.title": "Diese Szene gibt es schon",
+    "exists.text": "Unter „{name}“ liegt schon ein Lauf. Fortsetzen nutzt die vorhandenen Zwischenstände (z. B. nach einem Abbruch); Neu rechnen verwirft ihn.",
+    "exists.cancel": "Abbrechen", "exists.resume": "Fortsetzen", "exists.fresh": "Neu rechnen",
+    "scenes.title": "Fertige Szenen", "scenes.none": "Noch keine fertigen Szenen.",
+    "sc.uploading": "Wird auf die Frame übertragen …", "sc.uploadFailed": "Übertragung fehlgeschlagen – Frame an?",
+    "sc.onFrame": "✓ in der Galerie der Frame", "sc.notOnFrame": "Noch nicht auf der Frame", "sc.frameOffline": "Frame nicht erreichbar",
+    "sc.toFrame": "Auf die Frame", "sc.reupload": "Erneut übertragen",
+    "sc.toFrame.title": "Szene samt Vorschaubild und Namensschild in die Gaussian-XR-Galerie kopieren",
+    "sc.reupload.title": "Galerie-Dateien neu erzeugen und die Szene auf der Frame ersetzen",
+    "sc.folder": "Ordner", "sc.spirula": "Spirula", "sc.spirula.title": "Szene in Spirula Studio öffnen",
+    "sc.spirula.starting": "Spirula startet …", "sc.uploadStarted": "Übertrage auf die Frame …",
+    "sc.splats": "{n} Mio. Splats",
+    "err.not_local": "Die Aufnahme liegt nicht auf dem PC", "err.download_busy": "Es läuft schon ein Download",
+    "err.job_busy": "Es läuft schon eine Umwandlung", "err.unknown_recording": "Unbekannte Aufnahme",
+    "err.bad_name": "Bitte einen Namen angeben (Buchstaben/Ziffern)", "err.bad_quality": "Unbekannte Qualitätsstufe",
+    "err.bad_value": "Ungültiger Wert für {key}", "err.range": "{key} muss zwischen {lo} und {hi} liegen",
+    "err.no_job": "Kein laufender Lauf", "err.no_frame": "Keine Frame eingerichtet", "err.no_scene": "Szene nicht gefunden",
+    "err.upload_busy": "Wird schon übertragen", "err.not_on_frame": "Aufnahme nicht auf der Frame gefunden",
+    "err.pc_only": "Geht nur direkt am PC", "err.forbidden": "Nicht erlaubt", "err.bad_request": "Ungültige Anfrage",
+    "err.not_found": "Nicht gefunden", "err.generic": "Etwas ist schiefgelaufen",
+  },
+};
+
+let LANG = "en";
+
+function pickLang(setting) {
+  try { const s = localStorage.getItem("lang"); if (s && I18N[s]) return s; } catch {}
+  if (setting && I18N[setting]) return setting;
+  for (const l of navigator.languages || [navigator.language || "en"]) {
+    const c = l.toLowerCase().split("-")[0];
+    if (I18N[c]) return c;
+  }
+  return "en";
+}
+
+function tr(key, p = {}) {
+  let s = I18N[LANG][key] ?? I18N.en[key] ?? key;
+  if (Array.isArray(s)) s = s.join("\n");
+  return String(s).replace(/\{(\w+)\}/g, (_, k) => p[k] ?? "");
+}
+
+/* Server errors come as {code, params} */
+function trErr(e) {
+  if (!e) return tr("err.generic");
+  if (typeof e === "string") return e;
+  return tr(e.code, e.params || {});
+}
+
+function num(v, digits = 0) {
+  return new Intl.NumberFormat(LANG, {minimumFractionDigits: digits, maximumFractionDigits: digits}).format(v);
+}
+
+function applyI18n(root = document) {
+  document.documentElement.lang = LANG;
+  root.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = tr(el.dataset.i18n); });
+  root.querySelectorAll("[data-i18n-title]").forEach(el => { el.title = tr(el.dataset.i18nTitle); });
+  root.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = tr(el.dataset.i18nPlaceholder); });
+  document.title = tr("app");
+}

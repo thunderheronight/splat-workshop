@@ -1,0 +1,48 @@
+#!/bin/bash
+# Start Splat Workshop.
+#   splat-workshop               tray icon + open the web interface (tray needs PySide6, or uv to fetch it)
+#   splat-workshop --background  tray icon only (e.g. for autostart)
+#   splat-workshop --no-tray     web server in the background + open the web interface; stops itself when idle
+#   splat-workshop --server      web server in the foreground (Ctrl+C to stop)
+ROOT=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
+cd "$ROOT" || exit 1
+
+python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' || { echo "Splat Workshop needs Python 3.11 or newer" >&2; exit 1; }
+PORT=$(python3 -c 'from splat_workshop import config; print(config.load().port)')
+URL="http://127.0.0.1:$PORT/"
+
+ours() { curl -fsS -m 2 "${URL}api/ping" 2>/dev/null | grep -q '"app": "splat-workshop"'; }
+
+no_tray() {
+    if ! ours; then
+        if ss -ltnH "sport = :$PORT" 2>/dev/null | grep -q .; then
+            msg="Port $PORT is used by another program (change [server] port in the config)."
+            notify-send -a "Splat Workshop" -i dialog-error "Splat Workshop" "$msg" 2>/dev/null || echo "$msg" >&2
+            exit 1
+        fi
+        mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/splat-workshop"
+        setsid python3 -m splat_workshop.server >>"${XDG_STATE_HOME:-$HOME/.local/state}/splat-workshop/server.log" 2>&1 < /dev/null &
+        for _ in $(seq 50); do ours && break; sleep 0.1; done
+    fi
+    xdg-open "$URL" >/dev/null 2>&1 &
+}
+
+case "${1:-}" in
+    --server) exec python3 -m splat_workshop.server ;;
+    --no-tray) no_tray; exit 0 ;;
+esac
+
+# Tray icon: system PySide6, otherwise let uv provide it (downloaded once, ~100 MB)
+if python3 -c 'import PySide6' 2>/dev/null; then
+    python3 -m splat_workshop.tray "$@"
+elif command -v uv >/dev/null; then
+    uv run --quiet --no-project --with 'PySide6-Essentials>=6.5' python -m splat_workshop.tray "$@"
+else
+    false
+fi
+rc=$?
+# 2 = no system tray available; other errors: fall back to the plain web interface
+if [ $rc -ne 0 ]; then
+    [ $rc -ne 2 ] && echo "Tray icon not available – starting without it." >&2
+    no_tray
+fi

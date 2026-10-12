@@ -1,0 +1,42 @@
+# Splat Workshop configuration
+# Copy to ~/.config/splat-workshop/config.toml (install.sh does this for you) and adjust.
+# "~" is expanded. Relative paths are relative to this file.
+
+[paths]
+# Folder of the Arcturus Vision reconstruction scripts (contains av1_to_3dgs.py).
+# Download: https://arcturus.vision/apps
+pipeline = "~/arcturus/av1-3dgs-pipeline"
+
+# Spirula Studio binary, built from the Arcturus fork as described in the pipeline README.
+spirula = "~/arcturus/spirula-studio/build_vulkan/spirula"
+
+# PlayCanvas splat-transform (npm install -g @playcanvas/splat-transform).
+# Leave empty to use "splat-transform" from PATH.
+splat_transform = ""
+
+# Where recordings are stored after downloading them from the Frame.
+recordings = "~/SplatWorkshop/recordings"
+
+# Where finished scenes (one folder per scene) are written.
+runs = "~/SplatWorkshop/runs"
+
+# Additional folders that are scanned for *_stereo.mp4 recordings.
+extra_recording_dirs = ["~/Downloads", "~/Videos"]
+
+[frame]
+# SSH target of your Steam Frame. Leave empty to work without the Frame
+# (no downloading of recordings, no copying into the Gaussian XR gallery).
+# The Frame needs SSH enabled and your SSH key installed (ssh-copy-id steamos@<address>).
+host = ""
+# host = "steamos@192.168.1.50"
+
+[server]
+port = 8771
+# true: other devices in your home network can open the web interface
+# (only private network addresses are accepted). false: only this PC.
+lan = false
+# Without a tray icon the server stops itself after this many idle minutes
+# (nothing running, no page open). With the tray icon it runs until you quit it.
+idle_minutes = 20
+# Interface language: "auto" (browser / system language), "en" or "de".
+language = "auto"
