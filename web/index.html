@@ -156,6 +156,23 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .toast.show { opacity: 1; }
 .hidden { display: none !important; }
 body.remote .pc-only { display: none !important; }
+/* floor plan */
+dialog.plan { max-width: min(1200px, 94vw); width: 94vw; }
+.plan-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.plan-head h2 { margin: 0; flex: 1; }
+.btnlink { display: inline-block; text-decoration: none; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 5px 10px; font-size: 13px; }
+.btnlink:hover { border-color: var(--accent); }
+.seg2 { display: inline-flex; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg2 button { border: 0; background: transparent; padding: 5px 12px; font-size: 13px; color: var(--muted); }
+.seg2 button.active { background: var(--accent); color: #0b0d12; font-weight: 600; }
+.plan-img { position: relative; background: #0f1115; border-radius: 12px; min-height: 260px; display: grid; place-items: center; overflow: hidden; }
+.plan-img img { max-width: 100%; max-height: 74vh; width: auto; height: auto; display: block; }
+.plan-img .wait { color: var(--muted); font-size: 14px; padding: 30px; text-align: center; }
+.pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; margin: 10px 0 14px; }
+.pick label { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: var(--panel2); border-radius: 10px; font-size: 14px; cursor: pointer; }
+.pick label span { color: var(--faint); font-size: 12px; margin-left: auto; }
+.pick input { accent-color: var(--accent); }
 #lanPill { cursor: pointer; } #lanPill:hover { color: var(--text); }
 .setup { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 .setup h2 { color: var(--warn); }
@@ -272,7 +289,10 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 
   <!-- finished scenes -->
   <section class="card">
-    <h2 data-i18n="scenes.title"></h2>
+    <div class="row" style="justify-content:space-between;margin-bottom:14px">
+      <h2 data-i18n="scenes.title" style="margin:0"></h2>
+      <button class="small" id="planAllBtn" data-i18n="plan.all" data-i18n-title="plan.all.title"></button>
+    </div>
     <div id="sceneGrid" class="grid"></div>
   </section>
 </main>
@@ -285,6 +305,24 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
     <button id="exResume" data-i18n="exists.resume"></button>
     <button class="primary" id="exFresh" data-i18n="exists.fresh"></button>
   </div>
+</dialog>
+<dialog id="planDlg" class="plan">
+  <div class="plan-head">
+    <h2 id="planTitle"></h2>
+    <div class="seg2" id="planStyle">
+      <button data-style="pretty" class="active" data-i18n="plan.pretty"></button>
+      <button data-style="classic" data-i18n="plan.classic"></button>
+    </div>
+    <a class="btnlink" id="planSave" download data-i18n="plan.save"></a>
+    <button class="small" id="planClose" data-i18n="plan.close"></button>
+  </div>
+  <div id="planPick" class="hidden">
+    <p class="muted" style="margin:0;font-size:13.5px" data-i18n="plan.pick.hint"></p>
+    <div class="pick" id="planPickList"></div>
+    <div class="row"><button class="primary" id="planDraw" data-i18n="plan.draw"></button></div>
+  </div>
+  <div class="plan-img hidden" id="planBox"><div class="wait" id="planWait"></div><img id="planImg" alt=""></div>
+  <p class="faint" style="font-size:12px;margin:10px 0 0" id="planNote"></p>
 </dialog>
 <div class="toast" id="toast"></div>
 
@@ -683,22 +721,76 @@ function uploadBtn(s) {
 async function loadScenes() {
   const list = await api("/api/scenes");
   const arr = Array.isArray(list) ? list : Object.values(list).filter(x => typeof x === "object");
+  S.scenes = arr;
+  $("#planAllBtn").classList.toggle("hidden", arr.filter(s => s.ply).length < 2);
   $("#sceneGrid").innerHTML = arr.length ? arr.map(s => `
     <div class="rec scene" style="cursor:default">
       <div class="thumb" style="${s.preview ? `background-image:url('/api/preview?slug=${encodeURIComponent(s.slug)}&t=${s.mtime}')` : ""}">${s.preview ? "" : "◌"}</div>
       <div class="meta"><b>${esc(s.name)}</b>
         <span>${new Date(s.mtime * 1000).toLocaleDateString(LANG)} · ${s.gaussians ? tr("sc.splats", {n: num(s.gaussians / 1e6, 2)}) + " · " : ""}${mb(s.size)}</span>
         ${frameState(s)}
-        <div class="acts">${uploadBtn(s)}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}</div>
+        <div class="acts">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}</div>
       </div></div>`).join("") : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
   document.querySelectorAll("[data-upload]").forEach(b => b.onclick = async () => {
     const r = await api("/api/upload", {slug: b.dataset.upload});
     if (!r.ok) { toast(trErr(r.error)); return; }
     toast(tr("sc.uploadStarted")); loadScenes();
   });
+  document.querySelectorAll("[data-plan]").forEach(b => b.onclick = () => {
+    const sc = S.scenes.find(x => x.slug === b.dataset.plan);
+    openPlan([sc.slug], sc.name);
+  });
   document.querySelectorAll("[data-open]").forEach(b => b.onclick = () => api("/api/open", {slug: b.dataset.open, what: "folder"}));
   document.querySelectorAll("[data-spirula]").forEach(b => b.onclick = () => { api("/api/open", {slug: b.dataset.spirula, what: "spirula"}); toast(tr("sc.spirula.starting")); });
 }
+
+/* ---------- floor plan ---------- */
+const P = {slugs: [], name: "", style: "pretty"};
+function planUrl(download) {
+  const q = new URLSearchParams({slugs: P.slugs.join(","), style: P.style, lang: LANG,
+                                  title: P.slugs.length > 1 ? P.name : ""});
+  if (download) { q.set("download", "1"); q.set("name", `${P.name}-${tr("plan.file")}`); }
+  return "/api/floorplan?" + q;
+}
+function openPlan(slugs, name) {
+  P.slugs = slugs; P.name = name;
+  $("#planTitle").textContent = tr(slugs.length > 1 ? "plan.title.all" : "plan.title", {name});
+  $("#planPick").classList.add("hidden");
+  $("#planStyle").classList.remove("hidden"); $("#planSave").classList.remove("hidden");
+  if (!$("#planDlg").open) $("#planDlg").showModal();
+  drawPlan();
+}
+function drawPlan() {
+  const box = $("#planBox"), img = $("#planImg"), wait = $("#planWait");
+  box.classList.remove("hidden"); img.classList.add("hidden");
+  wait.classList.remove("hidden"); wait.textContent = tr("plan.drawing");
+  $("#planNote").textContent = tr(P.style === "pretty" ? "plan.note.pretty" : "plan.note.classic");
+  document.querySelectorAll("#planStyle button").forEach(b => b.classList.toggle("active", b.dataset.style === P.style));
+  $("#planSave").href = planUrl(true);
+  const url = planUrl(false), want = url;
+  img.onload = () => { if (img.dataset.want !== want) return; wait.classList.add("hidden"); img.classList.remove("hidden"); };
+  img.onerror = () => { if (img.dataset.want !== want) return; wait.textContent = tr("err.plan_failed"); };
+  img.dataset.want = want; img.src = url;
+}
+document.querySelectorAll("#planStyle button").forEach(b => b.onclick = () => { P.style = b.dataset.style; drawPlan(); });
+$("#planClose").onclick = () => $("#planDlg").close();
+$("#planDlg").addEventListener("click", e => { if (e.target === $("#planDlg")) $("#planDlg").close(); });
+$("#planAllBtn").onclick = () => {
+  const list = (S.scenes || []).filter(s => s.ply);
+  const day = s => (s.recording || "").slice(0, 10);
+  const newest = list.map(day).filter(Boolean).sort().pop();
+  $("#planTitle").textContent = tr("plan.all");
+  $("#planPickList").innerHTML = list.map(s => `<label><input type="checkbox" value="${esc(s.slug)}" ${day(s) === newest ? "checked" : ""}>
+      ${esc(s.name)}<span>${day(s) ? new Date(day(s)).toLocaleDateString(LANG) : ""}</span></label>`).join("");
+  $("#planPick").classList.remove("hidden"); $("#planBox").classList.add("hidden");
+  $("#planStyle").classList.add("hidden"); $("#planSave").classList.add("hidden"); $("#planNote").textContent = "";
+  $("#planDlg").showModal();
+};
+$("#planDraw").onclick = () => {
+  const slugs = [...document.querySelectorAll("#planPickList input:checked")].map(i => i.value);
+  if (!slugs.length) return;
+  openPlan(slugs, slugs.length > 1 ? tr("plan.default.name") : S.scenes.find(s => s.slug === slugs[0]).name);
+};
 
 /* ---------- polling ---------- */
 let wasRunning = null;

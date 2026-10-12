@@ -9,6 +9,7 @@ Without the tray icon (--no-idle-exit) it stops after idle_minutes with nothing 
 Start: ./splat-workshop  (or python3 -m splat_workshop.server)
 """
 import argparse
+import hashlib
 import http.server
 import ipaddress
 import json
@@ -652,6 +653,45 @@ def scenes():
     return out
 
 
+# ---------------------------------------------------------------- floor plans (scripts/floorplan.py)
+
+plan_locks = {}                    # cache key -> Lock, so one plan is drawn only once at a time
+
+
+def floorplan(slugs: list[str], style: str, lang: str, title: str):
+    """PNG bytes of the floor plan of one or more scenes (cached), or an error dict."""
+    if style not in ("pretty", "classic"):
+        style = "pretty"
+    runs = []
+    for slug in dict.fromkeys(slugs):
+        d = scene_dir(slug)
+        ply = d / "spirula" / "scene.ply" if d else None
+        if not ply or not ply.exists():
+            return err("err.no_scene")
+        runs.append((d, read_meta(slug).get("name") or slug, ply.stat().st_mtime))
+    if not runs or len(runs) > 12:
+        return err("err.bad_request")
+    title = title.strip()[:60]
+    key = hashlib.sha1(json.dumps([[str(r[0]), r[1], r[2]] for r in runs] + [style, lang, title]).encode()).hexdigest()[:16]
+    out = CACHE / f"plan-{key}.png"
+    with lock:
+        plan_lock = plan_locks.setdefault(key, threading.Lock())
+    with plan_lock:
+        if not out.exists():
+            CACHE.mkdir(parents=True, exist_ok=True)
+            cmd = ["uv", "run", "-q", str(SCRIPTS / "floorplan.py"), str(out.with_suffix(".tmp.png")),
+                   *[f"{d}={name}" for d, name, _ in runs], "--style", style]
+            if title:
+                cmd += ["--title", title]
+            if lang == "de":
+                cmd.append("--comma")
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if r.returncode != 0 or not out.with_suffix(".tmp.png").exists():
+                return err("err.plan_failed", detail=(r.stderr or r.stdout).strip().splitlines()[-1:] or "")
+            out.with_suffix(".tmp.png").replace(out)
+    return out.read_bytes()
+
+
 def scene_dir(slug: str) -> Path | None:
     d = (RUNS / slug).resolve()
     return d if d.parent == RUNS.resolve() and d.is_dir() else None
@@ -752,6 +792,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"job": job_status(), "download": download, "uploads": ups})
         if u.path == "/api/scenes":
             return self.send(200, scenes())
+        if u.path == "/api/floorplan":
+            data = floorplan([x for x in q.get("slugs", "").split(",") if x], q.get("style", "pretty"),
+                             q.get("lang", "en"), q.get("title", ""))
+            if isinstance(data, dict):
+                return self.send(400, {"error": data})
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            if q.get("download"):
+                name = re.sub(r"[^A-Za-z0-9._-]+", "-", q.get("name") or "floorplan").strip("-") or "floorplan"
+                self.send_header("Content-Disposition", f'attachment; filename="{name}.png"')
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if u.path == "/api/preview":
             d = scene_dir(q.get("slug", ""))
             img = next(d.glob("*.gallery.png"), None) if d else None
