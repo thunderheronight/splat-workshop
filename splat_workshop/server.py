@@ -659,7 +659,7 @@ plan_locks = {}                    # cache key -> Lock, so one plan is drawn onl
 
 
 def floorplan(slugs: list[str], style: str, lang: str, title: str):
-    """PNG bytes of the floor plan of one or more scenes (cached), or an error dict."""
+    """(PNG bytes, info dict with pixels_per_metre) of one or more scenes (cached), or an error dict."""
     if style not in ("pretty", "classic"):
         style = "pretty"
     runs = []
@@ -674,10 +674,11 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
     title = title.strip()[:60]
     key = hashlib.sha1(json.dumps([[str(r[0]), r[1], r[2]] for r in runs] + [style, lang, title]).encode()).hexdigest()[:16]
     out = CACHE / f"plan-{key}.png"
+    meta = out.with_suffix(".json")
     with lock:
         plan_lock = plan_locks.setdefault(key, threading.Lock())
     with plan_lock:
-        if not out.exists():
+        if not out.exists() or not meta.exists():
             CACHE.mkdir(parents=True, exist_ok=True)
             cmd = ["uv", "run", "-q", str(SCRIPTS / "floorplan.py"), str(out.with_suffix(".tmp.png")),
                    *[f"{d}={name}" for d, name, _ in runs], "--style", style]
@@ -688,8 +689,13 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             if r.returncode != 0 or not out.with_suffix(".tmp.png").exists():
                 return err("err.plan_failed", detail=(r.stderr or r.stdout).strip().splitlines()[-1:] or "")
+            meta.write_text(r.stdout.strip().splitlines()[-1])
             out.with_suffix(".tmp.png").replace(out)
-    return out.read_bytes()
+    try:
+        info = json.loads(meta.read_text())
+    except ValueError:
+        info = {}
+    return out.read_bytes(), info
 
 
 def scene_dir(slug: str) -> Path | None:
@@ -797,7 +803,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                              q.get("lang", "en"), q.get("title", ""))
             if isinstance(data, dict):
                 return self.send(400, {"error": data})
+            data, info = data
             self.send_response(200)
+            self.send_header("X-Pixels-Per-Metre", str(info.get("pixels_per_metre", "")))
             self.send_header("Content-Type", "image/png")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "no-store")

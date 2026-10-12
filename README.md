@@ -26,7 +26,7 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 - **Conversions survive everything**: they run as their own process; close the browser, quit the tray, restart – reopen Splat Workshop and you see the progress again.
 - **Cancel & resume**: a cancelled conversion continues from its last saved state.
 - **Recording check** without AI: plain per-second measurements with a colour-coded timeline and concrete hints (“0:45–0:59 little structure”). See [What the check measures](#what-the-check-measures).
-- **Floor plans** of single scenes or several together – recordings from one session share the Frame's tracking frame, so rooms line up by themselves into a plan of your whole home. Two styles: *Pretty* (colour top view, walls, the path you walked) and *Classic* (glowing point density).
+- **Floor plans** of single scenes or several together – recordings from one session share the Frame's tracking frame, so rooms line up by themselves into a plan of your whole home. Two styles: *Pretty* (colour top view, walls, the path you walked) and *Classic* (glowing point density), plus a simple measuring tool (click points, get distances – about ±5 cm).
 - **Finished scenes**: copy to the Frame later, re-copy, open the folder or open the scene in Spirula Studio.
 - English and German interface (automatic, switchable). More languages welcome – see `web/i18n.js` and `splat_workshop/i18n.py`.
 
