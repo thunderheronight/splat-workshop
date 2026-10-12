@@ -126,7 +126,7 @@ const I18N = {
     "plan.measure": "📏 Measure", "plan.measure.title": "Measure distances in the floor plan",
     "plan.measure.hint": "Click to set points · right-click removes the last one · horizontal distances, about ±5 cm",
     "plan.measure.undo": "Undo", "plan.measure.reset": "Reset",
-    "plan.measure.start": "Click the first point", "plan.measure.total": "Total {d}",
+    "plan.measure.start": "Click the first point", "plan.measure.noscale": "Scale unknown – restart Splat Workshop", "plan.measure.total": "Total {d}",
     // errors from the server
     "err.not_local": "The recording is not on this PC", "err.download_busy": "A download is already running",
     "err.job_busy": "A conversion is already running", "err.unknown_recording": "Unknown recording",
@@ -254,7 +254,7 @@ const I18N = {
     "plan.measure": "📏 Messen", "plan.measure.title": "Abstände im Grundriss messen",
     "plan.measure.hint": "Klicken setzt Punkte · Rechtsklick nimmt den letzten zurück · waagerechte Abstände, etwa ±5 cm genau",
     "plan.measure.undo": "Rückgängig", "plan.measure.reset": "Zurücksetzen",
-    "plan.measure.start": "Ersten Punkt anklicken", "plan.measure.total": "Gesamt {d}",
+    "plan.measure.start": "Ersten Punkt anklicken", "plan.measure.noscale": "Maßstab fehlt – Splat-Werkstatt neu starten", "plan.measure.total": "Gesamt {d}",
     "err.not_local": "Die Aufnahme liegt nicht auf dem PC", "err.download_busy": "Es läuft schon ein Download",
     "err.job_busy": "Es läuft schon eine Umwandlung", "err.unknown_recording": "Unbekannte Aufnahme",
     "err.bad_name": "Bitte einen Namen angeben (Buchstaben/Ziffern)", "err.bad_quality": "Unbekannte Qualitätsstufe",

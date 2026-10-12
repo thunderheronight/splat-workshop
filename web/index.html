@@ -793,7 +793,7 @@ async function drawPlan() {
     if (P.want !== url) return;                      // another plan was requested meanwhile
     if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
     img.onload = () => {
-      M.ppm = ppm; M.w = img.naturalWidth; M.h = img.naturalHeight; M.pts = [];
+      M.ppm = Number.isFinite(ppm) && ppm > 0 ? ppm : 0; M.w = img.naturalWidth; M.h = img.naturalHeight; M.pts = [];
       $("#planSvg").setAttribute("viewBox", `0 0 ${M.w} ${M.h}`);
       wait.classList.add("hidden"); stage.classList.remove("hidden"); renderMeasure();
     };
@@ -803,7 +803,10 @@ async function drawPlan() {
 
 /* measuring: points in image pixels, distances via pixels per metre */
 const M = {on: false, pts: [], hover: null, ppm: 0, w: 0, h: 0};
-function fmtM(px) { const m = px / M.ppm; return m < 1 ? `${Math.round(m * 100)} cm` : `${num(m, 2)} m`; }
+function fmtM(px) {
+  if (!M.ppm) return "?";                              // scale unknown (older server) – still draw the points
+  const m = px / M.ppm; return m < 1 ? `${Math.round(m * 100)} cm` : `${num(m, 2)} m`;
+}
 function svgPoint(e) {
   const r = $("#planSvg").getBoundingClientRect();
   return [(e.clientX - r.left) / r.width * M.w, (e.clientY - r.top) / r.height * M.h];
@@ -813,7 +816,7 @@ function renderMeasure() {
   $("#planStage").classList.toggle("measuring", M.on);
   $("#measureBar").classList.toggle("hidden", !M.on);
   const svg = $("#planSvg"), k = M.w / 1000;          // sizes relative to the image width
-  if (!M.on || !M.ppm) { svg.innerHTML = ""; return; }
+  if (!M.on || !M.w) { svg.innerHTML = ""; return; }
   const pts = M.hover && M.pts.length ? [...M.pts, M.hover] : M.pts;
   let total = 0, out = "";
   const label = (x, y, t) => `<text x="${x}" y="${y}" text-anchor="middle" font-family="Inter, Noto Sans, sans-serif" font-weight="650"
@@ -830,7 +833,7 @@ function renderMeasure() {
   M.pts.forEach(([x, y], i) => out += `<circle cx="${x}" cy="${y}" r="${(i === 0 ? 6 : 4.5) * k}" fill="#ffd166" stroke="#0b0d12" stroke-width="${2 * k}"/>`);
   svg.innerHTML = out;
   const fixed = M.pts.slice(1).reduce((acc, p, i) => acc + Math.hypot(p[0] - M.pts[i][0], p[1] - M.pts[i][1]), 0);
-  $("#measureTotal").textContent = M.pts.length < 2 && !M.hover ? tr("plan.measure.start")
+  $("#measureTotal").textContent = !M.ppm ? tr("plan.measure.noscale") : M.pts.length < 2 && !M.hover ? tr("plan.measure.start")
     : tr("plan.measure.total", {d: fmtM(M.hover && M.pts.length ? total : fixed)});
   $("#measureUndo").disabled = !M.pts.length; $("#measureReset").disabled = !M.pts.length;
 }
