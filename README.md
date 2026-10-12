@@ -31,7 +31,7 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 
 ## Requirements
 
-- **Linux** with a GPU that runs Spirula Studio (Vulkan; tested on an NVIDIA RTX 4070 SUPER, 12 GB). Arcturus does not support its reconstruction scripts on Windows yet.
+- **Linux** with a GPU that runs Spirula Studio (Vulkan; tested on Nobara/Fedora with an NVIDIA RTX 4070 SUPER, 12 GB). Splat Workshop uses Linux desktop tools (`xdg-open`, `notify-send`, KDE/GNOME file dialogs). macOS is untested – the Arcturus pipeline runs there, Splat Workshop would need small changes. Windows is not supported, since Arcturus does not support its reconstruction scripts on Windows yet.
 - A **Steam Frame** with the **Arcturus Vision Camera** – recordings are the `*_stereo.mp4` files from the Arcturus camera app (two video tracks plus a calibration/pose track). Normal videos do not work.
 - **Python 3.11+**, **ffmpeg/ffprobe**, **[uv](https://docs.astral.sh/uv/)**, **ssh**, **curl**
 - **Node.js** for [`splat-transform`](https://github.com/playcanvas/splat-transform): `npm install -g @playcanvas/splat-transform`
@@ -64,9 +64,11 @@ Splat Workshop shows what is still missing at the top of the page.
 
 Downloading recordings and copying scenes uses SSH with a key:
 
-1. On the Frame, in desktop mode: enable SSH and set a password for `steamos` (`passwd`, then `sudo systemctl enable --now sshd`).
-2. On your PC: `ssh-copy-id steamos@<frame address>` and check that `ssh steamos@<frame address>` logs in without a password.
-3. Give the Frame a fixed address in your router so it does not change.
+1. On the Frame: **Steam Settings → System → Enable Developer Mode**.
+2. In the left-hand menu, scroll down to **Developer**, and near the bottom of that page choose **Set User Password**. There is no default password – SSH works only after you set one. ([Valve's docs](https://partner.steamgames.com/doc/steamhardware/steamframe/setup))
+3. Find the Frame's address: its IP is shown under **Steam Settings → Internet** (or in your router); the hostname can be set under **Steam Settings → System → Hostname**.
+4. On your PC: `ssh-copy-id steamos@<frame address>` (enter the password once), then check that `ssh steamos@<frame address>` logs in without asking.
+5. Give the Frame a fixed IP address in your router so it does not change, and put `steamos@<that address>` into `[frame] host` in the config.
 
 ## Usage
 

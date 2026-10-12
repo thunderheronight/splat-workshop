@@ -26,7 +26,8 @@ extra_recording_dirs = ["~/Downloads", "~/Videos"]
 [frame]
 # SSH target of your Steam Frame. Leave empty to work without the Frame
 # (no downloading of recordings, no copying into the Gaussian XR gallery).
-# The Frame needs SSH enabled and your SSH key installed (ssh-copy-id steamos@<address>).
+# On the Frame: Steam Settings > System > Enable Developer Mode, then Developer > Set User Password.
+# Then on this PC: ssh-copy-id steamos@<address>
 host = ""
 # host = "steamos@192.168.1.50"
 

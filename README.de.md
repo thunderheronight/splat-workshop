@@ -37,6 +37,14 @@ cd splat-workshop
 ./install.sh --desktop        # Menüeintrag + Desktop-Verknüpfung; --autostart für das Tray beim Anmelden
 ```
 
+**Läuft unter Linux** (getestet mit Nobara/Fedora und einer RTX 4070 SUPER). macOS ist ungetestet, Windows wird von der Arcturus-Pipeline noch nicht unterstützt.
+
+**SSH auf der Frame einrichten** (für Download der Aufnahmen und Kopieren in die Galerie):
+1. Auf der Frame: **Steam-Einstellungen → System → Enable Developer Mode**.
+2. Im linken Menü unter **Developer** ganz unten **Set User Password** wählen. Es gibt kein Standardpasswort – SSH geht erst, wenn du eins vergibst.
+3. Am PC: `ssh-copy-id steamos@<adresse der frame>` (Passwort einmal eingeben), danach sollte `ssh steamos@<adresse>` ohne Passwort klappen.
+4. Der Frame im Router eine feste IP geben und `steamos@<diese adresse>` in der Konfiguration unter `[frame] host` eintragen.
+
 Danach in `~/.config/splat-workshop/config.toml` die Pfade zur Arcturus-Pipeline ([arcturus.vision/apps](https://arcturus.vision/apps)), zu Spirula Studio und die Adresse der Frame eintragen. Was noch fehlt, zeigt die Werkstatt oben auf der Seite an.
 
 Nach dem Übertragen **Gaussian XR auf der Frame neu starten**, damit die Szene in der Galerie erscheint.
