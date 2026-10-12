@@ -1,6 +1,6 @@
 # Splat Workshop
 
-**Turn recordings from the Arcturus Vision Camera on your Steam Frame into Gaussian splats – and straight into the Gaussian XR gallery on the headset. With a web interface, a tray icon and a recording check.**
+**A graphical interface for the Arcturus Vision reconstruction pipeline: pick a recording from the Arcturus Vision Camera on your Steam Frame, check it, run the conversion and get the result straight into the Gaussian XR gallery on the headset. With a web interface, a tray icon and a recording check.**
 
 [Deutsch](README.de.md)
 
@@ -8,7 +8,9 @@
 
 <sub>Example screenshot – the recording thumbnails are replaced by placeholder art.</sub>
 
-Rooms, a person, a statue, your car, a garden – anything you can walk around with the camera can become a scene you step into.
+Rooms, a statue, your car, a garden – anything you can walk around with the camera can become a scene you step into.
+
+Splat Workshop does not compute the splats itself: the reconstruction is done by the [Arcturus Vision](https://arcturus.vision) pipeline and Spirula Studio. Splat Workshop is the GUI around them – it prepares the inputs, starts and monitors the pipeline and takes care of everything before and after.
 
 Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, but turning a recording into a scene you can open in [Gaussian XR](https://store.steampowered.com/app/3977540/Arcturus_Vision_Gaussian_XR/) means a lot of manual steps. Splat Workshop wraps the whole path in a local web interface:
 
@@ -90,7 +92,7 @@ Set `lan = true` in `[server]`. The page is then reachable at `http://<pc addres
 - **Light**: daylight plus room lights indoors. Dark recordings get noisy and patchy.
 - **HDR, 30 fps** in the camera app works best; the pipeline tone-maps HLG automatically. Don't use “Linear”.
 - **Rooms**: 30–90 s each, walk slowly, turn slowly, look at things from several sides.
-- **Objects and people**: walk around them in a slow circle (15–40 s), keep them in the middle of the picture, and ask people to stay completely still.
+- **Objects**: walk around them in a slow circle (15–40 s) and keep them in the middle of the picture.
 - Avoid pointing at **bare walls, ceilings or tiles** for long – there is nothing for the software to hold on to.
 - Moving people or pets become ghostly smears.
 

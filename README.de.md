@@ -1,12 +1,14 @@
 # Splat Workshop (Splat-Werkstatt)
 
-**Aufnahmen der Arcturus Vision Camera an der Steam Frame in Gaussian Splats umwandeln – und direkt in die Gaussian-XR-Galerie auf der Brille. Mit Weboberfläche, Tray-Symbol und Aufnahmeprüfung.**
+**Eine grafische Oberfläche für die Rekonstruktions-Pipeline von Arcturus Vision: Aufnahme der Arcturus Vision Camera an der Steam Frame auswählen, prüfen, umwandeln lassen und das Ergebnis direkt in die Gaussian-XR-Galerie auf der Brille bringen. Mit Weboberfläche, Tray-Symbol und Aufnahmeprüfung.**
 
 [English](README.md)
 
 ![Splat-Werkstatt (Beispiel-Screenshot, Vorschaubilder durch Platzhalter ersetzt)](docs/screenshot.png)
 
-Räume, eine Person, eine Statue, dein Auto, ein Garten – alles, um das du mit der Kamera herumgehen kannst, wird zu einer Szene, in die du hineinsteigen kannst.
+Räume, eine Statue, dein Auto, ein Garten – alles, um das du mit der Kamera herumgehen kannst, wird zu einer Szene, in die du hineinsteigen kannst.
+
+Die Splat-Werkstatt rechnet die Splats nicht selbst: Die Rekonstruktion übernehmen die Pipeline von [Arcturus Vision](https://arcturus.vision) und Spirula Studio. Die Werkstatt ist die Oberfläche drumherum – sie bereitet alles vor, startet und überwacht die Pipeline und erledigt alles davor und danach.
 
 Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork bereit. Bis eine Aufnahme als Szene in [Gaussian XR](https://store.steampowered.com/app/3977540/Arcturus_Vision_Gaussian_XR/) auftaucht, sind aber viele Handgriffe nötig. Die Splat-Werkstatt packt den ganzen Weg in eine lokale Weboberfläche:
 
@@ -43,7 +45,7 @@ Nach dem Übertragen **Gaussian XR auf der Frame neu starten**, damit die Szene 
 
 - Viel Licht (Tageslicht plus Raumlicht), **HDR mit 30 fps** in der Kamera-App, nicht „Linear“.
 - **Räume**: 30–90 s pro Raum, langsam gehen und langsam drehen, Dinge von mehreren Seiten zeigen.
-- **Gegenstände und Personen**: langsam im Kreis darum herumgehen (15–40 s), Motiv in der Bildmitte halten; Personen sollten ganz still stehen.
+- **Gegenstände**: langsam im Kreis darum herumgehen (15–40 s), Motiv in der Bildmitte halten.
 - Nicht lange auf kahle Wände, Decke oder Fliesen halten.
 - Bewegte Personen werden zu Geisterschleiern.
 

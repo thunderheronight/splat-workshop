@@ -46,8 +46,8 @@ entry() {
 Type=Application
 Name=Splat Workshop
 Name[de]=Splat-Werkstatt
-Comment=Turn Steam Frame camera recordings into Gaussian splats
-Comment[de]=Steam-Frame-Aufnahmen in Gaussian Splats umwandeln
+Comment=GUI for the Arcturus Vision splat pipeline (Steam Frame)
+Comment[de]=Oberfläche für die Splat-Pipeline von Arcturus Vision (Steam Frame)
 Exec="$ROOT/splat-workshop" $1
 Icon=splat-workshop
 Terminal=false
