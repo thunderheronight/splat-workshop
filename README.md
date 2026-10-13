@@ -29,7 +29,9 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 - **Floor plans** *(experimental – so far tested with two rooms)* of single scenes or several together – recordings from one session share the Frame's tracking frame, so rooms line up by themselves into a plan of your whole home. Two styles: *Pretty* (colour top view, walls, the path you walked) and *Classic* (glowing point density), plus a simple measuring tool (click points, get distances – about ±5 cm).
   <br><img src="docs/floorplan.png" width="640" alt="Combined floor plan of an example home in the classic style, with the measuring tool">
   <br><sub>Example home – synthetic data, drawn with the same renderer. Combining rooms relies on the Frame keeping its tracking frame between recordings; how well that holds for a whole home is still being tested.</sub>
-- **Finished scenes**: copy to the Frame later, re-copy, open the folder or open the scene in Spirula Studio.
+- **Finished scenes**: copy to the Frame later, re-copy, rename (with a new name plate in the gallery), open the folder or open the scene in Spirula Studio.
+- **Disk usage and clean-up**: each scene shows how much space it takes (about 4 GB for a room). One click deletes the intermediate data or the training images – the scene, floor plan and viewer keep working.
+- **Rename recordings** on the PC; the recording date and check results are kept.
 - English and German interface (automatic, switchable). More languages welcome – see `web/i18n.js` and `splat_workshop/i18n.py`.
 
 ## Requirements

@@ -25,7 +25,9 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 - **Abbrechen & Fortsetzen** ab dem letzten Zwischenstand.
 - **Aufnahmeprüfung ohne KI**: reine Messwerte je Sekunde, farbige Zeitleiste und konkrete Hinweise („0:45–0:59 wenig Struktur“).
 - **Grundrisse** *(experimentell – bisher mit zwei Räumen getestet)* einzelner Szenen oder mehrerer zusammen – Aufnahmen aus einer Sitzung teilen das Tracking-Koordinatensystem der Frame, die Räume fügen sich also von selbst zum Grundriss der ganzen Wohnung. Zwei Stile: *Hübsch* (Draufsicht in Farbe, Wände, gelaufener Weg) und *Klassisch* (leuchtende Punktdichte), dazu ein einfaches Messwerkzeug (Punkte anklicken, Abstände ablesen – etwa ±5 cm genau).
-- **Fertige Szenen**: später auf die Frame übertragen, erneut übertragen, Ordner oder Spirula Studio öffnen.
+- **Fertige Szenen**: später auf die Frame übertragen, erneut übertragen, umbenennen (mit neuem Namensschild in der Galerie), Ordner oder Spirula Studio öffnen.
+- **Speicherplatz und Aufräumen**: Jede Szene zeigt, wie viel Platz sie belegt (etwa 4 GB pro Raum). Ein Klick löscht Zwischenstände oder Trainingsbilder – Szene, Grundriss und Viewer funktionieren weiter.
+- **Aufnahmen umbenennen** auf dem PC; Aufnahmedatum und Prüfergebnisse bleiben erhalten.
 - Deutsche und englische Oberfläche (automatisch, umschaltbar).
 
 ## Voraussetzungen, Installation, Bedienung
