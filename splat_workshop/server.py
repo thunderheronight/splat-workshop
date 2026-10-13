@@ -879,14 +879,71 @@ def clean_scene(slug: str, what: str):
     return None
 
 
+QUALITY_ALIASES = {"schnell": "fast", "hoch": "high", "maximal": "max"}   # runs from the first version
+
+
+def unfinished_runs():
+    """Runs without a finished scene (cancelled, failed, interrupted), except the one computing now."""
+    if not RUNS.is_dir():
+        return []
+    job = load_state().get("job") or {}
+    busy = job.get("slug") if pid_alive(job.get("pid", 0)) else None
+    metas = {f.name.removesuffix(".ui.json"): read_meta(f.name.removesuffix(".ui.json")) for f in RUNS.glob("*.ui.json")}
+    used_logs = {Path(m["log"]).name for m in metas.values() if m.get("log")}
+    slugs = {d.name for d in RUNS.iterdir() if d.is_dir()} | set(metas)
+    slugs |= {f.name.removesuffix(".log") for f in RUNS.glob("*.log") if f.name not in used_logs}
+    out = []
+    for slug in sorted(slugs):
+        d, log = RUNS / slug, RUNS / f"{slug}.log"
+        if slug.startswith(".") or slug == busy or (d / "scene.sog").exists() or (PREVIOUS / slug).exists():
+            continue
+        meta = metas.get(slug, {})
+        parsed = parse_output(log.read_text(errors="replace")) if log.exists() and d.is_dir() else None
+        parts = [p for p in (d, log, RUNS / f"{slug}.out", meta_file(slug)) if p.exists()]
+        size = sum(dir_size(p) if p.is_dir() else p.stat().st_size for p in parts)
+        rec = meta.get("recording")
+        startable = bool(meta.get("name") and rec and local_path(rec) and config.slugify(meta["name"]) == slug)
+        out.append({"slug": slug, "name": meta.get("name") or slug, "recording": rec,
+                    "mtime": int(max(p.stat().st_mtime for p in parts)), "size": size,
+                    "phase": parsed["phase"] if parsed else None, "pct": parsed["pct"] if parsed else None,
+                    "resumable": startable and d.is_dir() and resumable_run(slug), "restartable": startable,
+                    "folder": d.is_dir()})
+    return sorted(out, key=lambda r: r["mtime"], reverse=True)
+
+
+def resumable_run(slug: str) -> bool:
+    """The pipeline continues only after the camera positions are complete (an interrupted training
+    is restarted by splat.sh with them); an earlier interruption has to start over."""
+    try:
+        done = json.loads((RUNS / slug / "dataset" / "spirula-dataset.json").read_text()).get("status") == "complete"
+    except (OSError, ValueError):
+        return False
+    return done and not no_resume(slug)
+
+
+def resume_run(slug: str, fresh: bool):
+    meta = read_meta(slug)
+    rec = local_path(meta.get("recording") or "")
+    if not rec or not meta.get("name") or config.slugify(meta["name"]) != slug:
+        return err("err.not_resumable")
+    if not fresh and not resumable_run(slug):
+        return err("err.not_resumable")
+    quality = QUALITY_ALIASES.get(meta.get("quality"), meta.get("quality") or "high")
+    return start_job({"path": rec, "name": meta["name"], "quality": quality, "existing": "fresh" if fresh else "resume",
+                      "upload": bool(FRAME) and frame_listing() is not None})
+
+
 def delete_scene(slug: str):
-    """Scene folder, log and settings into the desktop trash (recoverable); a copy on the Frame stays."""
-    d = scene_dir(slug)
-    if not d:
+    """Scene or unfinished run: folder, log and settings into the desktop trash (recoverable);
+    a copy on the Frame stays."""
+    if not slug or Path(slug).name != slug or slug.startswith("."):
         return err("err.no_scene")
     if scene_busy(slug):
         return err("err.scene_busy")
-    files = [d] + [p for p in (RUNS / f"{slug}.log", RUNS / f"{slug}.out", meta_file(slug)) if p.exists()]
+    d = scene_dir(slug)
+    files = ([d] if d else []) + [p for p in (RUNS / f"{slug}.log", RUNS / f"{slug}.out", meta_file(slug)) if p.exists()]
+    if not files:
+        return err("err.no_scene")
     try:
         r = subprocess.run(["gio", "trash", "--", *map(str, files)], capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:
@@ -1154,6 +1211,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"job": job_status(), "download": download, "uploads": ups})
         if u.path == "/api/scenes":
             return self.send(200, scenes())
+        if u.path == "/api/unfinished":
+            return self.send(200, unfinished_runs())
         if u.path == "/api/floorplan":
             data = floorplan([x for x in q.get("slugs", "").split(",") if x], q.get("style", "pretty"),
                              q.get("lang", "en"), q.get("title", ""))
@@ -1232,6 +1291,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = clean_scene(p.get("slug", ""), p.get("what", ""))
         elif path == "/api/delete":
             e = delete_scene(p.get("slug", ""))
+        elif path == "/api/resume":
+            e = resume_run(p.get("slug", ""), bool(p.get("fresh")))
+            if e == "exists":                   # e.g. the training images were cleaned up in the meantime
+                e = err("err.not_resumable")
         elif path == "/api/play":
             local = local_path(Path(p.get("name", "")).name)
             if not local:

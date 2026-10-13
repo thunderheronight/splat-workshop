@@ -155,6 +155,9 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
 .toast.show { opacity: 1; }
 .hidden { display: none !important; }
+.unfin { display: grid; gap: 8px; }
+.unfin .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.unfin .row b { overflow-wrap: anywhere; } .unfin .row .sp { flex: 1; }
 .offline-note { border-color: var(--bad); }
 body.offline main > :not(#offline), body.offline #framePill { opacity: .45; pointer-events: none; }
 body.remote .pc-only { display: none !important; }
@@ -304,6 +307,13 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
       <button class="small" id="planAllBtn" data-i18n="plan.all" data-i18n-title="plan.all.title"></button>
     </div>
     <div id="sceneGrid" class="grid"></div>
+  </section>
+
+  <!-- cancelled / failed runs -->
+  <section class="card hidden" id="unfinCard">
+    <h2 data-i18n="unfin.title" style="margin:0 0 4px"></h2>
+    <p class="faint" style="font-size:12.5px;margin:0 0 12px" data-i18n="unfin.hint"></p>
+    <div id="unfinList" class="unfin"></div>
   </section>
 </main>
 
@@ -790,6 +800,35 @@ async function loadScenes() {
   document.querySelectorAll("[data-rename]").forEach(b => b.onclick = () => renameScene(S.scenes.find(x => x.slug === b.dataset.rename)));
   document.querySelectorAll("[data-clean]").forEach(b => b.onclick = () => openClean(b.dataset.clean));
   document.querySelectorAll("[data-delete]").forEach(b => b.onclick = () => deleteScene(S.scenes.find(x => x.slug === b.dataset.delete)));
+  loadUnfinished();
+}
+async function loadUnfinished() {
+  const list = await api("/api/unfinished");          // api() spreads the array into an object
+  const arr = Object.values(list).filter(x => x && typeof x === "object");
+  S.unfinished = arr;
+  $("#unfinCard").classList.toggle("hidden", !arr.length);
+  const state = u => u.phase === null ? tr(u.folder ? "unfin.empty" : "unfin.logonly")
+    : tr("unfin.stopped", {state: tr("phase." + u.phase) + (u.pct != null ? ` ${u.pct} %` : "")});
+  $("#unfinList").innerHTML = arr.map(u => `<div class="row">
+      <b>${esc(u.name)}</b>
+      <span class="muted" style="font-size:12.5px">${new Date(u.mtime * 1000).toLocaleDateString(LANG)} · ${state(u)} · ${mb(u.size)}</span>
+      <span class="sp"></span>
+      ${u.resumable ? `<button class="small" data-resume="${esc(u.slug)}">${tr("unfin.resume")}</button>`
+        : u.restartable ? `<button class="small" data-resume="${esc(u.slug)}" data-fresh="1" title="${tr("unfin.restart.title")}">${tr("unfin.restart")}</button>` : ""}
+      <button class="small" data-udelete="${esc(u.slug)}" title="${tr("unfin.delete.title")}" aria-label="${tr("unfin.delete.title")}">${tr("sc.delete")}</button>
+    </div>`).join("");
+  document.querySelectorAll("[data-resume]").forEach(b => b.onclick = async () => {
+    const r = await api("/api/resume", {slug: b.dataset.resume, fresh: !!b.dataset.fresh});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    toast(tr("unfin.resumed")); poll(); loadUnfinished();
+  });
+  document.querySelectorAll("[data-udelete]").forEach(b => b.onclick = async () => {
+    const u = S.unfinished.find(x => x.slug === b.dataset.udelete);
+    if (!confirm(tr("unfin.confirm", {name: u.name, size: mb(u.size)}))) return;
+    const r = await api("/api/delete", {slug: u.slug});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    toast(tr("del.done", {name: u.name})); loadUnfinished();
+  });
 }
 async function deleteScene(sc) {
   const size = mb(sc.disk ? sc.disk.total : sc.size);
