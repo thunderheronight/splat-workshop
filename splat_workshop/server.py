@@ -9,6 +9,7 @@ Without the tray icon (--no-idle-exit) it stops after idle_minutes with nothing 
 Start: ./splat-workshop  (or python3 -m splat_workshop.server)
 """
 import argparse
+import functools
 import hashlib
 import http.server
 import ipaddress
@@ -90,6 +91,24 @@ def notify(title: str, body: str) -> None:
     if shutil.which("notify-send"):
         subprocess.Popen(["notify-send", "-a", t("app"), "-i", "applications-graphics", title, body],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+@functools.cache
+def can_inhibit() -> bool:
+    """systemd-inhibit exists and logind accepts the lock (not the case in some containers)."""
+    try:
+        return subprocess.run(["systemd-inhibit", "--what=sleep", "--why=test", "true"], timeout=5,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def keep_awake(cmd: list, why: str) -> list:
+    """Run cmd with a sleep inhibitor, so the PC does not suspend in the middle of it.
+    The lock belongs to the child process: it lasts exactly as long as the job, even if this server stops."""
+    if not can_inhibit():
+        return cmd
+    return ["systemd-inhibit", "--what=sleep", f"--who={t('app')}", f"--why={why}", "--mode=block", *cmd]
 
 
 def load_state() -> dict:
@@ -346,8 +365,8 @@ def start_download(name: str, size: int):
         part = REC / (name + ".part")
         try:
             with open(part, "wb") as fh:
-                p = subprocess.Popen(SSH + [f"cat {FRAME_VIDEOS}/{shq(name)}"], stdout=subprocess.PIPE,
-                                     stderr=subprocess.DEVNULL)
+                p = subprocess.Popen(keep_awake(SSH + [f"cat {FRAME_VIDEOS}/{shq(name)}"], t("inhibit.download")),
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                 while chunk := p.stdout.read(1 << 20):
                     fh.write(chunk)
                     download["done"] += len(chunk)
@@ -481,7 +500,8 @@ def start_job(p: dict):
         JOBS.mkdir(parents=True, exist_ok=True)
         out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_{slug}.out"
         with open(out, "wb") as fh:
-            proc = subprocess.Popen([str(SCRIPTS / "splat.sh"), path, name, *args], cwd=ROOT, env=env, stdout=fh,
+            proc = subprocess.Popen(keep_awake([str(SCRIPTS / "splat.sh"), path, name, *args],
+                                               t("inhibit.job", name=name)), cwd=ROOT, env=env, stdout=fh,
                                     stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
         st = load_state()
         st["job"] = {"pid": proc.pid, "out": str(out), "name": name, "slug": slug, "recording": Path(path).name,
@@ -575,7 +595,8 @@ def start_upload(slug: str):
         JOBS.mkdir(parents=True, exist_ok=True)
         out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_to-frame_{slug}.out"
         with open(out, "wb") as fh:
-            p = subprocess.Popen([str(SCRIPTS / "to-frame.sh"), str(d), meta.get("name") or slug], cwd=ROOT, env=env,
+            p = subprocess.Popen(keep_awake([str(SCRIPTS / "to-frame.sh"), str(d), meta.get("name") or slug],
+                                            t("inhibit.upload", name=meta.get("name") or slug)), cwd=ROOT, env=env,
                                  stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                  start_new_session=True)
         uploads[slug] = {"proc": p, "out": out, "started": time.time(), "notified": False}
