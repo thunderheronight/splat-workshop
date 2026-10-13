@@ -879,6 +879,25 @@ def clean_scene(slug: str, what: str):
     return None
 
 
+def delete_scene(slug: str):
+    """Scene folder, log and settings into the desktop trash (recoverable); a copy on the Frame stays."""
+    d = scene_dir(slug)
+    if not d:
+        return err("err.no_scene")
+    if scene_busy(slug):
+        return err("err.scene_busy")
+    files = [d] + [p for p in (RUNS / f"{slug}.log", RUNS / f"{slug}.out", meta_file(slug)) if p.exists()]
+    try:
+        r = subprocess.run(["gio", "trash", "--", *map(str, files)], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return err("err.trash_failed", detail=str(e))
+    if r.returncode != 0:
+        return err("err.trash_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
+    usage_cache.pop(d, None)
+    uploads.pop(slug, None)
+    return None
+
+
 def clean_name(name: str, file: bool = True) -> str:
     """A name from user input without control characters; as a file name also without path separators."""
     name = re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f]", "", name or "")).strip()
@@ -1165,6 +1184,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.send(200, {"ok": True, "name": clean_name(p.get("new", "")).removesuffix(".mp4") + ".mp4"})
         elif path == "/api/clean":
             e = clean_scene(p.get("slug", ""), p.get("what", ""))
+        elif path == "/api/delete":
+            e = delete_scene(p.get("slug", ""))
         elif path == "/api/play":
             local = local_path(Path(p.get("name", "")).name)
             if not local:

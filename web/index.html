@@ -774,7 +774,7 @@ async function loadScenes() {
         <span>${new Date(s.mtime * 1000).toLocaleDateString(LANG)} · ${s.gaussians ? tr("sc.splats", {n: num(s.gaussians / 1e6, 2)}) + " · " : ""}${mb(s.size)}</span>
         ${s.disk ? `<span class="faint">${tr("sc.disk", {size: mb(s.disk.total)})}</span>` : ""}
         ${s.replacing ? `<div class="fstate faint">${tr("sc.replacing")}</div>` : frameState(s)}
-        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button></div>
+        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
       </div></div>`).join("") : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
   document.querySelectorAll("[data-upload]").forEach(b => b.onclick = async () => {
     const r = await api("/api/upload", {slug: b.dataset.upload});
@@ -789,6 +789,14 @@ async function loadScenes() {
   document.querySelectorAll("[data-spirula]").forEach(b => b.onclick = () => { api("/api/open", {slug: b.dataset.spirula, what: "spirula"}); toast(tr("sc.spirula.starting")); });
   document.querySelectorAll("[data-rename]").forEach(b => b.onclick = () => renameScene(S.scenes.find(x => x.slug === b.dataset.rename)));
   document.querySelectorAll("[data-clean]").forEach(b => b.onclick = () => openClean(b.dataset.clean));
+  document.querySelectorAll("[data-delete]").forEach(b => b.onclick = () => deleteScene(S.scenes.find(x => x.slug === b.dataset.delete)));
+}
+async function deleteScene(sc) {
+  const size = mb(sc.disk ? sc.disk.total : sc.size);
+  if (!confirm(tr("del.confirm", {name: sc.name, size, frame: sc.on_frame ? tr("del.frame") : ""}))) return;
+  const r = await api("/api/delete", {slug: sc.slug});
+  if (!r.ok) { toast(trErr(r.error)); return; }
+  toast(tr("del.done", {name: sc.name})); loadScenes();
 }
 
 /* ---------- renaming ---------- */
