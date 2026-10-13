@@ -101,7 +101,8 @@ const I18N = {
     "started": "Conversion started", "unusable": "This recording can't be used like this",
     // exists dialog
     "exists.title": "This scene already exists",
-    "exists.noresume": "The training images of “{name}” were deleted, so this run can only be started over.",
+    "exists.noresume.renamed": "The recording of “{name}” was renamed since, so this run can only be started over.",
+    "exists.noresume.images": "The training images of “{name}” were deleted, so this run can only be started over.",
     "exists.text": "There is already a run named “{name}”. Resume uses its saved intermediate results (e.g. after cancelling); Start over discards it.",
     "exists.cancel": "Cancel", "exists.resume": "Resume", "exists.fresh": "Start over",
     // scenes
@@ -147,6 +148,7 @@ const I18N = {
     // errors from the server
     "err.name_taken": "There already is a recording with that name", "err.recording_busy": "The recording is being converted or checked right now",
     "err.scene_busy": "The scene is being computed or copied right now",
+    "err.recording_unfinished": "“{name}” from this recording is not finished yet – rename it once the scene is done (otherwise it can't be resumed)",
     "err.not_local": "The recording is not on this PC", "err.download_busy": "A download is already running",
     "err.job_busy": "A conversion is already running", "err.unknown_recording": "Unknown recording",
     "err.bad_name": "Please enter a name (letters/digits)", "err.bad_quality": "Unknown quality",
@@ -249,7 +251,8 @@ const I18N = {
     "est": "{frames} Bildpaare · {maxg} Mio. Splats · {iter}k Schritte · <b>ca. {mins} min</b> <span class=\"faint\">(grobe Schätzung)</span>",
     "started": "Umwandlung gestartet", "unusable": "Die Aufnahme ist so nicht verwendbar",
     "exists.title": "Diese Szene gibt es schon",
-    "exists.noresume": "Die Trainingsbilder von „{name}“ wurden gelöscht, dieser Lauf lässt sich daher nur neu rechnen.",
+    "exists.noresume.renamed": "Die Aufnahme von „{name}“ wurde inzwischen umbenannt, dieser Lauf lässt sich daher nur neu rechnen.",
+    "exists.noresume.images": "Die Trainingsbilder von „{name}“ wurden gelöscht, dieser Lauf lässt sich daher nur neu rechnen.",
     "exists.text": "Unter „{name}“ liegt schon ein Lauf. Fortsetzen nutzt die vorhandenen Zwischenstände (z. B. nach einem Abbruch); Neu rechnen verwirft ihn.",
     "exists.cancel": "Abbrechen", "exists.resume": "Fortsetzen", "exists.fresh": "Neu rechnen",
     "scenes.title": "Fertige Szenen", "scenes.none": "Noch keine fertigen Szenen.",
@@ -293,6 +296,7 @@ const I18N = {
     "plan.measure.start": "Ersten Punkt anklicken", "plan.measure.noscale": "Maßstab fehlt – Splat-Werkstatt neu starten", "plan.measure.total": "Gesamt {d}",
     "err.name_taken": "Es gibt schon eine Aufnahme mit diesem Namen", "err.recording_busy": "Die Aufnahme wird gerade umgewandelt oder geprüft",
     "err.scene_busy": "Die Szene wird gerade berechnet oder übertragen",
+    "err.recording_unfinished": "„{name}“ aus dieser Aufnahme ist noch nicht fertig – erst umbenennen, wenn die Szene fertig ist (sonst lässt sie sich nicht fortsetzen)",
     "err.not_local": "Die Aufnahme liegt nicht auf dem PC", "err.download_busy": "Es läuft schon ein Download",
     "err.job_busy": "Es läuft schon eine Umwandlung", "err.unknown_recording": "Unbekannte Aufnahme",
     "err.bad_name": "Bitte einen Namen angeben (Buchstaben/Ziffern)", "err.bad_quality": "Unbekannte Qualitätsstufe",

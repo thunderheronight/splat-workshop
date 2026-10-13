@@ -505,7 +505,7 @@ def start_job(p: dict):
             env["NO_UPLOAD"] = "1"
         args = []
         if (RUNS / slug).exists():
-            if p.get("existing") == "resume" and "images" in (read_meta(slug).get("cleaned") or []):
+            if p.get("existing") == "resume" and no_resume(slug):
                 return "exists"                 # training images were deleted: only a fresh start works
             if p.get("existing") == "resume":
                 args.append("--resume")
@@ -526,7 +526,7 @@ def start_job(p: dict):
         save_state(st)
         RUNS.mkdir(parents=True, exist_ok=True)
         write_meta(slug, name=name, recording=Path(path).name, quality=env["QUALITY"],
-                   **({} if "--resume" in args else {"cleaned": []}))
+                   **({} if "--resume" in args else {"cleaned": [], "recording_renamed": False}))
     return None
 
 
@@ -772,6 +772,15 @@ def disk_usage(d: Path) -> dict:
     return sizes
 
 
+def no_resume(slug: str):
+    """Why an existing run can only be started over: its training images were deleted, or its recording
+    was renamed (the pipeline remembers the recording's path and refuses to resume with another one)."""
+    meta = read_meta(slug)
+    if "images" in (meta.get("cleaned") or []):
+        return "images"
+    return "renamed" if meta.get("recording_renamed") else None
+
+
 def scene_busy(slug: str) -> bool:
     job = load_state().get("job") or {}
     u = uploads.get(slug)
@@ -839,6 +848,17 @@ def rename_recording(name: str, new: str):
         return err("err.recording_busy")
     if checks.get(src.name, {}).get("state") in ("queued", "running"):
         return err("err.recording_busy")
+    users = []
+    for m in RUNS.glob("*.ui.json"):
+        try:
+            if json.loads(m.read_text()).get("recording") == src.name:
+                users.append(m.name.removesuffix(".ui.json"))
+        except (OSError, ValueError):
+            pass
+    unfinished = [s for s in users if (RUNS / s).is_dir() and not (RUNS / s / "scene.sog").exists()]
+    if unfinished:
+        # The pipeline would refuse to resume it with a renamed recording
+        return err("err.recording_unfinished", name=read_meta(unfinished[0]).get("name") or unfinished[0])
     with lock:
         os.rename(src, dst)                     # keeps size and mtime, so cached results stay valid
         meta = rec_meta()
@@ -864,6 +884,7 @@ def rename_recording(name: str, new: str):
                 continue
             if data.get("recording") == src.name:
                 data["recording"] = dst.name
+                data["recording_renamed"] = True
                 m.write_text(json.dumps(data, ensure_ascii=False))
         st = load_state()
         if (st.get("job") or {}).get("recording") == src.name:
@@ -1009,8 +1030,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = start_job(p)
             if e == "exists":
                 slug = config.slugify((p.get("name") or "").strip())
-                return self.send(409, {"error": err("exists"),
-                                       "resumable": "images" not in (read_meta(slug).get("cleaned") or [])})
+                return self.send(409, {"error": err("exists"), "no_resume": no_resume(slug)})
         elif path == "/api/cancel":
             e = cancel_job()
         elif path == "/api/download":

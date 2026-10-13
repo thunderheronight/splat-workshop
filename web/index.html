@@ -671,8 +671,8 @@ async function start(existing) {
     frames: v("frames") || null, scale: v("scale") || null, maxg: v("maxg") ? Math.round(+v("maxg") * 1e6) : null, iter: v("iter") || null};
   const r = await api("/api/start", body);
   if (r.status === 409) {
-    $("#existsText").textContent = tr(r.resumable === false ? "exists.noresume" : "exists.text", {name: body.name});
-    $("#exResume").classList.toggle("hidden", r.resumable === false);
+    $("#existsText").textContent = tr(r.no_resume ? "exists.noresume." + r.no_resume : "exists.text", {name: body.name});
+    $("#exResume").classList.toggle("hidden", !!r.no_resume);
     $("#existsDlg").showModal(); return;
   }
   if (!r.ok) { toast(trErr(r.error)); return; }
