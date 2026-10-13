@@ -601,11 +601,17 @@ def watcher():
             if js["result"] == "ok":
                 if js["info"].get("folder"):
                     write_meta(js["slug"], frame_folder=js["info"]["folder"])
+                with meta_lock:                 # the replaced scene's settings are not needed any more
+                    meta = read_meta(js["slug"])
+                    if meta.pop("previous", None) is not None:
+                        write_json(meta_file(js["slug"]), meta)
                 notify(t("notify.done.title"),
                        t("notify.done.frame" if js["upload"] else "notify.done.local", name=js["name"], mins=mins))
             elif js["result"] == "failed":
                 notify(t("notify.failed.title"), t("notify.failed", name=js["name"]))
         was_running = running
+        if not running:
+            restore_previous()
         for slug in list(uploads):
             upload_status(slug)                 # notify even without an open page
         busy = (running or (download and not download.get("finished")) or check_busy()
@@ -686,17 +692,54 @@ def write_meta(slug: str, **kw) -> None:
         write_json(meta_file(slug), meta)
 
 
+PREVIOUS = RUNS / ".previous"      # splat.sh keeps a scene here while it is computed again (FRESH)
+
+
+def restore_previous():
+    """splat.sh puts a replaced scene back itself when the new run fails. If it could not
+    (killed hard after cancelling, power cut), do it here once no run of that scene is going."""
+    if not PREVIOUS.is_dir():
+        return
+    with lock:                                  # start_job holds it until the new job is recorded
+        job = load_state().get("job") or {}
+        busy = job.get("slug") if pid_alive(job.get("pid", 0)) else None
+        for prev in PREVIOUS.iterdir():
+            slug, run, out = prev.name, prev / "run", RUNS / prev.name
+            if slug == busy:
+                continue
+            if run.is_dir() and not (out / "scene.sog").exists():
+                if out.exists():
+                    shutil.rmtree(prev / "failed", ignore_errors=True)
+                    out.rename(prev / "failed")
+                run.rename(out)
+                if (prev / "log").exists():
+                    (prev / "log").replace(RUNS / f"{slug}.log")
+                with meta_lock:
+                    meta = read_meta(slug)
+                    if isinstance(meta.get("previous"), dict):
+                        write_json(meta_file(slug), meta["previous"])
+            shutil.rmtree(prev, ignore_errors=True)
+        try:
+            PREVIOUS.rmdir()
+        except OSError:
+            pass
+
+
 def scenes():
     fr = frame_listing()
     out = []
     if not RUNS.is_dir():
         return out
-    for d in sorted(RUNS.glob("*/"), key=lambda d: d.stat().st_mtime, reverse=True):
+    found = [(d, False) for d in RUNS.glob("*/") if (d / "scene.sog").exists()]
+    # A scene that is being computed again stays in the list (without actions) until it is replaced
+    found += [(d, True) for d in PREVIOUS.glob("*/run/")
+              if (d / "scene.sog").exists() and not (RUNS / d.parent.name / "scene.sog").exists()]
+    for d, replacing in sorted(found, key=lambda x: x[0].stat().st_mtime, reverse=True):
         sog = d / "scene.sog"
-        if not sog.exists():
-            continue
-        slug = d.name
+        slug = d.parent.name if replacing else d.name
         meta = read_meta(slug)
+        if replacing and isinstance(meta.get("previous"), dict):
+            meta = meta["previous"]
         on_frame = None
         if fr is not None:
             folder = meta.get("frame_folder")
@@ -712,7 +755,7 @@ def scenes():
                     "recording": meta.get("recording"), "size": sog.stat().st_size,
                     "mtime": int(sog.stat().st_mtime), "gaussians": gauss, "preview": bool(gallery),
                     "ply": (d / "spirula" / "scene.ply").exists(), "on_frame": on_frame, "disk": disk_usage(d),
-                    "upload": upload_status(slug)})
+                    "upload": upload_status(slug), "replacing": replacing})
     return out
 
 
@@ -1065,6 +1108,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/preview":
             d = scene_dir(q.get("slug", ""))
             img = next(d.glob("*.gallery.png"), None) if d else None
+            prev = PREVIOUS / Path(q.get("slug", "")).name / "run"
+            if not img and q.get("slug", "").strip(".") and prev.is_dir():
+                img = next(prev.glob("*.gallery.png"), None)
             return self.send(200, img.read_bytes(), "image/png") if img else self.send(404, b"", "image/png")
         return self.send(404, {"error": err("err.not_found")})
 

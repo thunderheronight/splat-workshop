@@ -81,6 +81,7 @@ if isinstance(meta.get("previous"), dict):
 PY
     echo "The previous result of \"$name\" was kept."
     rm -rf "$prev"
+    rmdir "$RUNS_DIR/.previous" 2>/dev/null || true
 }
 if [ "${FRESH:-0}" = 1 ]; then
     restore_previous                    # left over from an earlier run that never finished (e.g. power cut)
@@ -132,6 +133,7 @@ SS_LANG=en uv run av1_to_3dgs.py "$in" "$out" \
   "${quality[@]}" "$@" 2>&1 | tee -a "$log"
 [ -f "$out/scene.sog" ] || { echo "No scene.sog was produced, see $log" >&2; exit 1; }
 rm -rf "$prev"
+rmdir "$RUNS_DIR/.previous" 2>/dev/null || true
 
 # 3. Gallery files, then copy to the Frame (to-frame.sh also works on its own)
 if [ "${NO_UPLOAD:-0}" = 1 ] || [ -z "$FRAME_HOST" ]; then
