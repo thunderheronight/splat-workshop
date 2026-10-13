@@ -22,6 +22,7 @@ import socket
 import subprocess
 import threading
 import time
+import traceback
 import urllib.parse
 from pathlib import Path
 
@@ -51,6 +52,8 @@ QUALITIES = ("fast", "high", "max")
 
 t = T(detect(CFG.language))
 lock = threading.Lock()
+meta_lock = threading.Lock()         # read-modify-write of the *.ui.json files
+plan_slots = threading.BoundedSemaphore(2)   # floor plans drawn at the same time
 last_request = time.time()
 idle_exit = True
 proc = None                        # Popen of the running splat.sh (if started by this server)
@@ -118,11 +121,16 @@ def load_state() -> dict:
         return {}
 
 
+def write_json(path: Path, data, indent=None) -> None:
+    """Write via a temporary file, so a reader never sees half a file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{threading.get_ident()}.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=indent))
+    tmp.replace(path)
+
+
 def save_state(st: dict) -> None:
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = STATE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1))
-    tmp.replace(STATE)
+    write_json(STATE, st, indent=1)
 
 
 def pid_alive(pid: int) -> bool:
@@ -266,9 +274,12 @@ def thumbnail(source: str, name: str):
     local = local_path(name)
     if local:
         dur = probe(local).get("duration") or 6
-        r = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{dur / 3:.2f}", "-i", local, "-map", "0:v:0",
+        try:
+            r = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{dur / 3:.2f}", "-i", local, "-map", "0:v:0",
                             "-frames:v", "1", "-vf", "scale=360:-1,eq=gamma=1.3,format=rgb24",
-                            "-f", "image2pipe", "-c:v", "png", "-"], capture_output=True)
+                            "-f", "image2pipe", "-c:v", "png", "-"], capture_output=True, timeout=30)
+        except subprocess.TimeoutExpired:
+            return None
         if r.stdout:
             cached.write_bytes(r.stdout)       # don't cache failures
         return r.stdout or None
@@ -278,12 +289,15 @@ def thumbnail(source: str, name: str):
     if cached.exists() and time.time() - cached.stat().st_mtime < 600:
         return None
     fr = frame_listing()
-    if fr is None:
+    if fr is None or not any(f["name"] == name for f in fr["files"]):
         return None
     data = b""
     match = next((x for x in fr["thumbs"] if stem in x or stem.removesuffix("_stereo") in x), None)
     if match:
-        r = subprocess.run(SSH + [f"cat {FRAME_VIDEOS}/thumbnails/{shq(match)}"], capture_output=True, timeout=20)
+        try:
+            r = subprocess.run(SSH + [f"cat {FRAME_VIDEOS}/thumbnails/{shq(match)}"], capture_output=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            return None                     # try again next time
         data = r.stdout if r.returncode == 0 else b""
     cached.write_bytes(data)
     return data or None
@@ -372,6 +386,8 @@ def start_download(name: str, size: int):
     with lock:
         if download and not download.get("finished"):
             return err("err.download_busy")
+        if (REC / name).exists():
+            return err("err.name_taken")
         download = {"name": name, "total": size, "done": 0, "error": None, "finished": False}
 
     def run():
@@ -484,6 +500,8 @@ def start_job(p: dict):
         path, name = p.get("path", ""), (p.get("name") or "").strip()
         if local_path(Path(path).name) != path:
             return err("err.unknown_recording")
+        if not (pr := probe(path))["ok"]:
+            return pr["errors"][0]
         slug = config.slugify(name)
         if not slug or slug.startswith("."):
             return err("err.bad_name")
@@ -504,6 +522,7 @@ def start_job(p: dict):
         if not p.get("upload", True) or not FRAME:
             env["NO_UPLOAD"] = "1"
         args = []
+        previous = None
         if (RUNS / slug).exists():
             if p.get("existing") == "resume" and no_resume(slug):
                 return "exists"                 # training images were deleted: only a fresh start works
@@ -511,6 +530,10 @@ def start_job(p: dict):
                 args.append("--resume")
             elif p.get("existing") == "fresh":
                 env["FRESH"] = "1"
+                # splat.sh keeps the old result until the new one is done and puts it back otherwise,
+                # including these settings
+                if (RUNS / slug / "scene.sog").exists():
+                    previous = {k: v for k, v in read_meta(slug).items() if k != "previous"}
             else:
                 return "exists"
         JOBS.mkdir(parents=True, exist_ok=True)
@@ -526,7 +549,8 @@ def start_job(p: dict):
         save_state(st)
         RUNS.mkdir(parents=True, exist_ok=True)
         write_meta(slug, name=name, recording=Path(path).name, quality=env["QUALITY"],
-                   **({} if "--resume" in args else {"cleaned": [], "recording_renamed": False}))
+                   **({} if "--resume" in args else {"cleaned": [], "recording_renamed": False}),
+                   **({"previous": previous} if previous is not None else {}))
     return None
 
 
@@ -656,9 +680,10 @@ def read_meta(slug: str) -> dict:
 
 
 def write_meta(slug: str, **kw) -> None:
-    meta = read_meta(slug)
-    meta.update(kw)
-    meta_file(slug).write_text(json.dumps(meta, ensure_ascii=False))
+    with meta_lock:
+        meta = read_meta(slug)
+        meta.update(kw)
+        write_json(meta_file(slug), meta)
 
 
 def scenes():
@@ -724,7 +749,14 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
                 cmd += ["--title", title]
             if lang == "de":
                 cmd.append("--comma")
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if not plan_slots.acquire(timeout=1):
+                return err("err.plan_busy")
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            except subprocess.TimeoutExpired:
+                return err("err.plan_failed", detail="timeout")
+            finally:
+                plan_slots.release()
             if r.returncode != 0 or not out.with_suffix(".tmp.png").exists():
                 return err("err.plan_failed", detail=(r.stderr or r.stdout).strip().splitlines()[-1:] or "")
             meta.write_text(r.stdout.strip().splitlines()[-1])
@@ -828,8 +860,11 @@ def rename_scene(slug: str, name: str, update_frame: bool):
         env["STEM"] = meta["stem"]
     if meta.get("log"):
         env["LOG"] = str(RUNS / Path(meta["log"]).name)
-    subprocess.run([str(SCRIPTS / "to-frame.sh"), str(d), name], cwd=ROOT, env=env, timeout=120,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    try:
+        subprocess.run([str(SCRIPTS / "to-frame.sh"), str(d), name], cwd=ROOT, env=env, timeout=120,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        pass                                    # the name is saved; the plate is redone on the next upload
     return start_upload(slug) if update_frame else None
 
 
@@ -865,8 +900,7 @@ def rename_recording(name: str, new: str):
         orig = meta.pop(src.name, {}).get("orig", src.name)
         if orig != dst.name:
             meta[dst.name] = {"orig": orig}
-        RECMETA.parent.mkdir(parents=True, exist_ok=True)
-        RECMETA.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+        write_json(RECMETA, meta, indent=1)
         # Cached thumbnail and check result belong to the file name
         old_stem, new_stem = src.stem, dst.stem
         if (CACHE / f"{old_stem}.thumb").exists():
@@ -878,14 +912,8 @@ def rename_recording(name: str, new: str):
         if src.name in checks:
             checks[dst.name] = checks.pop(src.name)
         for m in RUNS.glob("*.ui.json"):
-            try:
-                data = json.loads(m.read_text())
-            except (OSError, ValueError):
-                continue
-            if data.get("recording") == src.name:
-                data["recording"] = dst.name
-                data["recording_renamed"] = True
-                m.write_text(json.dumps(data, ensure_ascii=False))
+            if read_meta(slug := m.name.removesuffix(".ui.json")).get("recording") == src.name:
+                write_meta(slug, recording=dst.name, recording_renamed=True)
         st = load_state()
         if (st.get("job") or {}).get("recording") == src.name:
             st["job"]["recording"] = dst.name
@@ -924,6 +952,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def _host_ok(self):
+        """Host header (DNS rebinding), the client's real address, and no requests from other websites."""
+        client = ipaddress.ip_address(self.client_address[0])
+        if not (client.is_loopback or (CFG.lan and client.is_private)):
+            return False
+        # Browsers name the origin of every request; another site (even another port on localhost) is refused.
+        # Only opening the page itself via a link is fine.
+        site = self.headers.get("Sec-Fetch-Site", "same-origin")
+        page = self.command == "GET" and urllib.parse.urlparse(self.path).path in STATIC \
+            and self.headers.get("Sec-Fetch-Mode") == "navigate"
+        if site not in ("same-origin", "none") and not page:
+            return False
         return host_allowed((self.headers.get("Host") or "").rsplit(":", 1)[0])
 
     def _same_origin(self):
@@ -947,7 +986,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _safely(self, handler):
+        try:
+            handler()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception:                       # noqa: BLE001 – answer instead of dropping the connection
+            traceback.print_exc()
+            try:
+                self.send(500, {"error": err("err.bad_request")})
+            except OSError:
+                pass
+
     def do_GET(self):
+        self._safely(self._get)
+
+    def do_POST(self):
+        self._safely(self._post)
+
+    def _get(self):
         global last_request
         if not self._host_ok():
             return self.send(403, {"error": err("err.forbidden")})
@@ -1011,15 +1068,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, img.read_bytes(), "image/png") if img else self.send(404, b"", "image/png")
         return self.send(404, {"error": err("err.not_found")})
 
-    def do_POST(self):
+    def _post(self):
         global last_request
         if not self._host_ok() or not self._same_origin():
             return self.send(403, {"error": err("err.forbidden")})
         last_request = time.time()
         try:
             n = int(self.headers.get("Content-Length") or 0)
+            if not 0 <= n <= 1 << 20:
+                raise ValueError
             p = json.loads(self.rfile.read(n) or b"{}")
         except ValueError:
+            p = None
+        # Only flat objects of simple values; text fields are text
+        if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
+                or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
         e = None

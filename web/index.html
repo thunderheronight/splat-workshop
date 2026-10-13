@@ -8,7 +8,7 @@
 <style>
 :root {
   --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a;
-  --text: #e6e8ee; --muted: #9aa1b1; --faint: #6b7283;
+  --text: #e6e8ee; --muted: #9aa1b1; --faint: #848b9c;
   --accent: #7c9cff; --accent2: #46d3b5; --warn: #ffb86b; --bad: #ff6b81; --ok: #46d3b5;
   --radius: 14px;
 }
@@ -86,7 +86,7 @@ label.field small { font-size: 12px; color: var(--faint); line-height: 1.4; }
 .finding b { display: block; font-size: 13.5px; }
 .finding.bad b { color: var(--bad); } .finding.warn b { color: var(--warn); } .finding.info b { color: var(--muted); }
 .cres .note { margin-top: 12px; font-size: 12px; color: var(--faint); }
-.rec .meta b { font-size: 14px; font-weight: 600; }
+.rec .meta b { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .rec .meta span { font-size: 12.5px; color: var(--muted); }
 .badge { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: color-mix(in srgb, var(--accent2) 18%, transparent); color: var(--accent2); }
 .empty { padding: 26px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 12px; }
@@ -155,6 +155,8 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
 .toast.show { opacity: 1; }
 .hidden { display: none !important; }
+.offline-note { border-color: var(--bad); }
+body.offline main > :not(#offline), body.offline #framePill { opacity: .45; pointer-events: none; }
 body.remote .pc-only { display: none !important; }
 /* floor plan */
 dialog.plan { max-width: min(1200px, 94vw); width: 94vw; }
@@ -200,6 +202,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 </header>
 
 <main>
+  <div class="card offline-note hidden" id="offline" role="alert"><b data-i18n="offline.title"></b> <span class="muted" data-i18n="offline.text"></span></div>
   <!-- missing prerequisites -->
   <section class="card setup hidden" id="setupCard">
     <h2 data-i18n="setup.title"></h2>
@@ -469,7 +472,7 @@ function renderRecs() {
   }).join("");
   g.querySelectorAll(".thumb").forEach(t => {
     const url = t.dataset.src, img = new Image();
-    img.onload = () => { t.style.backgroundImage = `url('${url}')`; };
+    img.onload = () => { t.style.backgroundImage = `url(${JSON.stringify(url)})`; };
     img.onerror = () => { if (!t.querySelector(".play")) t.textContent = "◌"; };
     img.src = url;
   });
@@ -935,7 +938,11 @@ $("#measureReset").onclick = () => { M.pts = []; M.hover = null; renderMeasure()
 document.querySelectorAll("#planStyle button").forEach(b => b.onclick = () => { P.style = b.dataset.style; drawPlan(); });
 $("#planClose").onclick = () => $("#planDlg").close();
 $("#planDlg").addEventListener("close", () => { M.on = false; M.pts = []; M.hover = null; renderMeasure(); });
-$("#planDlg").addEventListener("click", e => { if (e.target === $("#planDlg")) $("#planDlg").close(); });
+$("#planDlg").addEventListener("click", e => {
+  // Only a click on the backdrop closes it, not one on the dialog's own padding
+  const r = $("#planDlg").getBoundingClientRect();
+  if (e.target === $("#planDlg") && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) $("#planDlg").close();
+});
 $("#planAllBtn").onclick = () => {
   const list = (S.scenes || []).filter(s => s.ply);
   const day = s => (s.recording || "").slice(0, 10);
@@ -957,7 +964,13 @@ $("#planDraw").onclick = () => {
 /* ---------- polling ---------- */
 let wasRunning = null;
 async function poll() {
-  const r = await api("/api/status");
+  if (document.hidden) return;                // no polling in a background tab
+  let r;
+  try { r = await api("/api/status"); } catch { r = null; }
+  const offline = !r || r.status >= 500;
+  $("#offline").classList.toggle("hidden", !offline);
+  document.body.classList.toggle("offline", offline);
+  if (offline) return;
   S.job = r.job; S.dl = r.download;
   if (S.dl && S.dl.finished && S.dlWait && S.sel && S.dl.name === S.sel.name) {
     const res = S.dlWait; S.dlWait = null;
@@ -979,6 +992,7 @@ api("/api/ping").then(r => {
   loadRecs(); poll();
 });
 setInterval(poll, 2000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 </script>
 </body>
 </html>

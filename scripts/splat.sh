@@ -13,13 +13,17 @@
 #       max   ~8 image pairs per second of video (100-500), full resolution, up to 3 M splats, 50k steps
 #   FRAMES, SCALE, MAXG, ITER  override single preset values
 #   NO_UPLOAD=1   only compute, don't copy to the Frame
-#   FRESH=1       discard an existing run of the same name first
+#   FRESH=1       start an existing run of the same name over; its result stays until the new one
+#                 is done and comes back if the new run fails or is cancelled
 #   Interrupted? Run the same command again with --resume.
 # Paths and the Frame address come from ~/.config/splat-workshop/config.toml
 # (or PIPELINE_DIR, SPIRULA_BIN, SPLAT_TRANSFORM, RECORDINGS_DIR, RUNS_DIR, FRAME_HOST).
 #
 # Lines starting with "@@" are machine-readable progress markers for the web interface.
 set -euo pipefail
+# Everything in one block: bash reads it completely before it starts, so updating this file
+# (git pull, editing) does not affect a run that is already going.
+{
 
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 ROOT=$(dirname "$HERE")
@@ -57,7 +61,40 @@ fi
 out=$RUNS_DIR/$slug
 log=$RUNS_DIR/$slug.log
 mkdir -p "$RUNS_DIR"
-if [ "${FRESH:-0}" = 1 ]; then rm -rf "$out" "$log"; fi
+
+# FRESH: set the previous result aside, delete it only once the new one is there
+prev=$RUNS_DIR/.previous/$slug
+restore_previous() {
+    [ -d "$prev/run" ] && [ ! -f "$out/scene.sog" ] || return 0
+    if [ -e "$out" ]; then mv "$out" "$prev/failed"; fi
+    mv "$prev/run" "$out"
+    if [ -f "$prev/log" ]; then mv "$prev/log" "$log"; fi
+    # The web interface keeps the settings of the previous run in "previous"
+    python3 - "$RUNS_DIR/$slug.ui.json" <<'PY' || true
+import json, sys
+try:
+    meta = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    sys.exit()
+if isinstance(meta.get("previous"), dict):
+    json.dump(meta["previous"], open(sys.argv[1], "w"), ensure_ascii=False)
+PY
+    echo "The previous result of \"$name\" was kept."
+    rm -rf "$prev"
+}
+if [ "${FRESH:-0}" = 1 ]; then
+    restore_previous                    # left over from an earlier run that never finished (e.g. power cut)
+    rm -rf "$prev"
+    if [ -f "$out/scene.sog" ]; then
+        mkdir -p "$prev"
+        mv "$out" "$prev/run"
+        if [ -f "$log" ]; then mv "$log" "$prev/log"; fi
+        trap restore_previous EXIT
+        trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+    else
+        rm -rf "$out" "$log"
+    fi
+fi
 
 # The pipeline resumes finished stages only: an interrupted training run blocks --resume.
 # Then start the training over; images and camera positions are reused.
@@ -94,6 +131,7 @@ SS_LANG=en uv run av1_to_3dgs.py "$in" "$out" \
   --splat-transform "$SPLAT_TRANSFORM" \
   "${quality[@]}" "$@" 2>&1 | tee -a "$log"
 [ -f "$out/scene.sog" ] || { echo "No scene.sog was produced, see $log" >&2; exit 1; }
+rm -rf "$prev"
 
 # 3. Gallery files, then copy to the Frame (to-frame.sh also works on its own)
 if [ "${NO_UPLOAD:-0}" = 1 ] || [ -z "$FRAME_HOST" ]; then
@@ -103,3 +141,5 @@ if [ "${NO_UPLOAD:-0}" = 1 ] || [ -z "$FRAME_HOST" ]; then
     exit 0
 fi
 LOG="$log" "$HERE/to-frame.sh" "$out" "$name"
+exit
+}

@@ -9,6 +9,9 @@
 #   STEM=name       file stem (default: folder name in lower case)
 #   LOG=file        pipeline log with the initial view (default: runs/<folder>.log)
 set -euo pipefail
+# Everything in one block: bash reads it completely before it starts, so updating this file
+# (git pull, editing) does not affect a run that is already going.
+{
 
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 ROOT=$(dirname "$HERE")
@@ -50,3 +53,5 @@ echo "@@ done frame $folder"
 echo
 echo "Done: \"$name\" is in the Gaussian XR gallery ($folder)."
 echo "Restart Gaussian XR to see it."
+exit
+}
