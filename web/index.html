@@ -418,7 +418,9 @@ function renderFramePill() {
   p.className = "pill " + (S.frameOnline ? "on" : "off");
   p.lastElementChild.textContent = tr(!S.frameConfigured ? "frame.none" : S.frameOnline ? "frame.connected" : "frame.offline");
   $("#optFrame").classList.toggle("hidden", !S.frameConfigured);
-  if (!S.frameConfigured) { $("input[name=target][value=pc]").checked = true; targetChanged(); }
+  // Default target follows the Frame: on the Frame when it is reachable, otherwise PC only – until the user picks one
+  const auto = !S.frameConfigured ? "pc" : S.targetTouched ? null : S.frameOnline ? "frame" : S.frameOnline === false ? "pc" : null;
+  if (auto && auto !== target()) { $(`input[name=target][value=${auto}]`).checked = true; targetChanged(); }
   $("#targetWarn").classList.toggle("hidden", S.frameOnline !== false || !S.frameConfigured || target() !== "frame");
 }
 function currentList() {
@@ -616,7 +618,7 @@ function updateStart() {
 document.querySelectorAll("#quality button").forEach(b => b.onclick = () => {
   S.quality = b.dataset.q; document.querySelectorAll("#quality button").forEach(x => x.classList.toggle("active", x === b)); updateStart();
 });
-document.querySelectorAll("input[name=target]").forEach(r => r.onchange = targetChanged);
+document.querySelectorAll("input[name=target]").forEach(r => r.onchange = () => { S.targetTouched = true; targetChanged(); });
 ["frames", "scale", "maxg", "iter"].forEach(id => $("#" + id).oninput = updateStart);
 $("#name").oninput = () => { $("#name").dataset.auto = "0"; updateStart(); };
 function setTab(tab) { S.tab = tab; document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === tab)); }
