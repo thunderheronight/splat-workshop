@@ -854,7 +854,7 @@ def no_resume(slug: str):
     meta = read_meta(slug)
     if "images" in (meta.get("cleaned") or []):
         return "images"
-    return "renamed" if meta.get("recording_renamed") else None
+    return "renamed" if meta.get("recording_renamed") or meta.get("folder_renamed") else None
 
 
 def scene_busy(slug: str) -> bool:
@@ -906,6 +906,44 @@ def clean_name(name: str, file: bool = True) -> str:
     return name[:80]
 
 
+def move_scene(slug: str, new: str) -> None:
+    """Scene folder, its log/settings/output and the gallery files inside get the new folder name.
+    The folder on the Frame stays (remembered in frame_folder), so no second copy appears there."""
+    d, nd = RUNS / slug, RUNS / new
+    meta = read_meta(slug)
+    if not meta.get("frame_folder") and (fr := frame_listing()) is not None:
+        meta["frame_folder"] = next((s for s in fr["scenes"] if re.fullmatch(r"\d\d_" + re.escape(slug), s)), None)
+    old_stem, new_stem = meta.get("stem") or slug.lower(), new.lower()
+    d.rename(nd)
+    for f in nd.glob(f"{glob_escape(old_stem)}.*"):
+        if f.name[len(old_stem):] in (".sog", ".xrSceneTransform.json", ".gallery.png", ".sceneinfo.png"):
+            f.rename(nd / (new_stem + f.name[len(old_stem):]))
+    log = RUNS / Path(meta.get("log") or f"{slug}.log").name
+    if log.exists():
+        log.rename(RUNS / f"{new}.log")
+    if (RUNS / f"{slug}.out").exists():
+        (RUNS / f"{slug}.out").rename(RUNS / f"{new}.out")
+    for k in ("stem", "log"):
+        meta.pop(k, None)
+    if not meta.get("frame_folder"):
+        meta.pop("frame_folder", None)
+    meta["folder_renamed"] = True               # the pipeline's own files still name the old folder
+    with meta_lock:
+        write_json(meta_file(new), meta)
+        meta_file(slug).unlink(missing_ok=True)
+    usage_cache.pop(d, None)
+    uploads.pop(slug, None)
+    with lock:
+        st = load_state()
+        if (st.get("job") or {}).get("slug") == slug:
+            st["job"]["slug"] = new
+            save_state(st)
+
+
+def glob_escape(s: str) -> str:
+    return re.sub(r"([*?\[])", r"[\1]", s)
+
+
 def rename_scene(slug: str, name: str, update_frame: bool):
     d = scene_dir(slug)
     name = clean_name(name, file=False)
@@ -915,6 +953,14 @@ def rename_scene(slug: str, name: str, update_frame: bool):
         return err("err.bad_name")
     if scene_busy(slug):
         return err("err.scene_busy")
+    new = config.slugify(name)
+    if not new or new.startswith("."):
+        return err("err.bad_name")
+    if new != slug:
+        if (RUNS / new).exists() or meta_file(new).exists() or (RUNS / f"{new}.log").exists():
+            return err("err.scene_name_taken")
+        move_scene(slug, new)
+        slug, d = new, RUNS / new
     meta = read_meta(slug)
     write_meta(slug, name=name)
     # New name plate for the gallery; the preview image stays if the training images are gone

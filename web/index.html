@@ -827,7 +827,7 @@ async function renameRecording(f) {
 }
 async function renameScene(sc) {
   const v = await askName(tr("ren.scene.title"), tr("ren.scene.hint"), sc.name, sc.on_frame === true);
-  if (!v || v === sc.name) return;
+  if (!v) return;                              // the same name again still tidies up the folder name
   const upd = sc.on_frame === true && $("#renFrame").checked;
   const r = await api("/api/rename", {slug: sc.slug, new: v, update_frame: upd});
   if (!r.ok) { toast(trErr(r.error)); return; }

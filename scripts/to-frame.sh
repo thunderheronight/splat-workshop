@@ -48,6 +48,12 @@ folder=${TARGET:-$(ssh -o ConnectTimeout=8 "$FRAME_HOST" "
     echo \${n}_$slug")}
 ssh -o ConnectTimeout=8 "$FRAME_HOST" "mkdir -p $FRAME_BACKUP/$folder $FRAME_SCENES/$folder"
 scp -q "$out/$stem".{sog,xrSceneTransform.json,gallery.png,sceneinfo.png} "$FRAME_HOST:$FRAME_BACKUP/$folder/"
+# Files of this scene under an earlier name (renamed in Splat Workshop) go first, so the folder holds one scene
+ssh "$FRAME_HOST" "for d in $FRAME_SCENES/$folder $FRAME_BACKUP/$folder; do
+        for f in \$d/*.sog \$d/*.xrSceneTransform.json \$d/*.gallery.png \$d/*.sceneinfo.png; do
+            case \${f##*/} in $stem.*) ;; *) rm -f -- \"\$f\" ;; esac
+        done
+    done"
 ssh "$FRAME_HOST" "cp $FRAME_BACKUP/$folder/$stem.* $FRAME_SCENES/$folder/ && chmod 755 $FRAME_SCENES/$folder/*"
 echo "@@ done frame $folder"
 echo
