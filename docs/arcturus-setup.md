@@ -52,20 +52,18 @@ The folder must directly contain `av1_to_3dgs.py` (if the zip has an extra folde
 
 ## 3. Spirula Studio
 
-Use the revision the pipeline README names. At the time of writing (pipeline `bde1c9812`):
+The pipeline is tested against one specific Spirula revision, and its README names it (`git -C spirula-studio checkout <commit>`). Use exactly that one – Spirula is under active development, and a newer version can change the command line options the pipeline calls. When you download a newer pipeline, it names the matching Spirula revision, so this stays up to date by itself.
+
+These commands read the revision from the pipeline README, so you don't have to copy it by hand:
 
 ```bash
 cd ~/arcturus
-git clone --branch sfm-calibrated-manifest https://github.com/arcturus-vision/spirula-studio.git
+REV=$(grep -oE 'spirula-studio checkout [0-9a-f]{40}' av1-3dgs-pipeline/README.md | awk '{print $3}')
+echo "Spirula revision: $REV"          # must not be empty – otherwise look it up in the README
+git clone https://github.com/arcturus-vision/spirula-studio.git
 cd spirula-studio
-git checkout 09383f75029fd9e0f34847e50d8514c3932db984
-```
-
-If `checkout` says the commit does not exist, the branch has moved on since – fetch the commit directly and try again:
-
-```bash
-git fetch origin 09383f75029fd9e0f34847e50d8514c3932db984
-git checkout 09383f75029fd9e0f34847e50d8514c3932db984
+git fetch origin "$REV"                # also works if the commit is no longer on a branch tip
+git checkout "$REV"
 ```
 
 Build (Vulkan backend, with Spirula's own structure-from-motion):
@@ -108,7 +106,7 @@ Restart Splat Workshop (tray → Quit, then start it again). If something is sti
 
 | Symptom | Cause / fix |
 |---|---|
-| `av.open() got an unexpected keyword argument 'metadata_errors'` | PyAV 19 removed that option. Pin the older version: in the `# /// script` header at the top of `av1_to_3dgs.py` and `av1_colmap.py`, change `"av>=18.1"` to `"av>=18.1,<19"`. (Was needed for pipeline `bde1c9812`; newer pipeline versions may have fixed it.) |
+| `av.open() got an unexpected keyword argument 'metadata_errors'` | PyAV 19 removed that option. Pin the older version: in the `# /// script` header at the top of `av1_to_3dgs.py` and `av1_colmap.py`, change `"av>=18.1"` to `"av>=18.1,<19"`. (Was needed with the pipeline from autumn 2026; newer versions may have fixed it.) |
 | `Could not select unique evenly spaced capture instants` | Recording too short. The pipeline needs at least 100 capture instants – record at least 10 seconds, better 30+. |
 | Spirula finds no GPU / uses llvmpipe | Vulkan driver missing, see step 1. |
 | The scene does not appear in Gaussian XR | It must be a real folder in Gaussian XR's `Scenes/` (no symlink) with the gallery images – Splat Workshop's *To the Frame* button does this for you. A Steam update or “verify files” of Gaussian XR can reset that folder; just copy the scene again. |
