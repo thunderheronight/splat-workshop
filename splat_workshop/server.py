@@ -778,7 +778,8 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
     if not runs or len(runs) > 12:
         return err("err.bad_request")
     title = title.strip()[:60]
-    key = hashlib.sha1(json.dumps([[str(r[0]), r[1], r[2]] for r in runs] + [style, lang, title]).encode()).hexdigest()[:16]
+    script = (SCRIPTS / "floorplan.py").stat().st_mtime        # a new version of the script draws anew
+    key = hashlib.sha1(json.dumps([[str(r[0]), r[1], r[2]] for r in runs] + [style, lang, title, script]).encode()).hexdigest()[:16]
     out = CACHE / f"plan-{key}.png"
     meta = out.with_suffix(".json")
     with lock:

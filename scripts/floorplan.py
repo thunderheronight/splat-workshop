@@ -14,6 +14,8 @@ any manual alignment. Per scene the plan shows:
   - the path the camera was carried along (registered camera positions)
   - name and approximate size
 The plan is rotated so the walls are axis-aligned.
+Seen from above, Y down means +x and +z form a mirrored pair on screen (rows count downwards):
+x is drawn right to left, otherwise the plan comes out mirror-inverted.
 """
 import argparse
 import json
@@ -187,7 +189,8 @@ def main():
     W, H = int(span[0] * ppm) + 160, int(span[1] * ppm) + 200
 
     def px(p):
-        return ((p[:, 0] - lo[0]) * ppm + 80).astype(int), ((p[:, 1] - lo[1]) * ppm + 120).astype(int)
+        # x from right to left: a top view of a Y-down frame, not its mirror image
+        return ((hi[0] - p[:, 0]) * ppm + 80).astype(int), ((p[:, 1] - lo[1]) * ppm + 120).astype(int)
 
     if args.style == "classic":
         img = classic(scenes, px, W, H)
