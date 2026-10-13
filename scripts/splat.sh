@@ -59,6 +59,16 @@ log=$RUNS_DIR/$slug.log
 mkdir -p "$RUNS_DIR"
 if [ "${FRESH:-0}" = 1 ]; then rm -rf "$out" "$log"; fi
 
+# The pipeline resumes finished stages only: an interrupted training run blocks --resume.
+# Then start the training over; images and camera positions are reused.
+manifest=$out/spirula/run.json
+if [[ " $* " == *" --resume "* ]] && [ -f "$manifest" ] && ! grep -q '"status": *"complete"' "$manifest"; then
+    ckpt=$(ls -d "$out"/spirula/training/step-*.ckpt 2>/dev/null | tail -1)
+    echo "Training was interrupted${ckpt:+ (last checkpoint: ${ckpt##*/step-})}; the pipeline cannot continue it." | tee -a "$log"
+    echo "Restarting the training, images and camera positions are reused." | tee -a "$log"
+    rm -rf "$out/spirula"
+fi
+
 # Image pairs from the duration: <per second>, clamped to the pipeline limits 100..500
 pairs() {
     local secs
