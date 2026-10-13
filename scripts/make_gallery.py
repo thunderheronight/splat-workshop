@@ -86,8 +86,14 @@ def main() -> None:
     if len(sys.argv) != 5:
         sys.exit(__doc__)
     run, log, name, stem = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4]
+    preview = run / f"{stem}.gallery.png"
+    if preview.exists() and not any(run.glob("dataset/images/cam0/*.jpg")):
+        # Training images were cleaned up: keep the existing preview, only renew the name plate
+        label(name, run / f"{stem}.sceneinfo.png")
+        print(f"Name plate \"{name}\" (preview image kept)")
+        return
     image, rotation = initial_view(run, log)
-    gallery(image, rotation, run / f"{stem}.gallery.png")
+    gallery(image, rotation, preview)
     label(name, run / f"{stem}.sceneinfo.png")
     print(f"Preview image from {image.name} (rotation {rotation:g}°), name plate \"{name}\"")
 

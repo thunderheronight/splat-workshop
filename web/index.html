@@ -313,6 +313,25 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
     <button class="primary" id="exFresh" data-i18n="exists.fresh"></button>
   </div>
 </dialog>
+<dialog id="renDlg">
+  <h2 style="margin-top:0" id="renTitle"></h2>
+  <p class="muted" id="renHint" style="font-size:13px"></p>
+  <input id="renInput" type="text" maxlength="80" style="width:100%" autocomplete="off">
+  <label id="renFrameRow" class="row hidden" style="margin-top:10px;gap:8px;font-size:13.5px"><input type="checkbox" id="renFrame"> <span data-i18n="ren.frame"></span></label>
+  <div class="row" style="justify-content:flex-end;margin-top:16px">
+    <button id="renCancel" data-i18n="ren.cancel"></button>
+    <button class="primary" id="renOk" data-i18n="ren.ok"></button>
+  </div>
+</dialog>
+<dialog id="cleanDlg">
+  <h2 style="margin-top:0" id="cleanTitle"></h2>
+  <p class="muted" style="font-size:13px" data-i18n="clean.intro"></p>
+  <div id="cleanList"></div>
+  <div class="row" style="justify-content:space-between;align-items:center;margin-top:16px">
+    <span class="faint" id="cleanTotal" style="font-size:13px"></span>
+    <button id="cleanClose" data-i18n="clean.close"></button>
+  </div>
+</dialog>
 <dialog id="planDlg" class="plan">
   <div class="plan-head">
     <h2 id="planTitle"></h2>
@@ -446,7 +465,7 @@ function renderRecs() {
     const play = onPc ? `<button class="play pc-only" data-play="${esc(f.name)}" title="${tr("play.title")}" aria-label="${tr("play.title")}">${PLAY}</button>` : "";
     return `<div class="rec${sel}" data-i="${i}" role="button" tabindex="0">
       <div class="thumb" data-src="/api/thumb?source=${onPc ? "local" : "frame"}&name=${encodeURIComponent(f.name)}">${badge(f)}${play}</div>
-      <div class="meta"><b>${esc(fmtDate(f.date) || f.name)}</b><span>${mb(f.size)} ${local}</span></div></div>`;
+      <div class="meta"><b>${esc(f.label || fmtDate(f.date) || f.name)}</b><span>${f.label && f.date ? esc(fmtDate(f.date)) + " · " : ""}${mb(f.size)} ${local}</span></div></div>`;
   }).join("");
   g.querySelectorAll(".thumb").forEach(t => {
     const url = t.dataset.src, img = new Image();
@@ -483,7 +502,8 @@ async function select(f) {
 function autoName() {
   const f = S.sel;
   if (!f || ($("#name").value && $("#name").dataset.auto !== "1")) return;
-  $("#name").value = f.date ? tr("name.auto", {date: fmtDate(f.date, true)}) : f.name.replace(/_stereo\.mp4$|\.mp4$/, "");
+  const label = f.label || S.recs?.local.find(x => x.name === f.name)?.label;
+  $("#name").value = label || (f.date ? tr("name.auto", {date: fmtDate(f.date, true)}) : f.name.replace(/_stereo\.mp4$|\.mp4$/, ""));
   $("#name").dataset.auto = "1";
 }
 async function runProbe(path) {
@@ -513,8 +533,10 @@ function renderCheck() {
   if (!p.ok && !p.duration) return;
   box.insertAdjacentHTML("afterbegin", `<div class="row" style="order:9;margin-left:auto">
     <button class="small" id="checkSel" title="${tr("check.title")}">${tr("check.run")}</button>
-    <button class="small pc-only" id="playSel">${tr("play.button")}</button></div>`);
+    <button class="small pc-only" id="playSel">${tr("play.button")}</button>
+    ${S.recs?.local.find(x => x.name === f.name)?.renamable ? `<button class="small" id="renSel">${tr("ren.button")}</button>` : ""}</div>`);
   $("#playSel").onclick = () => play(f.name);
+  if ($("#renSel")) $("#renSel").onclick = () => renameRecording(f);
   $("#checkSel").onclick = () => runCheck(f.name);
   loadCheck(f.name);
 }
@@ -649,7 +671,8 @@ async function start(existing) {
     frames: v("frames") || null, scale: v("scale") || null, maxg: v("maxg") ? Math.round(+v("maxg") * 1e6) : null, iter: v("iter") || null};
   const r = await api("/api/start", body);
   if (r.status === 409) {
-    $("#existsText").textContent = tr("exists.text", {name: body.name});
+    $("#existsText").textContent = tr(r.resumable === false ? "exists.noresume" : "exists.text", {name: body.name});
+    $("#exResume").classList.toggle("hidden", r.resumable === false);
     $("#existsDlg").showModal(); return;
   }
   if (!r.ok) { toast(trErr(r.error)); return; }
@@ -746,8 +769,9 @@ async function loadScenes() {
       <div class="thumb" style="${s.preview ? `background-image:url('/api/preview?slug=${encodeURIComponent(s.slug)}&t=${s.mtime}')` : ""}">${s.preview ? "" : "◌"}</div>
       <div class="meta"><b>${esc(s.name)}</b>
         <span>${new Date(s.mtime * 1000).toLocaleDateString(LANG)} · ${s.gaussians ? tr("sc.splats", {n: num(s.gaussians / 1e6, 2)}) + " · " : ""}${mb(s.size)}</span>
+        ${s.disk ? `<span class="faint">${tr("sc.disk", {size: mb(s.disk.total)})}</span>` : ""}
         ${frameState(s)}
-        <div class="acts">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}</div>
+        <div class="acts">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button></div>
       </div></div>`).join("") : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
   document.querySelectorAll("[data-upload]").forEach(b => b.onclick = async () => {
     const r = await api("/api/upload", {slug: b.dataset.upload});
@@ -760,7 +784,69 @@ async function loadScenes() {
   });
   document.querySelectorAll("[data-open]").forEach(b => b.onclick = () => api("/api/open", {slug: b.dataset.open, what: "folder"}));
   document.querySelectorAll("[data-spirula]").forEach(b => b.onclick = () => { api("/api/open", {slug: b.dataset.spirula, what: "spirula"}); toast(tr("sc.spirula.starting")); });
+  document.querySelectorAll("[data-rename]").forEach(b => b.onclick = () => renameScene(S.scenes.find(x => x.slug === b.dataset.rename)));
+  document.querySelectorAll("[data-clean]").forEach(b => b.onclick = () => openClean(b.dataset.clean));
 }
+
+/* ---------- renaming ---------- */
+function askName(title, hint, value, frameOption) {
+  $("#renTitle").textContent = title; $("#renHint").textContent = hint;
+  $("#renInput").value = value; $("#renFrameRow").classList.toggle("hidden", !frameOption);
+  $("#renFrame").checked = !!frameOption;
+  $("#renDlg").showModal(); $("#renInput").select();
+  return new Promise(res => {
+    const done = v => { $("#renDlg").close(); res(v); };
+    $("#renOk").onclick = () => done($("#renInput").value.trim() || null);
+    $("#renCancel").onclick = () => done(null);
+    $("#renInput").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#renOk").click(); } };
+    $("#renDlg").oncancel = () => res(null);
+  });
+}
+async function renameRecording(f) {
+  const cur = S.recs.local.find(x => x.name === f.name) || f;
+  const v = await askName(tr("ren.rec.title"), tr("ren.rec.hint"), cur.label || f.name.replace(/\.mp4$/, ""));
+  if (!v || v + ".mp4" === f.name) return;
+  const r = await api("/api/rename", {name: f.name, new: v});
+  if (!r.ok) { toast(trErr(r.error)); return; }
+  toast(tr("ren.done"));
+  if ($("#name").dataset.auto === "1") $("#name").value = "";
+  await loadRecs();
+  const nf = S.recs.local.find(x => x.name === r.name);
+  if (nf) select(nf); else { S.sel = null; renderCheck(); updateStart(); }
+}
+async function renameScene(sc) {
+  const v = await askName(tr("ren.scene.title"), tr("ren.scene.hint"), sc.name, sc.on_frame === true);
+  if (!v || v === sc.name) return;
+  const upd = sc.on_frame === true && $("#renFrame").checked;
+  const r = await api("/api/rename", {slug: sc.slug, new: v, update_frame: upd});
+  if (!r.ok) { toast(trErr(r.error)); return; }
+  toast(tr(upd ? "ren.frame.started" : "ren.done")); loadScenes();
+}
+
+/* ---------- cleaning up ---------- */
+function openClean(slug) {
+  const sc = S.scenes.find(x => x.slug === slug);
+  if (!sc || !sc.disk) return;
+  $("#cleanTitle").textContent = tr("clean.title", {name: sc.name});
+  $("#cleanTotal").textContent = tr("clean.total", {size: mb(sc.disk.total)});
+  $("#cleanList").innerHTML = ["temp", "images"].map(k => {
+    const size = sc.disk[k] || 0, empty = size < 1e6;
+    return `<div class="finding" style="display:flex;gap:12px;align-items:center;margin-top:10px">
+      <div style="flex:1"><b>${tr("clean." + k)} · ${empty ? tr("clean.empty") : mb(size)}</b><span style="display:block;font-size:12.5px" class="muted">${tr("clean." + k + ".text")}</span></div>
+      <button class="small" data-del="${k}" ${empty ? "disabled" : ""}>${tr("clean.delete")}</button></div>`;
+  }).join("");
+  $("#cleanList").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    const k = b.dataset.del, size = mb(sc.disk[k]);
+    if (!confirm(tr("clean.confirm", {what: tr("clean." + k), name: sc.name, size}))) return;
+    b.disabled = true;
+    const r = await api("/api/clean", {slug, what: k});
+    if (!r.ok) { toast(trErr(r.error)); b.disabled = false; return; }
+    toast(tr("clean.done", {size}));
+    await loadScenes(); openClean(slug);
+  });
+  if (!$("#cleanDlg").open) $("#cleanDlg").showModal();
+}
+$("#cleanClose").onclick = () => $("#cleanDlg").close();
 
 /* ---------- floor plan ---------- */
 const P = {slugs: [], name: "", style: "pretty"};

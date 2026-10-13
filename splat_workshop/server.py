@@ -169,8 +169,19 @@ def frame_listing(force=False):
     return data
 
 
+RECMETA = STATE_DIR / "recordings.json"   # renamed recordings: {current name: {"orig": name on the Frame}}
+
+
+def rec_meta() -> dict:
+    try:
+        return json.loads(RECMETA.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
 def local_files():
     seen, out = set(), []
+    renamed = rec_meta()
     cands = list(REC.glob("*.mp4")) if REC.is_dir() else []
     for d in CFG.extra_recording_dirs:
         if d.is_dir():
@@ -181,8 +192,11 @@ def local_files():
         seen.add(p.name)
         st = p.stat()
         cr = check_cached(p)
+        orig = renamed.get(p.name, {}).get("orig", p.name)
         out.append({"name": p.name, "path": str(p), "size": st.st_size, "mtime": int(st.st_mtime),
-                    "date": pretty_date(p.stem), "check": cr["level"] if cr else None})
+                    "date": pretty_date(Path(orig).stem), "orig": orig,
+                    "label": p.name.removesuffix(".mp4") if orig != p.name else None,
+                    "renamable": p.parent.resolve() == REC.resolve(), "check": cr["level"] if cr else None})
     return out
 
 
@@ -195,7 +209,7 @@ def local_path(name: str):
 def recordings():
     fr = frame_listing()
     local = local_files()
-    local_names = {f["name"]: f["path"] for f in local}
+    local_names = {f["orig"]: f["path"] for f in local}
     frame = None
     if fr is not None:
         frame = [{**f, "date": pretty_date(f["name"]), "local": local_names.get(f["name"])}
@@ -491,6 +505,8 @@ def start_job(p: dict):
             env["NO_UPLOAD"] = "1"
         args = []
         if (RUNS / slug).exists():
+            if p.get("existing") == "resume" and "images" in (read_meta(slug).get("cleaned") or []):
+                return "exists"                 # training images were deleted: only a fresh start works
             if p.get("existing") == "resume":
                 args.append("--resume")
             elif p.get("existing") == "fresh":
@@ -509,7 +525,8 @@ def start_job(p: dict):
                      "overrides": {k: env[k] for k in ("FRAMES", "SCALE", "MAXG", "ITER") if k in env}}
         save_state(st)
         RUNS.mkdir(parents=True, exist_ok=True)
-        write_meta(slug, name=name, recording=Path(path).name, quality=env["QUALITY"])
+        write_meta(slug, name=name, recording=Path(path).name, quality=env["QUALITY"],
+                   **({} if "--resume" in args else {"cleaned": []}))
     return None
 
 
@@ -669,7 +686,7 @@ def scenes():
         out.append({"slug": slug, "name": meta.get("name") or slug, "quality": meta.get("quality"),
                     "recording": meta.get("recording"), "size": sog.stat().st_size,
                     "mtime": int(sog.stat().st_mtime), "gaussians": gauss, "preview": bool(gallery),
-                    "ply": (d / "spirula" / "scene.ply").exists(), "on_frame": on_frame,
+                    "ply": (d / "spirula" / "scene.ply").exists(), "on_frame": on_frame, "disk": disk_usage(d),
                     "upload": upload_status(slug)})
     return out
 
@@ -722,6 +739,137 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
 def scene_dir(slug: str) -> Path | None:
     d = (RUNS / slug).resolve()
     return d if d.parent == RUNS.resolve() and d.is_dir() else None
+
+
+# ---------------------------------------------------------------- renaming and cleaning up
+
+# What a finished scene can do without: intermediate state (lossless) and the training images (a new
+# training then has to start from the recording again). Scene, floor plan and Spirula viewer keep working.
+CLEANUP = {"temp": ("spirula/training", "dataset/.spirula-sfm"), "images": ("dataset/images",)}
+usage_cache = {}                   # run folder -> (time, sizes)
+
+
+def dir_size(p: Path) -> int:
+    total = 0
+    try:
+        for e in os.scandir(p):
+            if e.is_dir(follow_symlinks=False):
+                total += dir_size(Path(e.path))
+            elif e.is_file(follow_symlinks=False):
+                total += e.stat(follow_symlinks=False).st_blocks * 512
+    except OSError:
+        pass
+    return total
+
+
+def disk_usage(d: Path) -> dict:
+    hit = usage_cache.get(d)
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+    sizes = {k: sum(dir_size(d / rel) for rel in rels) for k, rels in CLEANUP.items()}
+    sizes["total"] = dir_size(d)
+    usage_cache[d] = (time.time(), sizes)
+    return sizes
+
+
+def scene_busy(slug: str) -> bool:
+    job = load_state().get("job") or {}
+    u = uploads.get(slug)
+    return (job.get("slug") == slug and pid_alive(job.get("pid", 0))) or bool(u and u["proc"].poll() is None)
+
+
+def clean_scene(slug: str, what: str):
+    d = scene_dir(slug)
+    if not d or not (d / "scene.sog").exists():
+        return err("err.no_scene")
+    if what not in CLEANUP:
+        return err("err.bad_request")
+    if scene_busy(slug):
+        return err("err.scene_busy")
+    for rel in CLEANUP[what]:
+        shutil.rmtree(d / rel, ignore_errors=True)
+    meta = read_meta(slug)
+    write_meta(slug, cleaned=sorted(set(meta.get("cleaned") or []) | {what}))
+    usage_cache.pop(d, None)
+    return None
+
+
+def clean_name(name: str, file: bool = True) -> str:
+    """A name from user input without control characters; as a file name also without path separators."""
+    name = re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f]", "", name or "")).strip()
+    if file:
+        name = re.sub(r"\s*[/\\]\s*", " - ", name).strip(" .-")
+    return name[:80]
+
+
+def rename_scene(slug: str, name: str, update_frame: bool):
+    d = scene_dir(slug)
+    name = clean_name(name, file=False)
+    if not d or not (d / "scene.sog").exists():
+        return err("err.no_scene")
+    if not name:
+        return err("err.bad_name")
+    if scene_busy(slug):
+        return err("err.scene_busy")
+    meta = read_meta(slug)
+    write_meta(slug, name=name)
+    # New name plate for the gallery; the preview image stays if the training images are gone
+    env = {**os.environ, "GALLERY_ONLY": "1"}
+    if meta.get("stem"):
+        env["STEM"] = meta["stem"]
+    if meta.get("log"):
+        env["LOG"] = str(RUNS / Path(meta["log"]).name)
+    subprocess.run([str(SCRIPTS / "to-frame.sh"), str(d), name], cwd=ROOT, env=env, timeout=120,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    return start_upload(slug) if update_frame else None
+
+
+def rename_recording(name: str, new: str):
+    src = REC / Path(name).name
+    new = clean_name(new).removesuffix(".mp4")
+    if not src.is_file() or src.parent.resolve() != REC.resolve():
+        return err("err.not_local")
+    if not new:
+        return err("err.bad_name")
+    dst = REC / f"{new}.mp4"
+    if dst.exists():
+        return err("err.name_taken")
+    job = load_state().get("job") or {}
+    if job.get("recording") == src.name and pid_alive(job.get("pid", 0)):
+        return err("err.recording_busy")
+    if checks.get(src.name, {}).get("state") in ("queued", "running"):
+        return err("err.recording_busy")
+    with lock:
+        os.rename(src, dst)                     # keeps size and mtime, so cached results stay valid
+        meta = rec_meta()
+        orig = meta.pop(src.name, {}).get("orig", src.name)
+        if orig != dst.name:
+            meta[dst.name] = {"orig": orig}
+        RECMETA.parent.mkdir(parents=True, exist_ok=True)
+        RECMETA.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+        # Cached thumbnail and check result belong to the file name
+        old_stem, new_stem = src.stem, dst.stem
+        if (CACHE / f"{old_stem}.thumb").exists():
+            os.replace(CACHE / f"{old_stem}.thumb", CACHE / f"{new_stem}.thumb")
+        for f in CACHE.glob("*.check.json"):
+            if f.name.startswith(old_stem + ".") and re.fullmatch(r"\.\d+-\d+\.v\d+\.check\.json",
+                                                                 f.name[len(old_stem):]):
+                os.replace(f, CACHE / (new_stem + f.name[len(old_stem):]))
+        if src.name in checks:
+            checks[dst.name] = checks.pop(src.name)
+        for m in RUNS.glob("*.ui.json"):
+            try:
+                data = json.loads(m.read_text())
+            except (OSError, ValueError):
+                continue
+            if data.get("recording") == src.name:
+                data["recording"] = dst.name
+                m.write_text(json.dumps(data, ensure_ascii=False))
+        st = load_state()
+        if (st.get("job") or {}).get("recording") == src.name:
+            st["job"]["recording"] = dst.name
+            save_state(st)
+    return None
 
 
 def pick_file():
@@ -860,7 +1008,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/start":
             e = start_job(p)
             if e == "exists":
-                return self.send(409, {"error": err("exists")})
+                slug = config.slugify((p.get("name") or "").strip())
+                return self.send(409, {"error": err("exists"),
+                                       "resumable": "images" not in (read_meta(slug).get("cleaned") or [])})
         elif path == "/api/cancel":
             e = cancel_job()
         elif path == "/api/download":
@@ -876,6 +1026,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"path": chosen})
         elif path == "/api/check":
             e = start_check(Path(p.get("name", "")).name)
+        elif path == "/api/rename":
+            if p.get("slug"):
+                e = rename_scene(p["slug"], p.get("new", ""), bool(p.get("update_frame")))
+            else:
+                e = rename_recording(p.get("name", ""), p.get("new", ""))
+                if not e:
+                    return self.send(200, {"ok": True, "name": clean_name(p.get("new", "")).removesuffix(".mp4") + ".mp4"})
+        elif path == "/api/clean":
+            e = clean_scene(p.get("slug", ""), p.get("what", ""))
         elif path == "/api/play":
             local = local_path(Path(p.get("name", "")).name)
             if not local:
