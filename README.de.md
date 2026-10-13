@@ -40,6 +40,8 @@ cd splat-workshop
 
 **Läuft unter Linux** (getestet mit Nobara/Fedora und einer RTX 4070 SUPER). macOS ist ungetestet, Windows wird von der Arcturus-Pipeline noch nicht unterstützt.
 
+**Arcturus-Pipeline und Spirula Studio einrichten:** Schritt für Schritt in [docs/arcturus-setup.de.md](docs/arcturus-setup.de.md) (Pakete, Spirula bauen, bekannte Stolperfallen).
+
 **SSH auf der Frame einrichten** (für Download der Aufnahmen und Kopieren in die Galerie):
 1. Auf der Frame: **Steam-Einstellungen → System → Enable Developer Mode**.
 2. Im linken Menü unter **Developer** ganz unten **Set User Password** wählen. Es gibt kein Standardpasswort – SSH geht erst, wenn du eins vergibst.

@@ -40,6 +40,9 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 - **Node.js** for [`splat-transform`](https://github.com/playcanvas/splat-transform): `npm install -g @playcanvas/splat-transform`
 - The **Arcturus reconstruction scripts** (`av1-3dgs-pipeline`) from [arcturus.vision/apps](https://arcturus.vision/apps) – not included here, download them yourself.
 - **Spirula Studio**, built from the Arcturus fork exactly as described in the pipeline's README (branch `sfm-calibrated-manifest`, Vulkan backend).
+
+  → **Step-by-step: [Setting up the Arcturus pipeline on Linux](docs/arcturus-setup.md)** (packages, Spirula build, known pitfalls).
+
 - Optional for the tray icon: **PySide6** (`sudo dnf install python3-pyside6` / `sudo apt install python3-pyside6.qtwidgets`) – otherwise `uv` fetches it on first start. On GNOME you need the *AppIndicator* extension to see tray icons.
 
 ## Install
