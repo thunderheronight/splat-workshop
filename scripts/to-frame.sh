@@ -7,6 +7,7 @@
 #   GALLERY_ONLY=1  only create the gallery files (preview image, name plate) in the run folder
 #   TARGET=NN_name  use this scene folder on the Frame (default: same name, or next free number from 20)
 #   STEM=name       file stem (default: folder name in lower case)
+#   SLUG=name       name for a new scene folder on the Frame (default: the run folder's name)
 #   LOG=file        pipeline log with the initial view (default: runs/<folder>.log)
 set -euo pipefail
 # Everything in one block: bash reads it completely before it starts, so updating this file
@@ -23,7 +24,7 @@ run=${1:?Give a run folder}
 name=${2:?Give a display name}
 [ -d "$run" ] || run=$RUNS_DIR/$run
 out=$(realpath "$run")
-slug=$(basename "$out")
+slug=${SLUG:-$(basename "$out")}
 [ -f "$out/scene.sog" ] || { echo "No scene.sog in $out" >&2; exit 1; }
 log=${LOG:-$RUNS_DIR/$slug.log}
 [ -f "$log" ] || log=$(grep -ls "Gaussian XR initial view" "$RUNS_DIR"/*.log 2>/dev/null | xargs -r grep -l "$out/" | head -1)

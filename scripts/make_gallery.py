@@ -6,6 +6,7 @@
 
 Usage: uv run make_gallery.py <run folder> <pipeline log> <display name> <file stem>
        uv run make_gallery.py --plan <floor plan.png> <run folder> <display name> <file stem>
+       uv run make_gallery.py --label <name plate.png> <text>
 Reads the initial view from the log ("Gaussian XR initial view: cam0/... Display rotation X°")
 and writes <file stem>.gallery.png and <file stem>.sceneinfo.png into the run folder.
 The look matches the example scenes that ship with Gaussian XR.
@@ -93,6 +94,9 @@ def from_plan(plan: Path, out: Path) -> None:
 
 
 def main() -> None:
+    if len(sys.argv) == 4 and sys.argv[1] == "--label":
+        label(sys.argv[3], Path(sys.argv[2]))
+        return
     if len(sys.argv) == 6 and sys.argv[1] == "--plan":
         plan, run, name, stem = Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4], sys.argv[5]
         from_plan(plan, run / f"{stem}.gallery.png")

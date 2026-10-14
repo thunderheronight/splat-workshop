@@ -166,6 +166,8 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .suggest { border: 1px dashed var(--accent); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 13.5px; }
 .suggest .row { margin-top: 8px; }
 dialog.wide { max-width: 560px; }
+.vgrid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; font-size: 13.5px; }
+.vgrid label.chk { display: inline-flex; gap: 5px; align-items: center; padding: 4px 9px; border: 1px solid var(--line); border-radius: 8px; }
 dialog select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; }
 dialog h3 { font-size: 13.5px; margin: 16px 0 8px; }
 .opts { display: grid; gap: 6px; }
@@ -361,7 +363,9 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   <h3 data-i18n="cmb.part"></h3>
   <div class="opts" id="cmbPart"></div>
   <h3 data-i18n="cmb.size"></h3>
-  <select id="cmbSize"><option value="2000000" data-i18n="cmb.size.2"></option><option value="3500000" data-i18n="cmb.size.35"></option><option value="5000000" data-i18n="cmb.size.5"></option></select>
+  <div class="row"><select id="cmbSize"></select>
+  <input id="cmbSizeCustom" class="hidden" type="number" min="0.5" max="10" step="0.05" style="width:90px"> <span class="hidden" id="cmbSizeUnit" data-i18n="ver.million"></span></div>
+  <p class="faint" style="font-size:12px;margin:6px 0 0" data-i18n="ver.measured"></p>
   <label class="row" style="margin-top:14px;gap:8px;font-size:13.5px"><input type="checkbox" id="cmbFull"> <span data-i18n="cmb.full"></span></label>
   <p class="faint" id="cmbMem" style="font-size:12.5px;margin:6px 0 0"></p>
   <div id="cmbMemLow" class="msg warn hidden" data-i18n="cmb.mem.low"></div>
@@ -369,6 +373,24 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button id="cmbCancel" data-i18n="grp.cancel"></button>
     <button class="primary" id="cmbStart" data-i18n="cmb.start"></button>
+  </div>
+</dialog>
+
+<dialog id="verDlg" class="wide">
+  <h2 style="margin-top:0" id="verTitle"></h2>
+  <p class="muted" style="font-size:13px;margin-top:0" data-i18n="ver.hint"></p>
+  <div id="verList" class="unfin"></div>
+  <h3 data-i18n="ver.new"></h3>
+  <div class="vgrid">
+    <b data-i18n="ver.frame"></b><div class="row" id="verFrame"></div>
+    <b data-i18n="ver.pc"></b><div class="row" id="verPc"></div>
+    <b data-i18n="ver.custom"></b><label class="row" style="gap:6px"><input id="verCustom" type="number" min="0.1" max="50" step="0.05" style="width:90px"> <span data-i18n="ver.million"></span></label>
+    <b class="hidden" id="verScaleHead" data-i18n="ver.scales"></b><div class="row hidden" id="verScales"></div>
+  </div>
+  <p class="faint" style="font-size:12px;margin:12px 0 0" data-i18n="ver.measured"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:16px">
+    <button id="verClose" data-i18n="clean.close"></button>
+    <button class="primary" id="verMake" data-i18n="ver.make"></button>
   </div>
 </dialog>
 
@@ -764,11 +786,14 @@ function renderJob() {
   $("#jobName").textContent = j.name;
   const qk = QUALITY_ALIAS[j.quality] || j.quality, combine = j.kind === "combine";
   const target = tr(j.upload ? "job.toFrame" : "job.pcOnly"), time = mins(Date.now() / 1000 - j.started);
-  $("#jobSub").textContent = combine ? tr("job.sub.combine", {n: j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
+  const versions = j.kind === "versions";
+  $("#jobSub").textContent = versions ? tr("job.sub.versions", {n: (j.steps || []).length, time})
+                           : combine ? tr("job.sub.combine", {n: j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
                                      : tr("job.sub", {rec: j.recording, q: tr("q." + qk), target, time});
   $("#cancelBtn").classList.toggle("hidden", !j.running);
   $("#dismissBtn").classList.toggle("hidden", j.running);
-  const phases = [0, 1, 2, 3, 4].slice(0, j.upload ? 5 : 4).map(i => tr((combine && i < 4 ? "cphase." : "phase.") + i));
+  const phases = versions ? (j.steps || [])
+               : [0, 1, 2, 3, 4].slice(0, j.upload ? 5 : 4).map(i => tr((combine && i < 4 ? "cphase." : "phase.") + i));
   const finished = !j.running && j.result === "ok";
   $("#steps").style.gridTemplateColumns = `repeat(${phases.length}, 1fr)`;
   $("#steps").innerHTML = phases.map((p, i) => {
@@ -837,7 +862,7 @@ function sceneCard(s) {
         ${s.disk ? `<span class="faint">${tr("sc.disk", {size: mb(s.disk.total)})}</span>` : ""}
         ${scaleLine(s)}
         ${s.replacing ? `<div class="fstate faint">${tr("sc.replacing")}</div>` : frameState(s)}
-        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
+        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small" data-versions="${esc(s.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: s.versions || 0})}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
       </div></div>`;
 }
 const ALIGN_LETTER = {frame: "A", images: "B", shift: "C", rigid: "D"};
@@ -880,6 +905,7 @@ function groupBlock(g, bySlug) {
           ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}
           <button class="small" data-gedit="${esc(g.slug)}">${tr("grp.edit")}</button>
           <button class="small" data-scale="${esc(g.slug)}" title="${tr("scale.button.title")}" ${g.busy ? "disabled" : ""}>📏${g.scale !== 1 ? " " + ratioText(g.scale) : ""}</button>
+          ${r && r.ply ? `<button class="small" data-versions="${esc(g.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: g.versions || 0})}</button>` : ""}
           <button class="small" data-clean="${esc(g.slug)}" title="${tr("grp.clean.title")}" aria-label="${tr("grp.clean.title")}" ${g.busy ? "disabled" : ""}>${tr("sc.clean")}</button>
           <button class="small" data-gdelete="${esc(g.slug)}" title="${tr("grp.delete.title")}" aria-label="${tr("grp.delete.title")}">${tr("sc.delete")}</button>
         </div>
@@ -912,6 +938,7 @@ async function loadScenes() {
     : S.groups.length ? "" : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
   document.querySelectorAll("[data-gtoggle]").forEach(b => b.onclick = () => { groupOpen(b.dataset.gtoggle, !groupOpen(b.dataset.gtoggle)); loadScenes(); });
   document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => openScale(b.dataset.scale));
+  document.querySelectorAll("[data-versions]").forEach(b => b.onclick = () => openVersions(b.dataset.versions));
   document.querySelectorAll("[data-gedit]").forEach(b => b.onclick = () => openGroupDlg(S.groups.find(g => g.slug === b.dataset.gedit)));
   document.querySelectorAll("[data-gdelete]").forEach(b => b.onclick = () => deleteGroup(S.groups.find(g => g.slug === b.dataset.gdelete)));
   document.querySelectorAll("[data-combine]").forEach(b => b.onclick = () => openCombine(S.groups.find(g => g.slug === b.dataset.combine)));
@@ -1007,7 +1034,13 @@ function openCombine(g) {
   radios("#cmbAlign", "cmb.align", ["frame", "images", "shift", "rigid"], o.align || "images");
   radios("#cmbPart", "cmb.part", ["view", "nearest"], o.partition || "view");
   $("#cmbTitle").textContent = tr("cmb.title", {name: g.name});
-  $("#cmbSize").value = String(o.frame_splats || 3500000);
+  const last = o.frame_splats || 1000000, known = FRAME_SIZES.some(m => m * 1e6 === last);
+  $("#cmbSize").innerHTML = FRAME_SIZES.map(m => `<option value="${m * 1e6}">${sizeText(m)}</option>`).join("")
+    + `<option value="custom">${tr("ver.custom")}</option>`;
+  $("#cmbSize").value = known ? String(last) : "custom";
+  $("#cmbSizeCustom").value = known ? "" : last / 1e6;
+  const showCustom = () => ["#cmbSizeCustom", "#cmbSizeUnit"].forEach(id => $(id).classList.toggle("hidden", $("#cmbSize").value !== "custom"));
+  $("#cmbSize").onchange = showCustom; showCustom();
   // memory, measured on six rooms: reduce ~0.45 GB per million splats, full SOG ~0.65 GB per million
   const total = (g.splats || 0) * 0.85 / 1e6, needFrame = Math.max(1.5, 0.45 * total), needFull = Math.max(needFrame, 0.65 * total);
   const avail = S.memGB || 0, lowFull = avail && needFull > avail;
@@ -1021,12 +1054,68 @@ function openCombine(g) {
   $("#cmbCancel").onclick = () => $("#combineDlg").close();
   $("#cmbStart").onclick = async () => {
     const r = await api("/api/combine", {slug: g.slug, align: $("input[name='cmb.align']:checked").value,
-      partition: $("input[name='cmb.part']:checked").value, frame_splats: $("#cmbSize").value,
+      partition: $("input[name='cmb.part']:checked").value, frame_splats: $("#cmbSize").value === "custom" ? String(Math.round(parseFloat($("#cmbSizeCustom").value) * 1e6)) : $("#cmbSize").value,
       full: $("#cmbFull").checked, upload: S.frameConfigured && $("#cmbUpload").checked});
     if (!r.ok) { toast(trErr(r.error)); return; }
     $("#combineDlg").close(); toast(tr("cmb.started")); await poll(); loadScenes();
     $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
   };
+}
+
+/* ---------- versions ---------- */
+const FRAME_SIZES = [0.75, 1, 1.5, 2], PC_SIZES = ["all", 3, 5, 8];          // million splats
+function sizeText(m) { return m === "all" ? tr("ver.all") : tr("million", {n: num(m, Math.round(m * 100) % 10 ? 2 : m % 1 ? 1 : 0)}); }
+async function openVersions(slug) {
+  const g = (S.groups || []).find(x => x.slug === slug), x = g || S.scenes.find(y => y.slug === slug);
+  if (!x) return;
+  const total = (g ? g.result && g.result.splats : x.gaussians) || 0, scale = x.scale || 1;
+  $("#verTitle").textContent = tr("ver.title", {name: x.name, n: tr("million", {n: num(total / 1e6, 2)})});
+  const chk = (val, text) => `<label class="chk"><input type="checkbox" value="${val}"> ${text}</label>`;
+  $("#verFrame").innerHTML = FRAME_SIZES.map(m => chk(m, sizeText(m))).join("");
+  $("#verPc").innerHTML = PC_SIZES.filter(m => m === "all" || m * 1e6 < total).map(m => chk(m, sizeText(m))).join("");
+  $("#verCustom").value = "";
+  $("#verScaleHead").classList.toggle("hidden", scale === 1);
+  $("#verScales").classList.toggle("hidden", scale === 1);
+  $("#verScales").innerHTML = scale === 1 ? "" : `<label class="chk"><input type="checkbox" value="1" checked> ${tr("scale.original")}</label>`
+    + `<label class="chk"><input type="checkbox" value="${scale}"> ${tr("ver.walk", {ratio: ratioText(scale)})}</label>`;
+  await drawVersions(slug);
+  $("#verDlg").showModal();
+  $("#verClose").onclick = () => $("#verDlg").close();
+  $("#verMake").onclick = async () => {
+    const sizes = [...document.querySelectorAll("#verFrame input:checked, #verPc input:checked")]
+      .map(i => i.value === "all" ? "all" : String(Math.round(parseFloat(i.value) * 1e6)));
+    const custom = parseFloat($("#verCustom").value);
+    if (custom > 0) sizes.push(String(Math.round(custom * 1e6)));
+    const scales = scale === 1 ? ["1"] : [...document.querySelectorAll("#verScales input:checked")].map(i => i.value);
+    if (!sizes.length || !scales.length) { toast(tr("ver.pick")); return; }
+    const r = await api("/api/versions", {slug, sizes: sizes.join(","), scales: scales.join(",")});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    $("#verDlg").close(); toast(tr("ver.started")); await poll();
+    $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
+  };
+}
+async function drawVersions(slug) {
+  const r = await api("/api/versions?slug=" + encodeURIComponent(slug));
+  const list = r.versions || [];
+  $("#verList").innerHTML = list.length ? list.map(v => `<div class="row">
+      <b>${esc(v.label)}</b>
+      <span class="muted" style="font-size:12.5px">${tr("million", {n: num(v.splats / 1e6, 2)})} · ${mb(v.size)}${v.stale ? " · " + tr("ver.stale") : ""}</span>
+      <span class="sp"></span>${frameState({upload: v.upload, on_frame: v.on_frame})}
+      ${S.frameConfigured ? `<button class="small" data-vup="${esc(v.key)}" ${v.upload && v.upload.running ? "disabled" : ""}>${tr(v.on_frame ? "sc.reupload" : "sc.toFrame")}</button>` : ""}
+      <button class="small" data-vdel="${esc(v.key)}" title="${tr("ver.delete")}" aria-label="${tr("ver.delete")}">${tr("sc.delete")}</button>
+    </div>`).join("") : `<p class="faint" style="font-size:13px;margin:0">${tr("ver.none")}</p>`;
+  $("#verList").querySelectorAll("[data-vup]").forEach(b => b.onclick = async () => {
+    const res = await api("/api/upload", {slug, version: b.dataset.vup});
+    if (!res.ok) { toast(trErr(res.error)); return; }
+    toast(tr("sc.uploadStarted")); setTimeout(() => drawVersions(slug), 1500);
+  });
+  $("#verList").querySelectorAll("[data-vdel]").forEach(b => b.onclick = async () => {
+    const v = list.find(x => x.key === b.dataset.vdel);
+    if (!confirm(tr("ver.confirm", {name: v.label, size: mb(v.size)}))) return;
+    const res = await api("/api/version/delete", {slug, version: v.key});
+    if (!res.ok) { toast(trErr(res.error)); return; }
+    drawVersions(slug); loadScenes();
+  });
 }
 
 /* ---------- scale (models) ---------- */

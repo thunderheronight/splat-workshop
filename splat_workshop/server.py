@@ -141,7 +141,7 @@ def pid_alive(pid: int) -> bool:
     try:
         cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
         if cmd:
-            return "splat.sh" in cmd or "combine.sh" in cmd
+            return any(x in cmd for x in ("splat.sh", "combine.sh", "versions.sh"))
     except OSError:
         pass
     if not pid:
@@ -466,10 +466,25 @@ def parse_combine(text: str) -> dict:
     return {"phase": phase, "pct": pct, "eta": None, "info": info}
 
 
+RX_VSTEP = re.compile(r"^@@ vstep (\d+) (\d+) (\S+)", re.M)
+
+
+def parse_versions(text: str) -> dict:
+    """Progress of versions.sh: one phase per version."""
+    steps = RX_VSTEP.findall(text)
+    i, n, key = steps[-1]
+    info = {"version": key, "versions": int(n)}
+    if RX_DONE.search(text):
+        info["done"] = True
+    return {"phase": int(i) - 1, "pct": round(100 * (int(i) - 1) / int(n)), "eta": None, "info": info}
+
+
 def parse_output(text: str) -> dict:
     text = text.replace("\r", "\n")
     if "@@ cphase" in text:
         return parse_combine(text)
+    if "@@ vstep" in text:
+        return parse_versions(text)
     phase, pct, eta = 0, None, None
     info = {}
     m = None
@@ -699,32 +714,169 @@ def set_scale(slug: str, ratio, xr: bool, members: bool, update_frame: bool):
     return None
 
 
-def start_upload(slug: str):
+# ---------------------------------------------------------------- versions (scripts/versions.sh)
+
+VERSION_LIMITS = (10_000, 50_000_000)       # splats
+
+
+def read_version(vdir: Path) -> dict:
+    try:
+        return json.loads((vdir / "version.json").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def version_key(splats, scale: float) -> str:
+    """Folder name of a version: 1m, 0.75m, all; with a scale e.g. 1m-1x87."""
+    key = "all" if splats == "all" else f"{splats / 1e6:g}m"
+    return key + (f"-1x{scale:g}" if scale != 1 else "")
+
+
+def versions_of(slug: str) -> list:
+    d = scene_dir(slug)
+    if not d or not (d / "versions").is_dir():
+        return []
+    meta = read_meta(slug)
+    source = d / "spirula" / "scene.ply"
+    built = source.stat().st_mtime if source.exists() else 0
+    fr = frame_listing()
+    folders = meta.get("version_folders") or {}
+    out = []
+    for vdir in sorted((d / "versions").iterdir()):
+        info = read_version(vdir)
+        if not info or not (vdir / "scene.sog").exists():
+            continue
+        key = vdir.name
+        on_frame = None
+        if fr is not None:
+            folder = folders.get(key)
+            on_frame = (folder in fr["scenes"]) if folder else any(
+                re.fullmatch(r"\d\d_" + re.escape(f"{slug}-{key}"), x) for x in fr["scenes"])
+        out.append({"key": key, "label": info.get("label"), "splats": info.get("splats"), "scale": info.get("scale", 1),
+                    "size": (vdir / "scene.sog").stat().st_size, "created": int(info.get("created", 0)),
+                    "stale": info.get("created", 0) < built, "on_frame": on_frame,
+                    "upload": upload_status(f"{slug}#{key}")})
+    return sorted(out, key=lambda v: (v["scale"], v["splats"] or 0))
+
+
+def start_versions(p: dict):
+    """New versions of a scene or tour: sizes (splats, or "all") times scales."""
+    global proc
+    slug = p.get("slug", "")
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    if not d or not (d / "spirula" / "scene.ply").exists() or not (d / "scene.sog").exists():
+        return err("err.no_scene")
+    sizes, scales = [], []
+    for x in (p.get("sizes") or "").split(","):
+        x = x.strip()
+        if not x:
+            continue
+        if x == "all":
+            sizes.append("all")
+            continue
+        try:
+            n = int(float(x))
+        except ValueError:
+            return err("err.bad_value", key="sizes")
+        if not VERSION_LIMITS[0] <= n <= VERSION_LIMITS[1]:
+            return err("err.range", key="sizes", lo=VERSION_LIMITS[0], hi=VERSION_LIMITS[1])
+        sizes.append(n)
+    for x in (p.get("scales") or "1").split(","):
+        try:
+            sc = float(x)
+        except ValueError:
+            return err("err.bad_value", key="scales")
+        if not 1 <= sc <= SCALE_MAX or sc != sc:
+            return err("err.range", key="scales", lo=1, hi=SCALE_MAX)
+        scales.append(sc)
+    if not sizes:
+        return err("err.no_versions")
+    meta = read_meta(slug)
+    name = meta.get("name") or slug
+    specs = []
+    for sc in dict.fromkeys(scales):
+        for n in dict.fromkeys(sizes):
+            size = t("ver.all") if n == "all" else t("ver.size", n=f"{n / 1e6:g}".replace(".", "," if t.lang == "de" else "."))
+            plate = f"{name} · {size}" + (f" · 1:{sc:g}" if sc != 1 else "")
+            specs.append(f"{version_key(n, sc)}|{n}|{sc:g}|{plate}")
+    with lock:
+        if (cur := load_state().get("job")) and pid_alive(cur["pid"]):
+            return err("err.job_busy")
+        if scene_busy(slug):
+            return err("err.scene_busy")
+        JOBS.mkdir(parents=True, exist_ok=True)
+        out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_versions_{slug}.out"
+        with open(out, "wb") as fh:
+            proc = subprocess.Popen(keep_awake([str(SCRIPTS / "versions.sh"), str(d), *specs],
+                                               t("inhibit.versions", name=name)), cwd=ROOT, stdout=fh,
+                                    stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+        st = load_state()
+        st["job"] = {"kind": "versions", "pid": proc.pid, "out": str(out), "name": name, "slug": slug,
+                     "recording": "", "quality": "", "upload": False, "started": time.time(), "overrides": {},
+                     "steps": [s.split("|")[3].removeprefix(name + " · ") for s in specs]}
+        save_state(st)
+    return None
+
+
+def delete_version(slug: str, key: str):
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    vdir = d / "versions" / Path(key).name if d and key and not key.startswith(".") else None
+    if not vdir or not vdir.is_dir():
+        return err("err.no_version")
+    if scene_busy(slug) or ((u := uploads.get(f"{slug}#{key}")) and u["proc"].poll() is None):
+        return err("err.scene_busy")
+    try:
+        r = subprocess.run(["gio", "trash", "--", str(vdir)], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return err("err.trash_failed", detail=str(e))
+    if r.returncode != 0:
+        return err("err.trash_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
+    usage_cache.pop(d, None)
+    return None
+
+
+def start_upload(slug: str, version: str = ""):
+    """Copy a scene – or one of its versions – to the Frame. Every version gets its own scene folder there."""
     if not FRAME:
         return err("err.no_frame")
     d = scene_dir(slug)
     if not d or not (d / "scene.sog").exists():
         return err("err.no_scene")
+    vdir = None
+    if version:
+        vdir = d / "versions" / Path(version).name
+        if version.startswith(".") or not (vdir / "scene.sog").exists():
+            return err("err.no_version")
+    key = f"{slug}#{version}" if version else slug
     with lock:
-        u = uploads.get(slug)
+        u = uploads.get(key)
         if u and u["proc"].poll() is None:
             return err("err.upload_busy")
         meta = read_meta(slug)
         env = {**os.environ}
-        for key, var in (("frame_folder", "TARGET"), ("stem", "STEM")):
-            if meta.get(key):
-                env[var] = meta[key]
-        env.update(world_scale_env(meta))
-        if meta.get("log"):
-            env["LOG"] = str(RUNS / Path(meta["log"]).name)
+        name = meta.get("name") or slug
+        if vdir:
+            info = read_version(vdir)
+            name = info.get("label") or name
+            env.update(STEM=f"{slug}-{version}".lower(), SLUG=f"{slug}-{version}",
+                       LOG=str(RUNS / Path(meta.get("log") or f"{slug}.log").name))
+            if folder := (meta.get("version_folders") or {}).get(version):
+                env["TARGET"] = folder
+        else:
+            for k, var in (("frame_folder", "TARGET"), ("stem", "STEM")):
+                if meta.get(k):
+                    env[var] = meta[k]
+            env.update(world_scale_env(meta))
+            if meta.get("log"):
+                env["LOG"] = str(RUNS / Path(meta["log"]).name)
         JOBS.mkdir(parents=True, exist_ok=True)
-        out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_to-frame_{slug}.out"
+        out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_to-frame_{slug}{'-' + version if version else ''}.out"
         with open(out, "wb") as fh:
-            p = subprocess.Popen(keep_awake([str(SCRIPTS / "to-frame.sh"), str(d), meta.get("name") or slug],
-                                            t("inhibit.upload", name=meta.get("name") or slug)), cwd=ROOT, env=env,
+            p = subprocess.Popen(keep_awake([str(SCRIPTS / "to-frame.sh"), str(vdir or d), name],
+                                            t("inhibit.upload", name=name)), cwd=ROOT, env=env,
                                  stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                  start_new_session=True)
-        uploads[slug] = {"proc": p, "out": out, "started": time.time(), "notified": False}
+        uploads[key] = {"proc": p, "out": out, "started": time.time(), "notified": False}
     return None
 
 
@@ -740,7 +892,12 @@ def upload_status(slug: str):
         name = read_meta(slug).get("name") or slug
         if rc == 0:
             if (d := RX_DONE.search(text)) and d[2]:
-                write_meta(slug, frame_folder=d[2])
+                scene, _, version = slug.partition("#")
+                if version:
+                    folders = read_meta(scene).get("version_folders") or {}
+                    write_meta(scene, version_folders={**folders, version: d[2]})
+                else:
+                    write_meta(slug, frame_folder=d[2])
             frame_cache["t"] = 0
             notify(t("notify.upload.title"), t("notify.upload", name=name))
         else:
@@ -834,7 +991,8 @@ def scenes():
                     "mtime": int(sog.stat().st_mtime), "gaussians": gauss, "preview": bool(gallery),
                     "ply": (d / "spirula" / "scene.ply").exists(), "on_frame": on_frame, "disk": disk_usage(d),
                     "upload": upload_status(slug), "replacing": replacing,
-                    "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr"))})
+                    "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr")),
+                    "versions": len(list(d.glob("versions/*/version.json")))})
     return out
 
 
@@ -1075,7 +1233,9 @@ def move_scene(slug: str, new: str) -> None:
         meta["frame_folder"] = next((s for s in fr["scenes"] if re.fullmatch(r"\d\d_" + re.escape(slug), s)), None)
     old_stem, new_stem = meta.get("stem") or slug.lower(), new.lower()
     d.rename(nd)
-    for folder, old, new_ in ((nd, old_stem, new_stem), (nd / "full", f"{old_stem}-full", f"{new_stem}-full")):
+    renames = [(nd, old_stem, new_stem), (nd / "full", f"{old_stem}-full", f"{new_stem}-full")]
+    renames += [(v, f"{slug}-{v.name}".lower(), f"{new}-{v.name}".lower()) for v in (nd / "versions").glob("*/")]
+    for folder, old, new_ in renames:
         for f in folder.glob(f"{glob_escape(old)}.*"):         # full/: the full version of a tour
             if f.name[len(old):] in (".sog", ".xrSceneTransform.json", ".gallery.png", ".sceneinfo.png"):
                 f.rename(folder / (new_ + f.name[len(old):]))
@@ -1262,6 +1422,7 @@ def groups():
         out.append({"slug": slug, "name": meta.get("name") or slug, "members": members, "result": res,
                     "busy": scene_busy(slug), "options": {k: meta.get(k) for k in ("align", "partition", "frame_splats", "full")},
                     "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr")),
+                    "versions": len(list(d.glob("versions/*/version.json"))),
                     "splats": sum(scene_list[m].get("gaussians") or 0 for m in members)})
     return {"groups": out, "suggestion": suggestion(scene_list, out), "mem_available_gb": mem_available()}
 
@@ -1521,6 +1682,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, unfinished_runs())
         if u.path == "/api/groups":
             return self.send(200, groups())
+        if u.path == "/api/versions":
+            return self.send(200, {"versions": versions_of(q.get("slug", ""))})
         if u.path == "/api/floorplan":
             data = floorplan([x for x in q.get("slugs", "").split(",") if x], q.get("style", "pretty"),
                              q.get("lang", "en"), q.get("title", ""))
@@ -1561,7 +1724,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             p = None
         # Only flat objects of simple values; text fields are text
         if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
-                or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key",
+                or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key", "version", "sizes", "scales",
                                                            "align", "partition")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
@@ -1581,7 +1744,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             f = next((f for f in (fr or {}).get("files", []) if f["name"] == p.get("name")), None)
             e = start_download(f["name"], f["size"]) if f else err("err.not_on_frame")
         elif path == "/api/upload":
-            e = start_upload(p.get("slug", ""))
+            e = start_upload(p.get("slug", ""), p.get("version", ""))
+        elif path == "/api/versions":
+            e = start_versions(p)
+        elif path == "/api/version/delete":
+            e = delete_version(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/pick":
             chosen = pick_file()
             if chosen:
