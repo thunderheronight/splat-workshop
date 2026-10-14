@@ -123,13 +123,15 @@ SPLAT_SIZE = 0.02                                            # metres
 
 def make_room(runs: Path, slug: str, room: str, error=(1.0, (0.03, 0.0, -0.02)), scale=1.0,
               drift=(0.0, 0.0, 0.0), turn=0.0, noise=0.005, walk_in_offset=0.3,
-              name=None, recording=None, markers=(), colour=None):
+              name=None, recording=None, markers=(), colour=None, loop=None):
     """Write one synthetic room into runs/<slug>. Returns the run folder.
 
     The reconstruction differs from the real world by `error` = (yaw in degrees, shift in m) and `scale`.
     The Frame's tracking of this recording is off by `drift` (m) and turned by `turn` (degrees, about the
     room's middle), plus `noise` (m) per pose. markers: True for red/green/blue at the corner, along +x and
     along +z, or a list of ((r, g, b), (x, y, z)) – blobs of 400 splats at real-world positions.
+    loop: (x, z, radius x, radius z) – a round of its own in the room instead of the usual one, looking at the
+    walls (outwards): several recordings of one room, e.g. one for each half.
     runs/<slug>/synth.json records how many splats are the room's own (of these, how many on the wall it
     shares with the other room – zero thickness, so it belongs to both) and how many were seen through the door."""
     rng = np.random.default_rng(zlib.crc32(slug.encode()))
@@ -154,13 +156,20 @@ def make_room(runs: Path, slug: str, room: str, error=(1.0, (0.03, 0.0, -0.02)),
 
     pos, times = path(room, walk_in_offset)
     centre = np.array([(x0 + x1) / 2, 0.0, 1.5])
+    target = lambda c: centre
+    if loop:
+        lx, lz, rx, rz = loop
+        t = np.linspace(0, 2 * np.pi, 140)
+        pos = np.stack([lx + rx * np.cos(t), np.zeros_like(t), lz + rz * np.sin(t)], 1)
+        times = np.linspace(0, 40, len(pos))
+        target = lambda c: 2 * c - np.array([lx, 0.0, lz])          # outwards, at the walls
     yaw, shift = error
     E = Rotation.from_euler("y", yaw, degrees=True)                 # world -> reconstruction
     to_sfm = lambda p: scale * E.apply(p) + np.array(shift)
     T = Rotation.from_euler("y", turn, degrees=True)                # the tracking's own turn
     names, Rs, Cs, frames = [], [], [], []
     for k, (c, t) in enumerate(zip(pos, times)):
-        R_world = look_at(c.copy(), centre)
+        R_world = look_at(c.copy(), target(c))
         image = f"cam0/{k:04d}-{t:.6f}.jpg"
         names.append(image)
         Rs.append(R_world @ E.as_matrix().T)

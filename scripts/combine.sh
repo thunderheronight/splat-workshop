@@ -7,6 +7,8 @@
 # Environment:
 #   ALIGN=frame|images|shift|rigid  how the rooms are fitted together (default: images, see combine.py)
 #   PARTITION=view|nearest          where the borders between the recordings run (default: view)
+#   ROOMS='["Kitchen","Kitchen","Hallway"]'  the room of every recording, in order: a room can be made of
+#                                   several recordings (default: every recording is a room of its own)
 #   FRAME_SPLATS=1000000            splats in the Frame version (the full version keeps all)
 #   FULL=0                          skip the full SOG for the PC (the step that needs the most memory)
 #   FULL_NAME="..."                 name plate of the full version (default: "<name> (full)")
@@ -59,7 +61,8 @@ main() {
     trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
 
     echo "Putting $# scenes together as \"$name\" (alignment ${ALIGN:-images}, borders ${PARTITION:-view})"
-    uv run -q "$HERE/combine.py" "$tmp" "$@" --align "${ALIGN:-images}" --partition "${PARTITION:-view}"
+    uv run -q "$HERE/combine.py" "$tmp" "$@" --align "${ALIGN:-images}" --partition "${PARTITION:-view}" \
+        ${ROOMS:+--rooms "$ROOMS"}
     total=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["splats"])' "$tmp/combine.json")
 
     # Frame version: fewer splats
@@ -81,8 +84,15 @@ main() {
         cp "$tmp/scene.xrSceneTransform.json" "$tmp/full/scene.xrSceneTransform.json"
     fi
 
-    # Preview for the gallery: the floor plan of all rooms
-    uv run -q "$HERE/floorplan.py" "$tmp/plan.png" "$@" ${PLAN_COMMA:+--comma} >/dev/null
+    # Preview for the gallery: the floor plan of all rooms (labelled by room, not by recording)
+    plan_args=("$@")
+    if [ -n "${ROOMS:-}" ]; then
+        mapfile -t plan_args < <(python3 -c '
+import json, sys
+for arg, room in zip(sys.argv[2:], json.loads(sys.argv[1])):
+    print(arg.partition("=")[0] + "=" + room)' "$ROOMS" "$@")
+    fi
+    uv run -q "$HERE/floorplan.py" "$tmp/plan.png" "${plan_args[@]}" ${PLAN_COMMA:+--comma} >/dev/null
     uv run -q "$HERE/make_gallery.py" --plan "$tmp/plan.png" "$tmp" "$name" "$stem"
     if [ -d "$tmp/full" ]; then
         uv run -q "$HERE/make_gallery.py" --plan "$tmp/plan.png" "$tmp/full" "${FULL_NAME:-$name (full)}" "$stem-full"

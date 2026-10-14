@@ -13,6 +13,7 @@ any manual alignment. Per scene the plan shows:
   - walls as bright lines (splats in the wall height band, where they pile up)
   - the path the camera was carried along (registered camera positions)
   - name and approximate size
+Several recordings with the same label are one room (made of several recordings): one name, one size.
 The plan is rotated so the walls are axis-aligned.
 Seen from above, Y down means +x and +z form a mirrored pair on screen (rows count downwards):
 x is drawn right to left, otherwise the plan comes out mirror-inverted.
@@ -168,8 +169,16 @@ def main():
             inside = np.ones(len(xyz), bool)
         up = floor - xyz[:, 1]                                   # height above the floor
         walls = inside & (up > 0.9 * m) & (up < 1.9 * m)
-        scenes.append({"label": label or run.name, "xyz": xyz[inside], "rgb": rgb[inside], "up": up[inside],
-                       "walls": xyz[walls][:, [0, 2]], "cams": load_cameras(run), "floor": floor})
+        cams = load_cameras(run)
+        s = {"label": label or run.name, "xyz": xyz[inside], "rgb": rgb[inside], "up": up[inside],
+             "walls": xyz[walls][:, [0, 2]], "cams": [cams] if cams is not None else [], "floor": floor}
+        same = next((x for x in scenes if x["label"] == s["label"]), None)
+        if same:                                                 # one more recording of this room
+            for k in ("xyz", "rgb", "up", "walls"):
+                same[k] = np.concatenate([same[k], s[k]])
+            same["cams"] += s["cams"]
+        else:
+            scenes.append(s)
 
     all_walls = np.vstack([s["walls"] for s in scenes])
     sub = all_walls[rng.choice(len(all_walls), min(len(all_walls), 150_000), replace=False)]
@@ -177,7 +186,7 @@ def main():
     for s in scenes:
         s["p"] = rotate(s["xyz"][:, [0, 2]], angle)
         s["w"] = rotate(s["walls"], angle)
-        s["c"] = rotate(s["cams"][:, [0, 2]], angle) if s["cams"] is not None else None
+        s["c"] = [rotate(c[:, [0, 2]], angle) for c in s["cams"]]
         s["box"] = room_box(s["w"], 0.05 * m)
         if s["box"] is not None:                                   # keep only this room (plus a margin)
             b0, b1 = s["box"][0] - 0.35 * m, s["box"][1] + 0.35 * m
@@ -212,8 +221,10 @@ def main():
     f_label, f_small, f_title = font(26), font(17), font(30)
     for i, s in enumerate(scenes):
         col = COLORS[i % len(COLORS)]
-        if args.style == "pretty" and s["c"] is not None and len(s["c"]) > 1:
-            x, z = px(s["c"])
+        for c in (s["c"] if args.style == "pretty" else []):      # every recording's path
+            if len(c) < 2:
+                continue
+            x, z = px(c)
             pts = list(zip(x.tolist(), z.tolist()))
             for k in range(0, len(pts) - 1, 2):                    # dotted line
                 d.line([pts[k], pts[k + 1]], fill=col + (255,), width=2)

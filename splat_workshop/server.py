@@ -774,7 +774,8 @@ def set_scale(slug: str, ratio, xr: bool, members: bool, update_frame: bool):
     group = is_group(meta)
     if not group and not (scene_dir(slug) and (RUNS / slug / "scene.sog").exists()):
         return err("err.no_scene")
-    targets = [slug] + ([m for m in meta.get("members", []) if scene_dir(m)] if group and members else [])
+    inner_rooms = [m for m in meta.get("members", []) if is_room(read_meta(m))] if group and members else []
+    targets = [slug] + inner_rooms + ([m for m, _ in group_scenes(slug, meta)] if group and members else [])
     if any(scene_busy(t_) for t_ in targets):
         return err("err.scene_busy")
     xr = bool(xr) and ratio != 1
@@ -1234,17 +1235,18 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str, group: str = 
     The plan of a group is drawn in the group's scale, if it has one; otherwise all scenes need the same."""
     if style not in ("pretty", "classic"):
         style = "pretty"
+    gmeta = read_meta(group) if group and Path(group).name == group and not group.startswith(".") else {}
+    if gmeta and not is_group(gmeta):
+        return err("err.bad_request")
+    room_of = dict(group_scenes(group, gmeta)) if gmeta else {}         # one label per room
     runs = []
     for slug in dict.fromkeys(slugs):
         d = scene_dir(slug)
         ply = d / "spirula" / "scene.ply" if d else None
         if not ply or not ply.exists():
             return err("err.no_scene")
-        runs.append((d, read_meta(slug).get("name") or slug, ply.stat().st_mtime))
+        runs.append((d, room_of.get(slug) or read_meta(slug).get("name") or slug, ply.stat().st_mtime))
     if not runs or len(runs) > 12:
-        return err("err.bad_request")
-    gmeta = read_meta(group) if group and Path(group).name == group and not group.startswith(".") else {}
-    if gmeta and not is_group(gmeta):
         return err("err.bad_request")
     if (gmeta.get("scale") or 1) != 1:
         ratio = gmeta["scale"]
@@ -1444,7 +1446,7 @@ def clean_group(slug: str, what: str):
         return err("err.no_scene")
     if what not in CLEANUP:
         return err("err.bad_request")
-    members = [m for m in meta.get("members", []) if scene_dir(m)]
+    members = [m for m, _ in group_scenes(slug, meta)]
     if scene_busy(slug) or any(scene_busy(m) for m in members):
         return err("err.scene_busy")
     for m in members:
@@ -1655,6 +1657,8 @@ def delete_frame_recording(name: str):
 
 # A group is a <slug>.ui.json with kind "group" and its member scenes; once put together, the tour
 # lives in <slug>/ like a scene (scene.sog = Frame version, full/ = all splats, spirula/scene.ply).
+# A group marked "room" is one room made of several recordings (only scenes). Any other group may hold
+# scenes and such rooms; putting it together always starts from the recordings, each in its room.
 ALIGNS = ("frame", "images", "shift", "rigid")
 PARTITIONS = ("view", "nearest")
 SESSION_GAP = 20 * 60                      # recordings closer than this belong to one session (suggestion)
@@ -1662,6 +1666,40 @@ SESSION_GAP = 20 * 60                      # recordings closer than this belong 
 
 def is_group(meta: dict) -> bool:
     return meta.get("kind") == "group"
+
+
+def is_room(meta: dict) -> bool:
+    return is_group(meta) and bool(meta.get("room"))
+
+
+def group_scenes(slug: str, meta: dict = None) -> list:
+    """The scenes of a group, each with the name of its room: [(scene slug, room name)]. A scene on its own
+    is a room of its own; the scenes of a room (also of a room inside the group) all share its name."""
+    meta = meta if meta is not None else read_meta(slug)
+    if not is_group(meta):
+        return []
+    scene = lambda m, mm: scene_dir(m) and not is_group(mm)
+    if is_room(meta):
+        return [(m, meta.get("name") or slug) for m in meta.get("members", []) if scene(m, read_meta(m))]
+    out, names = [], {}
+    for m in meta.get("members", []):
+        mm = read_meta(m)
+        if is_room(mm):
+            found = [s_ for s_ in mm.get("members", []) if scene(s_, read_meta(s_))]
+        elif scene(m, mm):
+            found = [m]
+        else:
+            continue
+        room = mm.get("name") or m
+        while room in names and names[room] != m:          # two rooms of the same name stay two rooms
+            room += " ·"
+        names[room] = m
+        out += [(s_, room) for s_ in found]
+    return out
+
+
+def parent_group(slug: str):
+    return next((g for g, gm in all_groups().items() if slug in gm.get("members", [])), None)
 
 
 def all_groups() -> dict:
@@ -1693,8 +1731,12 @@ def groups():
     scene_list = {s["slug"]: s for s in scenes()}
     fr = frame_listing()
     out = []
-    for slug, meta in sorted(all_groups().items(), key=lambda kv: (kv[1].get("name") or kv[0]).lower()):
-        members = [m for m in meta.get("members", []) if m in scene_list]
+    every = all_groups()
+    parents = {m: g for g, gm in every.items() for m in gm.get("members", [])}
+    for slug, meta in sorted(every.items(), key=lambda kv: (kv[1].get("name") or kv[0]).lower()):
+        members = [m for m in meta.get("members", []) if m in scene_list
+                   or (not is_room(meta) and m in every and is_room(every[m]))]
+        inner = [(m, r) for m, r in group_scenes(slug, meta) if m in scene_list]
         d, res = RUNS / slug, None
         if (d / "scene.sog").exists():
             try:
@@ -1713,14 +1755,17 @@ def groups():
                    "splats": info.get("splats"), "frame_splats": meta.get("frame_splats"),
                    "align": info.get("align"), "partition": info.get("partition"), "hub": info.get("hub"),
                    "seams": info.get("seams", {}), "mtime": int(built),
-                   "stale": used != sorted(members) or any((RUNS / m / "scene.sog").stat().st_mtime > built for m in members),
+                   "stale": used != sorted(m for m, _ in inner)
+                            or any((RUNS / m / "scene.sog").stat().st_mtime > built for m, _ in inner),
                    "preview": bool(next(d.glob("*.gallery.png"), None)), "ply": (d / "spirula" / "scene.ply").exists(),
                    "on_frame": on_frame, "upload": upload_status(slug), "disk": disk_usage(d)}
         out.append({"slug": slug, "name": meta.get("name") or slug, "members": members, "result": res,
+                    "room": is_room(meta), "parent": parents.get(slug), "scenes": [m for m, _ in inner],
+                    "rooms": len({r for _, r in inner}),
                     "busy": scene_busy(slug), "options": {k: meta.get(k) for k in ("align", "partition", "frame_splats", "full")},
                     "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr")),
                     "versions": len(list(d.glob("versions/*/version.json"))),
-                    "splats": sum(scene_list[m].get("gaussians") or 0 for m in members)})
+                    "splats": sum(scene_list[m].get("gaussians") or 0 for m, _ in inner)})
     return {"groups": out, "suggestion": suggestion(scene_list, out), "mem_available_gb": mem_available()}
 
 
@@ -1744,16 +1789,21 @@ def suggestion(scene_list: dict, group_list: list):
     return None
 
 
-def save_group(slug: str, name: str, members: str):
-    """Create (no slug) or change a group. Returns its slug, or an error."""
+def save_group(slug: str, name: str, members: str, room: bool = False):
+    """Create (no slug) or change a group. Returns its slug, or an error. A room (room=True) holds scenes
+    only; any other group scenes and rooms."""
     name = clean_name(name, file=False)
     if not name:
         return err("err.bad_name")
     members = [m for m in dict.fromkeys(members.split(",")) if m]
     scene_slugs = {s["slug"] for s in scenes()}
-    if not members or any(m not in scene_slugs for m in members):
-        return err("err.bad_request")
     existing = all_groups()
+    rooms = {g for g, gm in existing.items() if is_room(gm) and g != slug}
+    allowed = scene_slugs if room else scene_slugs | rooms
+    if not members or any(m not in allowed for m in members):
+        return err("err.bad_request")
+    if slug and not room and parent_group(slug):           # inside another group it has to stay a room
+        return err("err.room_in_group", group=existing[parent_group(slug)].get("name") or parent_group(slug))
     for g, gm in existing.items():
         if g != slug and (both := set(gm.get("members", [])) & set(members)):
             return err("err.in_other_group", group=gm.get("name") or g)
@@ -1764,7 +1814,7 @@ def save_group(slug: str, name: str, members: str):
     if not slug:
         if taken(new):
             return err("err.scene_name_taken")
-        write_json(meta_file(new), {"kind": "group", "name": name, "members": members})
+        write_json(meta_file(new), {"kind": "group", "name": name, "members": members, "room": room})
         return new
     if slug not in existing:
         return err("err.no_scene")
@@ -1780,8 +1830,11 @@ def save_group(slug: str, name: str, members: str):
             meta_file(slug).rename(meta_file(new))
             if (RUNS / f"{slug}.log").exists():
                 (RUNS / f"{slug}.log").rename(RUNS / f"{new}.log")
+            for g, gm in all_groups().items():                  # a room inside another group
+                if slug in gm.get("members", []):
+                    write_meta(g, members=[new if m == slug else m for m in gm["members"]])
         slug = new
-    write_meta(slug, name=name, members=members)
+    write_meta(slug, name=name, members=members, room=room)
     d = RUNS / slug
     if renamed and (d / "scene.sog").exists():                  # new name plates on the tour
         stem = slug.lower()
@@ -1814,8 +1867,9 @@ def start_combine(p: dict):
     if not 500_000 <= frame_splats <= 10_000_000:
         return err("err.range", key="frame_splats", lo=500_000, hi=10_000_000)
     scene_list = {s["slug"]: s for s in scenes()}
-    members = [m for m in meta.get("members", []) if m in scene_list
-               and (RUNS / m / "spirula" / "scene.ply").exists() and (RUNS / m / "dataset/sparse/0/images.bin").exists()]
+    inner = [(m, r) for m, r in group_scenes(slug, meta) if m in scene_list
+             and (RUNS / m / "spirula" / "scene.ply").exists() and (RUNS / m / "dataset/sparse/0/images.bin").exists()]
+    members = [m for m, _ in inner]
     if len(members) < 2:
         return err("err.combine_too_few")
     full = bool(p.get("full", True))
@@ -1836,6 +1890,8 @@ def start_combine(p: dict):
         if not upload:
             env["NO_UPLOAD"] = "1"
         pairs = [f"{RUNS / m}={scene_list[m]['name']}" for m in members]
+        if len({r for _, r in inner}) < len(inner):              # a room made of several recordings
+            env["ROOMS"] = json.dumps([r for _, r in inner], ensure_ascii=False)
         JOBS.mkdir(parents=True, exist_ok=True)
         out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_{slug}.out"
         with open(out, "wb") as fh:
@@ -1844,7 +1900,7 @@ def start_combine(p: dict):
                                     stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
         st = load_state()
         st["job"] = {"kind": "combine", "pid": proc.pid, "out": str(out), "name": name, "slug": slug,
-                     "recording": "", "rooms": len(members), "quality": align, "partition": partition,
+                     "recording": "", "rooms": len({r for _, r in inner}), "quality": align, "partition": partition,
                      "upload": upload, "full": full, "started": time.time(), "overrides": {}}
         save_state(st)
         write_meta(slug, align=align, partition=partition, frame_splats=frame_splats, full=full)
@@ -2085,7 +2141,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/delete":
             e = delete_scene(p.get("slug", ""))
         elif path == "/api/group":
-            e = save_group(p.get("slug", ""), p.get("name", ""), p.get("members", ""))
+            e = save_group(p.get("slug", ""), p.get("name", ""), p.get("members", ""), bool(p.get("room")))
             if isinstance(e, str):
                 return self.send(200, {"ok": True, "slug": e})
         elif path == "/api/scale":

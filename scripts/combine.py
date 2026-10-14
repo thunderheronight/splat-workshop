@@ -5,7 +5,10 @@
 """Put several scenes of one recording session together into one big scene.
 
 Usage: uv run combine.py <out folder> <run folder>=<label> [<run folder>=<label> ...]
-                         [--align frame|images|shift|rigid] [--partition view|nearest]
+                         [--align frame|images|shift|rigid] [--partition view|nearest] [--rooms JSON]
+
+--rooms: the room of every recording, in the same order, e.g. '["Kitchen", "Kitchen", "Hallway"]' – a room
+can be made of several recordings (default: every recording is a room of its own).
 
 All recordings of one session share the Steam Frame's tracking frame, so the rooms are already
 roughly in place. Steps:
@@ -16,8 +19,9 @@ roughly in place. Steps:
        rigid   images + a joint shift and slight rotation
   2. Who owns which part (--partition):
        view     per 10 cm cube the recording that saw it from close by and looking at it; the first and
-                last stretch of a recording along another recording's round (walking in/out) does not
-                count, so the borders run through doors (default)
+                last stretch of a recording along the round of another room's recording (walking in/out)
+                does not count, so the borders between rooms run through doors (default). Recordings of
+                the same room simply share it: every part from the recording that saw it best.
        nearest  the recording whose camera was closest
   3. Every room is transformed, cut to its own part and appended – one room in memory at a time.
 
@@ -239,7 +243,7 @@ def joint_rigid(rooms, zones, poses, fixed, centre):
 # ---------------------------------------------------------------- ownership
 
 def owners(rooms, poses, partition):
-    """Function: points -> index of the owning room."""
+    """Function: points -> index of the owning recording."""
     labels = list(rooms)
     cams = [poses[l](rooms[l]["cams"]) for l in labels]
     fwd = [(poses[l].R @ rooms[l]["fwd"].T).T for l in labels]
@@ -248,11 +252,16 @@ def owners(rooms, poses, partition):
         tree = cKDTree(np.vstack(cams))
         return lambda p: owner[tree.query(p, workers=-1)[1]], {}
 
-    # walking in and out: the first and last stretch of a recording along another recording's path ...
+    # walking in and out: the first and last stretch of a recording along the path of another room's
+    # recording ... (recordings of the same room cover the same place on purpose: that is no walking in)
     n = len(cams)
+    room = [rooms[l]["room"] for l in labels]
+    elsewhere = lambda i, arrays: [a for j, a in enumerate(arrays) if room[j] != room[i]]
 
     def edges(i, others):
-        inside = cKDTree(others).query(cams[i])[0] < 0.4
+        if not others:
+            return np.zeros(len(cams[i]), bool)
+        inside = cKDTree(np.vstack(others)).query(cams[i])[0] < 0.4
         order = np.argsort(rooms[labels[i]]["times"])
         flag = np.zeros(len(order), bool)
         for seq in (order, order[::-1]):
@@ -261,13 +270,14 @@ def owners(rooms, poses, partition):
                     break
                 flag[k] = True
         return flag
-    cand = [edges(i, np.vstack([cams[j] for j in range(n) if j != i])) for i in range(n)]
+    cand = [edges(i, elsewhere(i, cams)) for i in range(n)]
     # ... counts only if another recording covered that place during its own round; otherwise two
     # recordings that hand over to each other (one ends where the next starts) would cancel out
     transit = []
     for i in range(n):
-        core = np.vstack([cams[j][~cand[j]] for j in range(n) if j != i])
-        transit.append(cand[i] & (cKDTree(core).query(cams[i])[0] < 0.4))
+        core = [c for c in elsewhere(i, [cams[j][~cand[j]] for j in range(n)]) if len(c)]
+        transit.append(cand[i] & (cKDTree(np.vstack(core)).query(cams[i])[0] < 0.4) if core
+                       else np.zeros(len(cams[i]), bool))
     transit = np.concatenate(transit)
     C, F, O = np.vstack(cams)[~transit], np.vstack(fwd)[~transit], owner[~transit]
     tree = cKDTree(C)
@@ -303,7 +313,12 @@ def main():
     ap.add_argument("runs", nargs="+", help="run folder=label")
     ap.add_argument("--align", choices=("frame", "images", "shift", "rigid"), default="images")
     ap.add_argument("--partition", choices=("view", "nearest"), default="view")
+    ap.add_argument("--rooms", default="", help="JSON list: the room of every recording (default: one each)")
     args = ap.parse_args()
+    room_of = json.loads(args.rooms) if args.rooms else []
+    if room_of and (not isinstance(room_of, list) or len(room_of) != len(args.runs)
+                    or not all(isinstance(r, str) and r for r in room_of)):
+        sys.exit("--rooms needs one room name per recording")
     out = Path(args.out)
     (out / "spirula").mkdir(parents=True, exist_ok=True)
     started = time.time()
@@ -322,7 +337,7 @@ def main():
         both = [k for k, n in enumerate(names) if n in recorded]
         if len(both) < 10:
             sys.exit(f"{label}: too few cameras with Frame tracking – was it made with the Arcturus pipeline?")
-        rooms[label] = {"run": run, "cams": centres[both], "fwd": fwd[both],
+        rooms[label] = {"run": run, "room": room_of[i] if room_of else label, "cams": centres[both], "fwd": fwd[both],
                         "times": np.array([image_time(names[k]) for k in both]),
                         "tracked": np.array([recorded[names[k]] for k in both]),
                         "pts": read_points(run / "dataset/sparse/0/points3D.bin")}
@@ -331,7 +346,7 @@ def main():
     # how far each room's reconstruction is from the Frame's tracking, as delivered and fitted
     fit = {l: umeyama(r["cams"], r["tracked"]) for l, r in rooms.items()}
     rms = lambda p, r: float(np.sqrt((np.linalg.norm(p(r["cams"]) - r["tracked"], axis=1) ** 2).mean()))
-    room_info = {l: {"run": str(r["run"]), "cameras": len(r["cams"]), "tracking_cm": round(rms(Pose(), r) * 100, 1),
+    room_info = {l: {"run": str(r["run"]), "room": r["room"], "cameras": len(r["cams"]), "tracking_cm": round(rms(Pose(), r) * 100, 1),
                      "fitted_cm": round(rms(fit[l], r) * 100, 1)} for l, r in rooms.items()}
     # From here on everything is in the fitted frame; `poses` are applied on top of it.
     for l, r in rooms.items():
