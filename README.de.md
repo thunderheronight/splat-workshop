@@ -8,6 +8,8 @@
 
 [English](README.md)
 
+> ⚠️ **Das ist der Branch `experimental` – eine Vorschau auf 0.3.0.** Räume aus mehreren Aufnahmen sind neu und noch nicht mit echten Aufnahmen getestet. Die stabile Version ist [0.2.3](https://github.com/thunderheronight/splat-workshop/releases/latest) auf `main`.
+
 ![Splat-Werkstatt (Beispiel-Screenshot, Vorschaubilder durch Platzhalter ersetzt)](docs/screenshot.png)
 
 Räume, eine Statue, dein Auto, ein Garten – alles, um das du mit der Kamera herumgehen kannst, wird zu einer Szene, in die du hineinsteigen kannst.
@@ -19,8 +21,18 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 1. **Aufnahme wählen** – direkt von der Frame (per SSH) oder vom PC, mit Vorschaubildern.
 2. **Prüfen**, bevor eine Stunde Rechenzeit draufgeht: Helligkeit, Struktur, schnelle Schwenks, verdeckte Linse – Sekunde für Sekunde.
 3. **Umwandeln** mit Qualitätsstufe (Schnell / Hoch / Maximal) oder eigenen Werten, mit Fortschritt, Restzeit und PSNR-Kurve.
-4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den `Scenes`-Ordner von Gaussian XR auf der Frame.
-5. **Die Wohnung zusammensetzen**: Räume gruppieren und zu einem Rundgang machen, durch den du gehst – voll für den PC, kleiner für die Frame.
+4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den Ordner für eigene Szenen von Gaussian XR auf der Frame (`Documents/GaussianXR`).
+5. **Die Wohnung zusammensetzen**: Räume gruppieren – ein Raum darf aus mehreren Aufnahmen bestehen – und zu einem Rundgang machen, durch den du gehst, voll für den PC, kleiner für die Frame.
+
+## Neu in 0.3 *(experimentell)*
+
+- 🚪 **Räume aus mehreren Aufnahmen** – eine Gruppe als *Ein Raum aus mehreren Aufnahmen* markieren, z. B. zwei kurze Runden durchs Wohnzimmer. Beim Zusammensetzen kommt jeder Teil des Raums aus der Aufnahme, die ihn am besten gesehen hat. Die Arcturus-Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – mehrere kurze Aufnahmen geben einem Raum also deutlich mehr Detail als eine lange.
+- 🏠 **Eine Wohnung aus Räumen** – eine Gruppe darf solche Räume neben einzelnen Szenen enthalten. Zusammengesetzt wird in einem Durchgang aus den Original-Aufnahmen: innerhalb eines Raums jeder Teil aus der besten Aufnahme, zwischen den Räumen laufen die Grenzen durch die Türen. Nichts wird doppelt ausgedünnt; der Grundriss benennt und misst Räume statt Aufnahmen.
+- 🐛 **Behoben**: Aufnahmen desselben Raums gelten nicht mehr gegenseitig als „Weg hinein“ – vorher konnten sie den echten Weg aus einem anderen Raum verdecken, der sich dann einen Teil des Raums nahm.
+
+## Neu in 0.2.3
+
+- 🚂 **Maßstab für Modelle**, 🎚️ **Fassungen** nebeneinander, ⚡ **1 Mio. Splats als Empfehlung für die Frame**, 📂 Szenen in `Documents/GaussianXR` (Steam-Updates lassen den Ordner in Ruhe), 🥽 Reiter **Auf der Frame**, ⬇️ **Alle Aufnahmen holen**, 🗑️ **Aufnahmen einzeln löschen**. Details: [Release 0.2.3](https://github.com/thunderheronight/splat-workshop/releases/tag/v0.2.3).
 
 ## Neu in 0.2
 
@@ -42,13 +54,16 @@ Alle Änderungen: [CHANGELOG.md](CHANGELOG.md) (englisch)
 - **Umwandlungen laufen unabhängig weiter** – Browser zu, Tray beendet, Neustart: Werkstatt wieder öffnen, Fortschritt ist wieder da.
 - **Abbrechen & Fortsetzen** ab dem letzten Zwischenstand.
 - **Aufnahmeprüfung ohne KI**: reine Messwerte je Sekunde, farbige Zeitleiste und konkrete Hinweise („0:45–0:59 wenig Struktur“).
+- **Räume aus mehreren Aufnahmen** *(0.3, experimentell)*: Ein Raum kann aus mehreren kurzen Aufnahmen bestehen (jede bis zu 500 Bildpaare) und eine Wohnung aus solchen Räumen – jeder Teil kommt aus der Aufnahme, die ihn am besten gesehen hat, die Grenzen zwischen den Räumen laufen durch die Türen. Räume erscheinen in der Liste innerhalb ihrer Wohnung und lassen sich auch einzeln zusammensetzen, ansehen und auf die Frame bringen.
 - **Gruppen und Rundgänge**: Szenen gruppieren (z. B. alle Räume der Wohnung) und zu einer Szene zusammensetzen – eine volle Fassung für Gaussian XR am PC und eine kleinere für die Frame. Aufnahmen aus einem Durchgang teilen das Tracking-Koordinatensystem der Frame; die Werkstatt richtet die Räume aneinander aus (Korrekturen A–D zur Wahl), legt die Grenzen zwischen den Aufnahmen in die Türen und zeigt, wie gut die Räume aneinanderpassen. Vor dem Start schätzt sie den Speicherbedarf.
   <br><img src="docs/combine.png" width="360" alt="Dialog „Zusammensetzen“: Korrekturen A bis D, Grenzen zwischen den Aufnahmen, Größe der Frame-Fassung, volle Fassung, Speicherschätzung">
   <br><sub>Beispieldaten (englische Oberfläche) – Raumnamen und Vorschaubilder sind Platzhalter.</sub>
 - **Fassungen** einer Szene oder eines Rundgangs nebeneinander: weniger Splats für die Frame (0,75–2 Mio.), alle oder eine Obergrenze für den PC oder eine eigene Größe – jede mit eigenem Platz in der Galerie der Frame, zum Vergleichen, was flüssig läuft.
+- **Alle holen**: Aufnahmen von der Frame alle oder als Auswahl nacheinander holen – mit einer Benachrichtigung, sobald die Frame aus darf.
+- **Aufnahmen löschen**, einzeln: auf der Frame (mit deutlicher Warnung, wenn sie noch nicht auf dem PC liegt) oder auf dem PC (in den Papierkorb).
 - Reiter **Auf der Frame**: alles, was in der Galerie von Gaussian XR auf der Frame liegt, mit Vorschaubildern – und von dort aufräumen.
 - **Maßstab für Modelle** wie eine Modelleisenbahn (Z, N, TT, H0, S, 0, G oder eigener): Grundriss, Größen und Messwerkzeug zeigen die Größe des Originals, und auf Wunsch zeigt Gaussian XR das Modell begehbar in Originalgröße *(an der Frame noch nicht getestet)*.
-- **Grundrisse** *(experimentell)* einzelner Szenen oder einer ganzen Gruppe – Aufnahmen aus einem Durchgang fügen sich von selbst zum Grundriss der ganzen Wohnung. Zwei Stile: *Hübsch* (Draufsicht in Farbe, Wände, gelaufener Weg) und *Klassisch* (leuchtende Punktdichte), dazu ein einfaches Messwerkzeug (Punkte anklicken, Abstände ablesen – etwa ±5 cm genau).
+- **Grundrisse** *(experimentell)* einzelner Szenen oder einer ganzen Gruppe – Aufnahmen aus einem Durchgang fügen sich von selbst zum Grundriss der ganzen Wohnung; ein Raum aus mehreren Aufnahmen erscheint als ein Raum mit allen Wegen. Zwei Stile: *Hübsch* (Draufsicht in Farbe, Wände, gelaufener Weg) und *Klassisch* (leuchtende Punktdichte), dazu ein einfaches Messwerkzeug (Punkte anklicken, Abstände ablesen – etwa ±5 cm genau).
 - **Fertige Szenen**: später auf die Frame übertragen, erneut übertragen, umbenennen (Ordner und Namensschild ziehen mit), löschen (in den Papierkorb), Ordner oder Spirula Studio öffnen.
 - **Abgebrochene Läufe** werden mit ihrem Stand angezeigt: fortsetzen, neu starten oder löschen.
 - **Speicherplatz und Aufräumen**: Jede Szene zeigt, wie viel Platz sie belegt (etwa 4 GB pro Raum). Ein Klick löscht Zwischenstände oder Trainingsbilder – Szene, Grundriss und Viewer funktionieren weiter.
@@ -77,12 +92,13 @@ cd splat-workshop
 
 Danach in `~/.config/splat-workshop/config.toml` die Pfade zur Arcturus-Pipeline ([arcturus.vision/apps](https://arcturus.vision/apps)), zu Spirula Studio und die Adresse der Frame eintragen. Was noch fehlt, zeigt die Werkstatt oben auf der Seite an.
 
-Nach dem Übertragen **Gaussian XR auf der Frame neu starten**, damit die Szene in der Galerie erscheint.
+Nach dem Übertragen **Gaussian XR auf der Frame neu starten**, damit die Szene in der Galerie erscheint. Die Szenen liegen in `Documents/GaussianXR`, den Steam-Updates in Ruhe lassen (bis 0.2.3 lagen sie im `Scenes`-Ordner von Gaussian XR – *Zu den eigenen Szenen verschieben* im Reiter *Auf der Frame* holt sie herüber). Alles bleibt außerdem auf dem PC, *Erneut übertragen* stellt eine Szene wieder her. Für die Frame läuft etwa **1 Mio. Splats** flüssig und sieht noch scharf aus.
 
 ## Aufnahmetipps
 
 - Viel Licht (Tageslicht plus Raumlicht), **HDR mit 30 fps** in der Kamera-App, nicht „Linear“.
 - **Räume**: 30–90 s pro Raum, langsam gehen und langsam drehen, Dinge von mehreren Seiten zeigen.
+- **Große Räume**: Die Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – bei 5 pro Sekunde (*Hoch*) ist das nach 100 s erreicht, eine 4-Minuten-Aufnahme bekommt nur noch 2 pro Sekunde. Besser zwei oder drei kürzere Aufnahmen eines großen Raums in einem Durchgang machen und sie als *Ein Raum aus mehreren Aufnahmen* gruppieren.
 - **Gegenstände**: langsam im Kreis darum herumgehen (15–40 s), Motiv in der Bildmitte halten.
 - Nicht lange auf kahle Wände, Decke oder Fliesen halten.
 - Bewegte Personen werden zu Geisterschleiern.
