@@ -7,7 +7,7 @@
 # Environment:
 #   ALIGN=frame|images|shift|rigid  how the rooms are fitted together (default: images, see combine.py)
 #   PARTITION=view|nearest          where the borders between the recordings run (default: view)
-#   FRAME_SPLATS=3500000            splats in the Frame version (the full version keeps all)
+#   FRAME_SPLATS=1000000            splats in the Frame version (the full version keeps all)
 #   FULL=0                          skip the full SOG for the PC (the step that needs the most memory)
 #   FULL_NAME="..."                 name plate of the full version (default: "<name> (full)")
 #   PLAN_COMMA=1                    decimal comma on the floor plan used as preview
@@ -37,7 +37,7 @@ log=$RUNS_DIR/$slug.log
 work=$RUNS_DIR/.building
 tmp=$work/$slug
 stem=$(printf '%s' "$slug" | tr 'A-Z' 'a-z')
-frame_splats=${FRAME_SPLATS:-3500000}
+frame_splats=${FRAME_SPLATS:-1000000}
 
 # Gaussian XR's worldScale in a scene's transform file, when WORLD_SCALE is set (a model shown in the
 # size of the original, e.g. 87 for H0)

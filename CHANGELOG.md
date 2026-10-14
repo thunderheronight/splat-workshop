@@ -14,8 +14,10 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 
 ### Changed
 
-- **No backup copies on the Frame any more**: scenes are copied straight into the gallery. Everything is on the PC, and *Copy again* restores a scene after a Steam update. Copies left in `Documents/GaussianSplats` by older versions are removed together with their scene.
-- Putting a tour together offers 0.75 to 2 M splats or an own size for its Frame version (was 2 / 3.5 / 5 M – 5 M ran at about 14 fps on the Frame).
+- **Scenes go to Gaussian XR's folder for personal scenes** (`Documents/GaussianXR` on the Frame) instead of the app's own `Scenes` folder, which a Steam update or "verify files" can reset. They appear in the gallery after Gaussian XR's examples. Scenes copied by older versions move over when copied again, or all at once with *Move to own scenes* in the *On the Frame* tab; numbers of new folders count both places.
+- **No backup copies on the Frame any more**: everything is on the PC, and *Copy again* restores a scene. Copies left in `Documents/GaussianSplats` by older versions are removed together with their scene.
+- **1 M splats is the recommended size for the Frame** (preselected for versions and tours, also the default of `combine.sh`, was 3.5 M). Measured on a Steam Frame with one tour: 0.75 M 36 fps, 1 M 35 fps, 1.5 M 29 fps, 2 M 24 fps, 5 M 14 fps – 1 M looked clearly sharper than 0.75 M, 1.5 M a little sharper but already slightly unsteady. All sizes stay selectable.
+- Putting a tour together offers 0.75 to 2 M splats or an own size for its Frame version (was 2 / 3.5 / 5 M).
 
 ### Fixed
 

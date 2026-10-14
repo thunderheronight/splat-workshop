@@ -43,7 +43,10 @@ STATE = STATE_DIR / "state.json"
 
 FRAME = CFG.frame_host
 FRAME_VIDEOS = "Videos/ArcturusVisionCamera"
-FRAME_SCENES = ".local/share/Steam/steamapps/common/ArcturusVisionGaussianXR/Scenes"
+FRAME_SCENES = "Documents/GaussianXR"         # Gaussian XR's personal scenes: Steam updates leave them alone
+# The gallery that comes with Gaussian XR: its examples, and scenes copied by Splat Workshop 0.2.3 and older
+FRAME_STEAM = ".local/share/Steam/steamapps/common/ArcturusVisionGaussianXR/Scenes"
+FRAME_PLACES = {"own": FRAME_SCENES, "steam": FRAME_STEAM}
 FRAME_BACKUP = "Documents/GaussianSplats"     # copies made by versions up to 0.2.3 – removed along with a scene
 SSH = ["ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes", FRAME]
 HOSTNAME = socket.gethostname().lower()
@@ -172,7 +175,7 @@ def frame_listing(force=False):
     if not force and time.time() - frame_cache["t"] < 20:
         return frame_cache["data"]
     cmd = (f'(cd {FRAME_VIDEOS} 2>/dev/null && stat -c "%n|%s|%Y" *_stereo.mp4 2>/dev/null); echo ---; '
-           f'ls {FRAME_VIDEOS}/thumbnails 2>/dev/null; echo ---; ls {FRAME_SCENES} 2>/dev/null')
+           f'ls {FRAME_VIDEOS}/thumbnails 2>/dev/null; echo ---; (ls {FRAME_SCENES}; ls {FRAME_STEAM}) 2>/dev/null')
     try:
         r = subprocess.run(SSH + [cmd], capture_output=True, text=True, timeout=10)
     except subprocess.TimeoutExpired:
@@ -831,9 +834,10 @@ def frame_gallery(force=False):
         return None
     if not force and time.time() - gallery_cache["t"] < GALLERY_TTL:
         return gallery_cache["data"]
-    cmd = (f'cd {FRAME_SCENES} 2>/dev/null && for d in */; do d=${{d%/}}; '
-           f'g=$(ls "$d"/*.gallery.png 2>/dev/null | head -1); [ -n "$g" ] || continue; '
-           f'echo "$d|$(du -sb "$d" | cut -f1)|${{g##*/}}"; done; true')
+    cmd = "".join(f'(cd {path} 2>/dev/null && for d in */; do d=${{d%/}}; '
+                  f'g=$(ls "$d"/*.gallery.png 2>/dev/null | head -1); [ -n "$g" ] || continue; '
+                  f'echo "{place}|$d|$(du -sb "$d" | cut -f1)|${{g##*/}}"; done); ' for place, path in FRAME_PLACES.items())
+    cmd += "true"
     try:
         r = subprocess.run(SSH + [cmd], capture_output=True, text=True, timeout=20)
     except subprocess.TimeoutExpired:
@@ -854,9 +858,10 @@ def frame_gallery(force=False):
         owners.setdefault(("re", slug), (slug, "", kind, name))
     out = []
     for line in r.stdout.splitlines():
+        place, _, line = line.partition("|")
         folder, _, rest = line.partition("|")
         size, _, preview = rest.partition("|")
-        if not RX_FOLDER.fullmatch(folder):
+        if place not in FRAME_PLACES or not RX_FOLDER.fullmatch(folder):
             continue
         owner = owners.get(folder)
         if not owner and (m := re.fullmatch(r"\d\d_(.+)", folder)):
@@ -867,23 +872,29 @@ def frame_gallery(force=False):
                 if (RUNS / slug / "versions" / key / "version.json").exists():
                     owner = (slug, key, "version", read_version(RUNS / slug / "versions" / key).get("label") or rest_)
         slug, version, kind, name = owner or ("", "", "other", re.sub(r"^\d\d_", "", folder))
-        out.append({"folder": folder, "size": int(size or 0), "preview": preview, "slug": slug, "version": version,
-                    "kind": kind, "name": name})
+        out.append({"folder": folder, "place": place, "size": int(size or 0), "preview": preview, "slug": slug,
+                    "version": version, "kind": kind, "name": name})
     gallery_cache.update(t=time.time(), data=out)
     return out
 
 
-def frame_preview(folder: str):
+def gallery_entry(gallery, folder: str, place: str = ""):
+    """A scene in the Frame's gallery by its folder (and place, when the same name is in both)."""
+    return next((x for x in gallery or [] if x["folder"] == folder and place in ("", x["place"])), None)
+
+
+def frame_preview(folder: str, place: str = ""):
     """The gallery image of a scene on the Frame (cached on the PC)."""
-    g = next((x for x in frame_gallery() or [] if x["folder"] == folder), None)
+    g = gallery_entry(frame_gallery(), folder, place)
     if not g:
         return None
     CACHE.mkdir(parents=True, exist_ok=True)
-    cached = CACHE / f"frame-{hashlib.sha1(f'{folder}|{g['size']}'.encode()).hexdigest()[:16]}.png"
+    cached = CACHE / f"frame-{hashlib.sha1(f'{g['place']}|{folder}|{g['size']}'.encode()).hexdigest()[:16]}.png"
     if cached.exists():
         return cached.read_bytes()
     try:
-        r = subprocess.run(SSH + [f"cat {FRAME_SCENES}/{shq(folder)}/{shq(g['preview'])}"], capture_output=True, timeout=20)
+        r = subprocess.run(SSH + [f"cat {FRAME_PLACES[g['place']]}/{shq(folder)}/{shq(g['preview'])}"],
+                           capture_output=True, timeout=20)
     except subprocess.TimeoutExpired:
         return None
     if r.returncode != 0 or not r.stdout:
@@ -892,7 +903,7 @@ def frame_preview(folder: str):
     return r.stdout
 
 
-def remove_frame_folder(folder: str):
+def remove_frame_folder(folder: str, place: str = ""):
     """Take a scene off the Frame's gallery – any scene in it (also Gaussian XR's examples; Steam brings
     those back with "verify files"). The PC is not touched."""
     if not FRAME:
@@ -900,14 +911,14 @@ def remove_frame_folder(folder: str):
     gallery = frame_gallery(force=True)
     if gallery is None:
         return err("err.frame_offline")
-    g = next((x for x in gallery if x["folder"] == folder), None)
+    g = gallery_entry(gallery, folder, place)
     if not g or not RX_FOLDER.fullmatch(folder):
         return err("err.not_on_frame_version")
     key = f"{g['slug']}#{g['version']}" if g["version"] else g["slug"]
     if g["slug"] and (u := uploads.get(key)) and u["proc"].poll() is None:
         return err("err.upload_busy")
     try:
-        r = subprocess.run(SSH + [f"rm -rf -- {FRAME_SCENES}/{shq(folder)} {FRAME_BACKUP}/{shq(folder)}"],
+        r = subprocess.run(SSH + [f"rm -rf -- {FRAME_PLACES[g['place']]}/{shq(folder)} {FRAME_BACKUP}/{shq(folder)}"],
                            capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired:
         return err("err.frame_offline")
@@ -938,7 +949,35 @@ def remove_from_frame(slug: str, version: str):
     g = next((x for x in gallery if x["slug"] == slug and x["version"] == version), None)
     if not g:
         return err("err.not_on_frame_version")
-    return remove_frame_folder(g["folder"])
+    return remove_frame_folder(g["folder"], g["place"])
+
+
+def move_to_own_folder():
+    """Move the scenes made here out of Gaussian XR's own gallery folder (where 0.2.3 and older copied them,
+    and where a Steam update may remove them) into the folder for personal scenes. Gaussian XR's examples stay."""
+    if not FRAME:
+        return err("err.no_frame")
+    gallery = frame_gallery(force=True)
+    if gallery is None:
+        return err("err.frame_offline")
+    moving = [g for g in gallery if g["place"] == "steam" and g["kind"] != "other"]
+    if any((u := uploads.get(f"{g['slug']}#{g['version']}" if g["version"] else g["slug"])) and u["proc"].poll() is None
+           for g in moving):
+        return err("err.upload_busy")
+    if not moving:
+        return None
+    # A folder of the same name in the personal folder is the newer copy: the old one goes
+    cmd = f"mkdir -p {FRAME_SCENES} && " + " && ".join(
+        f"{{ [ -e {FRAME_SCENES}/{shq(g['folder'])} ] && rm -rf -- {FRAME_STEAM}/{shq(g['folder'])} || "
+        f"mv -- {FRAME_STEAM}/{shq(g['folder'])} {FRAME_SCENES}/; }}" for g in moving)
+    try:
+        r = subprocess.run(SSH + [cmd], capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return err("err.frame_offline")
+    gallery_cache["t"] = frame_cache["t"] = 0
+    if r.returncode != 0:
+        return err("err.frame_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
+    return None
 
 
 def delete_version(slug: str, key: str):
@@ -1634,7 +1673,7 @@ def start_combine(p: dict):
     if align not in ALIGNS or partition not in PARTITIONS:
         return err("err.bad_request")
     try:
-        frame_splats = int(p.get("frame_splats") or 3_500_000)
+        frame_splats = int(p.get("frame_splats") or 1_000_000)
     except (TypeError, ValueError):
         return err("err.bad_value", key="frame_splats")
     if not 500_000 <= frame_splats <= 10_000_000:
@@ -1809,7 +1848,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             g = frame_gallery(force=bool(q.get("refresh")))
             return self.send(200, {"online": g is not None, "configured": bool(FRAME), "scenes": g or []})
         if u.path == "/api/frame/preview":
-            data = frame_preview(q.get("folder", ""))
+            data = frame_preview(q.get("folder", ""), q.get("place", ""))
             return self.send(200, data, "image/png", cache=True) if data else self.send(404, b"", "image/png")
         if u.path == "/api/versions":
             return self.send(200, {"versions": versions_of(q.get("slug", ""))})
@@ -1877,8 +1916,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/versions":
             e = start_versions(p)
         elif path == "/api/frame/remove":
-            e = (remove_frame_folder(p["folder"]) if p.get("folder") else
+            e = (remove_frame_folder(p["folder"], p.get("place", "")) if p.get("folder") else
                  remove_from_frame(p.get("slug", ""), p.get("version", "")))
+        elif path == "/api/frame/move":
+            e = move_to_own_folder()
         elif path == "/api/version/delete":
             e = delete_version(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/pick":

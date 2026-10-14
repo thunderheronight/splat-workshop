@@ -21,7 +21,7 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 1. **Pick a recording** directly from the Frame (over SSH) or from your PC, with thumbnails.
 2. **Check it** before spending an hour on it: brightness, structure, fast pans and covered lenses, second by second.
 3. **Convert it** with a quality preset (Fast / High / Maximum) or fine-tuned values, with live progress, ETA and a PSNR curve.
-4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's `Scenes` folder on the Frame.
+4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's folder for personal scenes on the Frame (`Documents/GaussianXR`).
 5. **Put your home together**: group the rooms and turn them into one tour you walk through – full size for the PC, smaller for the Frame.
 
 ## New in 0.2
@@ -117,7 +117,7 @@ Start **Splat Workshop** from the menu (or `./splat-workshop`). The tray icon ap
 | `scripts/to-frame.sh <run> "<name>"` | (re)copy a finished scene to the Frame |
 | `scripts/combine.sh <name> "<display name>" <run>=<label> ...` | put scenes together into a tour (`ALIGN=frame\|images\|shift\|rigid`, `FRAME_SPLATS`, `FULL=0`, `NO_UPLOAD=1`) |
 
-After copying, **restart Gaussian XR** on the Frame so the new scene appears in the gallery. A Steam “verify files” or app update can reset Gaussian XR's `Scenes` folder – everything stays on the PC, and *Copy again* restores a scene. The *On the Frame* tab under the finished scenes shows what is in the gallery on the Frame and takes things off it.
+After copying, **restart Gaussian XR** on the Frame so the new scene appears in the gallery. Scenes go to `Documents/GaussianXR`, which Steam updates leave alone (Splat Workshop 0.2.3 and older used Gaussian XR's own `Scenes` folder – *Move to own scenes* in the *On the Frame* tab moves them over). Everything also stays on the PC, and *Copy again* restores a scene. For the Frame, about **1 M splats** runs smoothly and still looks sharp. The *On the Frame* tab under the finished scenes shows what is in the gallery on the Frame and takes things off it.
 
 ### Access from other devices
 

@@ -335,6 +335,8 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
     </div>
     <div id="frameView" class="hidden">
       <p class="faint" style="font-size:12.5px;margin:0 0 12px" data-i18n="fg.hint"></p>
+      <div id="frameMove" class="hidden" style="font-size:12.5px;margin:0 0 12px"><span id="frameMoveText"></span>
+        <button class="small" id="frameMoveBtn" data-i18n="fg.move"></button></div>
       <div id="frameGrid" class="grid"></div>
     </div>
   </section>
@@ -1047,7 +1049,7 @@ function openCombine(g) {
   radios("#cmbPart", "cmb.part", ["view", "nearest"], o.partition || "view");
   $("#cmbTitle").textContent = tr("cmb.title", {name: g.name});
   const last = o.frame_splats || 1000000, known = FRAME_SIZES.some(m => m * 1e6 === last);
-  $("#cmbSize").innerHTML = FRAME_SIZES.map(m => `<option value="${m * 1e6}">${sizeText(m)}</option>`).join("")
+  $("#cmbSize").innerHTML = FRAME_SIZES.map(m => `<option value="${m * 1e6}">${sizeText(m)}${m === FRAME_RECOMMENDED ? " " + tr("ver.recommended") : ""}</option>`).join("")
     + `<option value="custom">${tr("ver.custom")}</option>`;
   $("#cmbSize").value = known ? String(last) : "custom";
   $("#cmbSizeCustom").value = known ? "" : last / 1e6;
@@ -1086,6 +1088,11 @@ function setSceneTab(tab) {
 }
 document.querySelectorAll(".tab[data-stab]").forEach(t => t.onclick = () => setSceneTab(t.dataset.stab));
 $("#frameRefresh").onclick = () => loadFrameGallery(true);
+$("#frameMoveBtn").onclick = async () => {
+  const res = await api("/api/frame/move", {});
+  if (!res.ok) { toast(trErr(res.error)); return; }
+  toast(tr("fg.moved")); loadFrameGallery(true); loadScenes();
+};
 async function loadFrameGallery(refresh) {
   const grid = $("#frameGrid");
   if (!grid.children.length) grid.innerHTML = `<div class="empty" style="grid-column:1/-1">${tr("fg.loading")}</div>`;
@@ -1094,18 +1101,21 @@ async function loadFrameGallery(refresh) {
   if (!r.online) { grid.innerHTML = `<div class="empty" style="grid-column:1/-1">${tr("frame.unreachable")}</div>`; return; }
   const list = (r.scenes || []).filter(x => x && x.folder);
   S.frameGallery = list;
+  const old = list.filter(x => x.place === "steam" && x.kind !== "other").length;
+  $("#frameMove").classList.toggle("hidden", !old);
+  $("#frameMoveText").textContent = tr("fg.move.hint", {n: old}) + " ";
   grid.innerHTML = list.length ? list.map(x => `
     <div class="rec scene" style="cursor:default">
-      <div class="thumb" style="background-image:url('/api/frame/preview?folder=${encodeURIComponent(x.folder).replace(/'/g, "%27")}&amp;s=${x.size}')"></div>
+      <div class="thumb" style="background-image:url('/api/frame/preview?folder=${encodeURIComponent(x.folder).replace(/'/g, "%27")}&amp;place=${x.place}&amp;s=${x.size}')"></div>
       <div class="meta"><b>${esc(x.name)}</b>
         <span>${tr("fg.kind." + x.kind)} · ${mb(x.size)}</span>
-        <span class="faint" style="overflow-wrap:anywhere">${esc(x.folder)}</span>
-        <div class="acts"><button class="small" data-fgdel="${esc(x.folder)}" title="${tr("fg.remove.title")}">🗑 ${tr("fg.remove")}</button></div>
+        <span class="faint" style="overflow-wrap:anywhere" title="${tr("fg.place." + x.place + ".title")}">${tr("fg.place." + x.place)} · ${esc(x.folder)}</span>
+        <div class="acts"><button class="small" data-fgdel="${esc(x.place + "/" + x.folder)}" title="${tr("fg.remove.title")}">🗑 ${tr("fg.remove")}</button></div>
       </div></div>`).join("") : `<div class="empty" style="grid-column:1/-1">${tr("fg.empty")}</div>`;
   grid.querySelectorAll("[data-fgdel]").forEach(b => b.onclick = async () => {
-    const x = S.frameGallery.find(y => y.folder === b.dataset.fgdel);
+    const x = S.frameGallery.find(y => y.place + "/" + y.folder === b.dataset.fgdel);
     if (!confirm(tr(x.kind === "other" ? "fg.confirm.other" : "fg.confirm", {name: x.name, size: mb(x.size)}))) return;
-    const res = await api("/api/frame/remove", {folder: x.folder});
+    const res = await api("/api/frame/remove", {folder: x.folder, place: x.place});
     if (!res.ok) { toast(trErr(res.error)); return; }
     toast(tr("fg.removed", {name: x.name})); loadFrameGallery(true); loadScenes();
   });
@@ -1113,14 +1123,15 @@ async function loadFrameGallery(refresh) {
 
 /* ---------- versions ---------- */
 const FRAME_SIZES = [0.75, 1, 1.5, 2], PC_SIZES = ["all", 3, 5, 8];          // million splats
+const FRAME_RECOMMENDED = 1;   // measured on the Frame: as fast as 0.75 M nearly, clearly sharper; 1.5 M already a little unsteady
 function sizeText(m) { return m === "all" ? tr("ver.all") : tr("million", {n: num(m, Math.round(m * 100) % 10 ? 2 : m % 1 ? 1 : 0)}); }
 async function openVersions(slug) {
   const g = (S.groups || []).find(x => x.slug === slug), x = g || S.scenes.find(y => y.slug === slug);
   if (!x) return;
   const total = (g ? g.result && g.result.splats : x.gaussians) || 0, scale = x.scale || 1;
   $("#verTitle").textContent = tr("ver.title", {name: x.name, n: tr("million", {n: num(total / 1e6, 2)})});
-  const chk = (val, text) => `<label class="chk"><input type="checkbox" value="${val}"> ${text}</label>`;
-  $("#verFrame").innerHTML = FRAME_SIZES.map(m => chk(m, sizeText(m))).join("");
+  const chk = (val, text, on) => `<label class="chk"><input type="checkbox" value="${val}"${on ? " checked" : ""}> ${text}</label>`;
+  $("#verFrame").innerHTML = FRAME_SIZES.map(m => chk(m, sizeText(m) + (m === FRAME_RECOMMENDED ? " " + tr("ver.recommended") : ""), m === FRAME_RECOMMENDED)).join("");
   $("#verPc").innerHTML = PC_SIZES.filter(m => m === "all" || m * 1e6 < total).map(m => chk(m, sizeText(m))).join("");
   $("#verCustom").value = "";
   $("#verScaleHead").classList.toggle("hidden", scale === 1);

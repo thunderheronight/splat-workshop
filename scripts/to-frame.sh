@@ -5,7 +5,8 @@
 # Usage: scripts/to-frame.sh <run folder> "<display name>"
 #   <run folder>    runs/<name> or just <name>
 #   GALLERY_ONLY=1  only create the gallery files (preview image, name plate) in the run folder
-#   TARGET=NN_name  use this scene folder on the Frame (default: same name, or next free number from 20)
+#   TARGET=NN_name  use this scene folder on the Frame (default: same name, or next free number from 20;
+#                   a folder of that name in Gaussian XR's own gallery folder is moved over)
 #   STEM=name       file stem (default: folder name in lower case)
 #   SLUG=name       name for a new scene folder on the Frame (default: the run folder's name)
 #   LOG=file        pipeline log with the initial view (default: runs/<folder>.log)
@@ -17,7 +18,10 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 ROOT=$(dirname "$HERE")
 eval "$(cd "$ROOT" && python3 -m splat_workshop.config --shell)"
-FRAME_SCENES=.local/share/Steam/steamapps/common/ArcturusVisionGaussianXR/Scenes
+# Gaussian XR's folder for personal scenes – Steam updates leave it alone. Its own gallery folder
+# (FRAME_STEAM) holds the examples, and scenes copied by Splat Workshop 0.2.3 and older.
+FRAME_SCENES=Documents/GaussianXR
+FRAME_STEAM=.local/share/Steam/steamapps/common/ArcturusVisionGaussianXR/Scenes
 
 run=${1:?Give a run folder}
 name=${2:?Give a display name}
@@ -55,14 +59,21 @@ uv run -q "$HERE/make_gallery.py" "$out" "$log" "$name" "$stem"
 echo "@@ phase upload"
 echo "Copying to the Frame ..."
 # Reuse an existing folder of the same name, otherwise the next free number from 20
+# (numbers are counted in both folders, so a scene never has the same number as another in the gallery)
 folder=${TARGET:-$(ssh -o ConnectTimeout=8 "$FRAME_HOST" "
-    existing=\$(ls -d $FRAME_SCENES/[0-9][0-9]_$slug 2>/dev/null | head -1)
+    found() { ls -d $FRAME_SCENES/\$1 $FRAME_STEAM/\$1 2>/dev/null | head -1; }
+    existing=\$(found '[0-9][0-9]_$slug')
     if [ -n \"\$existing\" ]; then basename \"\$existing\"; exit; fi
-    n=20; while ls -d $FRAME_SCENES/\${n}_* >/dev/null 2>&1; do n=\$((n+1)); done
+    n=20; while [ -n \"\$(found \${n}_\*)\" ]; do n=\$((n+1)); done
     echo \${n}_$slug")}
+case "$folder" in [0-9][0-9]_?*) ;; *) echo "Unusable folder on the Frame: '$folder'" >&2; exit 1 ;; esac
+case "$folder" in */*|*..*) echo "Unusable folder on the Frame: '$folder'" >&2; exit 1 ;; esac
 # Straight into the gallery – everything is on the PC, copying again restores a scene.
 # Files of this scene under an earlier name (renamed in Splat Workshop) go first, so the folder holds one scene.
-ssh -o ConnectTimeout=8 "$FRAME_HOST" "mkdir -p $FRAME_SCENES/$folder && cd $FRAME_SCENES/$folder && \
+# A copy made by 0.2.3 or older in Gaussian XR's own gallery folder moves to the personal one.
+ssh -o ConnectTimeout=8 "$FRAME_HOST" "mkdir -p $FRAME_SCENES && \
+    if [ -d $FRAME_STEAM/$folder ] && [ ! -e $FRAME_SCENES/$folder ]; then mv $FRAME_STEAM/$folder $FRAME_SCENES/; fi && \
+    rm -rf $FRAME_STEAM/$folder && mkdir -p $FRAME_SCENES/$folder && cd $FRAME_SCENES/$folder && \
     for f in *.sog *.xrSceneTransform.json *.gallery.png *.sceneinfo.png; do
         case \$f in $stem.*) ;; *) rm -f -- \"\$f\" ;; esac
     done"

@@ -213,7 +213,7 @@ def frame(monkeypatch):
     monkeypatch.setattr(server, "FRAME", host)
     monkeypatch.setattr(server, "SSH", [*server.SSH[:-1], host])
     os.environ["FRAME_HOST"] = host                  # for the scripts (splat.sh, to-frame.sh)
-    for d in (server.FRAME_VIDEOS + "/thumbnails", server.FRAME_SCENES):
+    for d in (server.FRAME_VIDEOS + "/thumbnails", server.FRAME_SCENES, server.FRAME_STEAM):
         (FRAME_HOME / d).mkdir(parents=True, exist_ok=True)
     return FRAME_HOME
 
