@@ -16,6 +16,17 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 2. **Prüfen**, bevor eine Stunde Rechenzeit draufgeht: Helligkeit, Struktur, schnelle Schwenks, verdeckte Linse – Sekunde für Sekunde.
 3. **Umwandeln** mit Qualitätsstufe (Schnell / Hoch / Maximal) oder eigenen Werten, mit Fortschritt, Restzeit und PSNR-Kurve.
 4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den `Scenes`-Ordner von Gaussian XR auf der Frame.
+5. **Die Wohnung zusammensetzen**: Räume gruppieren und zu einem Rundgang machen, durch den du gehst – voll für den PC, kleiner für die Frame.
+
+## Neu in 0.2
+
+- 🏠 **Die ganze Wohnung als eine Szene** – Räume gruppieren und *Rundgang zusammensetzen*: Die Räume eines Aufnahmedurchgangs werden aneinander ausgerichtet und zu einer begehbaren Szene verbunden, als volle Fassung für den PC und als kleinere für die Frame.
+- 🎯 **Saubere Übergänge** – vier Korrekturen zur Wahl; die Gruppe zeigt, wie gut die Räume aneinanderpassen (meist auf 1–2 cm), so lässt sich vergleichen.
+- 📁 **Gruppen** halten die Liste übersichtlich – nacheinander aufgenommene Räume werden automatisch vorgeschlagen.
+- 🧹 **Speicherplatz, Aufräumen, Löschen** pro Szene und eine Liste **abgebrochener Läufe** zum Fortsetzen oder Entfernen.
+- 🛡️ **Sicherer**: *Neu rechnen* behält die alte Szene, bis die neue fertig ist; der PC geht während einer Umwandlung nicht mehr in den Standby.
+
+Alle Änderungen: [CHANGELOG.md](CHANGELOG.md) (englisch)
 
 ## Funktionen
 
@@ -24,8 +35,10 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 - **Umwandlungen laufen unabhängig weiter** – Browser zu, Tray beendet, Neustart: Werkstatt wieder öffnen, Fortschritt ist wieder da.
 - **Abbrechen & Fortsetzen** ab dem letzten Zwischenstand.
 - **Aufnahmeprüfung ohne KI**: reine Messwerte je Sekunde, farbige Zeitleiste und konkrete Hinweise („0:45–0:59 wenig Struktur“).
-- **Grundrisse** *(experimentell – bisher mit zwei Räumen getestet)* einzelner Szenen oder mehrerer zusammen – Aufnahmen aus einer Sitzung teilen das Tracking-Koordinatensystem der Frame, die Räume fügen sich also von selbst zum Grundriss der ganzen Wohnung. Zwei Stile: *Hübsch* (Draufsicht in Farbe, Wände, gelaufener Weg) und *Klassisch* (leuchtende Punktdichte), dazu ein einfaches Messwerkzeug (Punkte anklicken, Abstände ablesen – etwa ±5 cm genau).
-- **Fertige Szenen**: später auf die Frame übertragen, erneut übertragen, umbenennen (mit neuem Namensschild in der Galerie), Ordner oder Spirula Studio öffnen.
+- **Gruppen und Rundgänge**: Szenen gruppieren (z. B. alle Räume der Wohnung) und zu einer Szene zusammensetzen – eine volle Fassung für Gaussian XR am PC und eine kleinere für die Frame. Aufnahmen aus einem Durchgang teilen das Tracking-Koordinatensystem der Frame; die Werkstatt richtet die Räume aneinander aus (Korrekturen A–D zur Wahl), legt die Grenzen zwischen den Aufnahmen in die Türen und zeigt, wie gut die Räume aneinanderpassen. Vor dem Start schätzt sie den Speicherbedarf.
+- **Grundrisse** *(experimentell)* einzelner Szenen oder einer ganzen Gruppe – Aufnahmen aus einem Durchgang fügen sich von selbst zum Grundriss der ganzen Wohnung. Zwei Stile: *Hübsch* (Draufsicht in Farbe, Wände, gelaufener Weg) und *Klassisch* (leuchtende Punktdichte), dazu ein einfaches Messwerkzeug (Punkte anklicken, Abstände ablesen – etwa ±5 cm genau).
+- **Fertige Szenen**: später auf die Frame übertragen, erneut übertragen, umbenennen (Ordner und Namensschild ziehen mit), löschen (in den Papierkorb), Ordner oder Spirula Studio öffnen.
+- **Abgebrochene Läufe** werden mit ihrem Stand angezeigt: fortsetzen, neu starten oder löschen.
 - **Speicherplatz und Aufräumen**: Jede Szene zeigt, wie viel Platz sie belegt (etwa 4 GB pro Raum). Ein Klick löscht Zwischenstände oder Trainingsbilder – Szene, Grundriss und Viewer funktionieren weiter.
 - **Aufnahmen umbenennen** auf dem PC; Aufnahmedatum und Prüfergebnisse bleiben erhalten.
 - Deutsche und englische Oberfläche (automatisch, umschaltbar).

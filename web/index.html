@@ -1159,6 +1159,8 @@ $("#planDlg").addEventListener("click", e => {
   const r = $("#planDlg").getBoundingClientRect();
   if (e.target === $("#planDlg") && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) $("#planDlg").close();
 });
+$("#groupNewBtn").onclick = () => openGroupDlg(null);
+
 /* ---------- polling ---------- */
 let wasRunning = null;
 async function poll() {

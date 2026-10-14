@@ -18,6 +18,17 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 2. **Check it** before spending an hour on it: brightness, structure, fast pans and covered lenses, second by second.
 3. **Convert it** with a quality preset (Fast / High / Maximum) or fine-tuned values, with live progress, ETA and a PSNR curve.
 4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's `Scenes` folder on the Frame.
+5. **Put your home together**: group the rooms and turn them into one tour you walk through – full size for the PC, smaller for the Frame.
+
+## New in 0.2
+
+- 🏠 **Your whole home as one scene** – group rooms and *put the tour together*: the rooms of one recording session are fitted to each other and joined into one walkable scene, in a full version for the PC and a smaller one for the Frame.
+- 🎯 **Seamless transitions** – four corrections to choose from; the group shows how well the rooms meet (typically within 1–2 cm), so you can compare.
+- 📁 **Groups** keep the list tidy – suggested automatically for rooms recorded one after another.
+- 🧹 **Disk usage, clean-up, delete** per scene, and a list of **cancelled runs** to resume or remove.
+- 🛡️ **Safer**: *Start over* keeps the old scene until the new one is done; the PC no longer goes to sleep mid-conversion.
+
+All changes: [CHANGELOG.md](CHANGELOG.md)
 
 ## Features
 
@@ -26,11 +37,13 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 - **Conversions survive everything**: they run as their own process; close the browser, quit the tray, restart – reopen Splat Workshop and you see the progress again.
 - **Cancel & resume**: a cancelled conversion continues from its last saved state.
 - **Recording check** without AI: plain per-second measurements with a colour-coded timeline and concrete hints (“0:45–0:59 little structure”). See [What the check measures](#what-the-check-measures).
-- **Floor plans** *(experimental – so far tested with two rooms)* of single scenes or several together – recordings from one session share the Frame's tracking frame, so rooms line up by themselves into a plan of your whole home. Two styles: *Pretty* (colour top view, walls, the path you walked) and *Classic* (glowing point density), plus a simple measuring tool (click points, get distances – about ±5 cm).
+- **Groups and tours**: group scenes (e.g. all rooms of your home) and put them together into one scene – a full version for Gaussian XR on the PC and a smaller one for the Frame. Recordings from one session share the Frame's tracking frame; Splat Workshop fits the rooms to each other (corrections A–D to choose), lets the borders between recordings run through doors and shows how well the rooms meet. Before starting it estimates the memory needed.
+- **Floor plans** *(experimental)* of single scenes or a whole group – recordings from one session line up by themselves into a plan of your whole home. Two styles: *Pretty* (colour top view, walls, the path you walked) and *Classic* (glowing point density), plus a simple measuring tool (click points, get distances – about ±5 cm).
   <br><img src="docs/floorplan.png" width="640" alt="Combined floor plan of an example home in the classic style, with the measuring tool">
   <br><sub>Example home – synthetic data, drawn with the same renderer. Combining rooms relies on the Frame keeping its tracking frame between recordings; how well that holds for a whole home is still being tested.</sub>
-- **Finished scenes**: copy to the Frame later, re-copy, rename (with a new name plate in the gallery), open the folder or open the scene in Spirula Studio.
+- **Finished scenes**: copy to the Frame later, re-copy, rename (folder and name plate follow), delete (to the trash), open the folder or open the scene in Spirula Studio.
 - **Disk usage and clean-up**: each scene shows how much space it takes (about 4 GB for a room). One click deletes the intermediate data or the training images – the scene, floor plan and viewer keep working.
+- **Cancelled runs** are listed with how far they got: resume, start over or delete.
 - **Rename recordings** on the PC; the recording date and check results are kept.
 - English and German interface (automatic, switchable). More languages welcome – see `web/i18n.js` and `splat_workshop/i18n.py`.
 
@@ -90,6 +103,7 @@ Start **Splat Workshop** from the menu (or `./splat-workshop`). The tray icon ap
 | `./splat-workshop --server` | server in the foreground |
 | `scripts/splat.sh <recording> "<name>"` | convert on the command line (`QUALITY=fast\|high\|max`, `NO_UPLOAD=1`, `--resume`) |
 | `scripts/to-frame.sh <run> "<name>"` | (re)copy a finished scene to the Frame |
+| `scripts/combine.sh <name> "<display name>" <run>=<label> ...` | put scenes together into a tour (`ALIGN=frame\|images\|shift\|rigid`, `FRAME_SPLATS`, `FULL=0`, `NO_UPLOAD=1`) |
 
 After copying, **restart Gaussian XR** on the Frame so the new scene appears in the gallery. A Steam “verify files” or app update can reset Gaussian XR's `Scenes` folder – Splat Workshop also keeps a copy in `~/Documents/GaussianSplats` on the Frame, and *Copy again* restores a scene.
 
@@ -138,6 +152,7 @@ It is a measurement, not image recognition: it does not detect people or moving 
 config:            ~/.config/splat-workshop/config.toml
 recordings:        [paths] recordings   (downloaded from the Frame)
 scenes:            [paths] runs/<name>/  (scene.sog, spirula/scene.ply, gallery files, intermediate data)
+tours:             [paths] runs/<group>/ (scene.sog = Frame version, full/ = full version, spirula/scene.ply, combine.json)
 internal state:    next to runs/ in .splat-workshop/ (logs, thumbnails, check results)
 ```
 
