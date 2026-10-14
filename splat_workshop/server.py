@@ -44,7 +44,7 @@ STATE = STATE_DIR / "state.json"
 FRAME = CFG.frame_host
 FRAME_VIDEOS = "Videos/ArcturusVisionCamera"
 FRAME_SCENES = ".local/share/Steam/steamapps/common/ArcturusVisionGaussianXR/Scenes"
-FRAME_BACKUP = "Documents/GaussianSplats"     # to-frame.sh keeps a copy of every scene here
+FRAME_BACKUP = "Documents/GaussianSplats"     # copies made by versions up to 0.2.3 – removed along with a scene
 SSH = ["ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes", FRAME]
 HOSTNAME = socket.gethostname().lower()
 # Names the server may be reached under (protects against DNS rebinding); IP addresses always work
@@ -819,25 +819,92 @@ def start_versions(p: dict):
     return None
 
 
-def remove_from_frame(slug: str, version: str):
-    """Take a version off the Frame: its gallery folder and the backup copy. Only a folder this version
-    got from Splat Workshop (remembered, or named exactly <NN>_<scene>-<version>) – never anything else."""
+GALLERY_TTL = 20                           # seconds the list of the Frame's gallery is reused
+gallery_cache = {"t": 0, "data": None}
+RX_FOLDER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._ -]*")
+
+
+def frame_gallery(force=False):
+    """Every scene in Gaussian XR's gallery on the Frame (a folder with a preview image), with what it is:
+    a scene, tour or version made here, or something else (e.g. Gaussian XR's examples). None = no Frame."""
+    if not FRAME:
+        return None
+    if not force and time.time() - gallery_cache["t"] < GALLERY_TTL:
+        return gallery_cache["data"]
+    cmd = (f'cd {FRAME_SCENES} 2>/dev/null && for d in */; do d=${{d%/}}; '
+           f'g=$(ls "$d"/*.gallery.png 2>/dev/null | head -1); [ -n "$g" ] || continue; '
+           f'echo "$d|$(du -sb "$d" | cut -f1)|${{g##*/}}"; done; true')
+    try:
+        r = subprocess.run(SSH + [cmd], capture_output=True, text=True, timeout=20)
+    except subprocess.TimeoutExpired:
+        r = None
+    if r is None or r.returncode == 255:
+        gallery_cache.update(t=time.time(), data=None)
+        return None
+    owners = {}                                 # folder -> (slug, version, kind, name)
+    for f in RUNS.glob("*.ui.json"):
+        slug = f.name.removesuffix(".ui.json")
+        meta = read_meta(slug)
+        kind, name = ("tour" if is_group(meta) else "scene"), meta.get("name") or slug
+        if meta.get("frame_folder"):
+            owners[meta["frame_folder"]] = (slug, "", kind, name)
+        for key, folder in (meta.get("version_folders") or {}).items():
+            label = read_version(RUNS / slug / "versions" / key).get("label") or f"{name} · {key}"
+            owners[folder] = (slug, key, "version", label)
+        owners.setdefault(("re", slug), (slug, "", kind, name))
+    out = []
+    for line in r.stdout.splitlines():
+        folder, _, rest = line.partition("|")
+        size, _, preview = rest.partition("|")
+        if not RX_FOLDER.fullmatch(folder):
+            continue
+        owner = owners.get(folder)
+        if not owner and (m := re.fullmatch(r"\d\d_(.+)", folder)):
+            rest_ = m.group(1)
+            owner = owners.get(("re", rest_))
+            if not owner and "-" in rest_:              # <scene>-<version>
+                slug, _, key = rest_.rpartition("-")
+                if (RUNS / slug / "versions" / key / "version.json").exists():
+                    owner = (slug, key, "version", read_version(RUNS / slug / "versions" / key).get("label") or rest_)
+        slug, version, kind, name = owner or ("", "", "other", re.sub(r"^\d\d_", "", folder))
+        out.append({"folder": folder, "size": int(size or 0), "preview": preview, "slug": slug, "version": version,
+                    "kind": kind, "name": name})
+    gallery_cache.update(t=time.time(), data=out)
+    return out
+
+
+def frame_preview(folder: str):
+    """The gallery image of a scene on the Frame (cached on the PC)."""
+    g = next((x for x in frame_gallery() or [] if x["folder"] == folder), None)
+    if not g:
+        return None
+    CACHE.mkdir(parents=True, exist_ok=True)
+    cached = CACHE / f"frame-{hashlib.sha1(f'{folder}|{g['size']}'.encode()).hexdigest()[:16]}.png"
+    if cached.exists():
+        return cached.read_bytes()
+    try:
+        r = subprocess.run(SSH + [f"cat {FRAME_SCENES}/{shq(folder)}/{shq(g['preview'])}"], capture_output=True, timeout=20)
+    except subprocess.TimeoutExpired:
+        return None
+    if r.returncode != 0 or not r.stdout:
+        return None
+    cached.write_bytes(r.stdout)
+    return r.stdout
+
+
+def remove_frame_folder(folder: str):
+    """Take a scene off the Frame's gallery – any scene in it (also Gaussian XR's examples; Steam brings
+    those back with "verify files"). The PC is not touched."""
     if not FRAME:
         return err("err.no_frame")
-    d = scene_dir(slug) if slug and not slug.startswith(".") else None
-    if not d or not version or version.startswith(".") or Path(version).name != version:
-        return err("err.no_version")
-    meta = read_meta(slug)
-    folders = meta.get("version_folders") or {}
-    folder = folders.get(version)
-    fr = frame_listing(force=True)
-    if fr is None:
+    gallery = frame_gallery(force=True)
+    if gallery is None:
         return err("err.frame_offline")
-    if not folder:
-        folder = next((x for x in fr["scenes"] if re.fullmatch(r"\d\d_" + re.escape(f"{slug}-{version}"), x)), None)
-    if not folder or not re.fullmatch(r"\d\d_[A-Za-z0-9._-]+", folder) or folder not in fr["scenes"]:
+    g = next((x for x in gallery if x["folder"] == folder), None)
+    if not g or not RX_FOLDER.fullmatch(folder):
         return err("err.not_on_frame_version")
-    if (u := uploads.get(f"{slug}#{version}")) and u["proc"].poll() is None:
+    key = f"{g['slug']}#{g['version']}" if g["version"] else g["slug"]
+    if g["slug"] and (u := uploads.get(key)) and u["proc"].poll() is None:
         return err("err.upload_busy")
     try:
         r = subprocess.run(SSH + [f"rm -rf -- {FRAME_SCENES}/{shq(folder)} {FRAME_BACKUP}/{shq(folder)}"],
@@ -846,11 +913,32 @@ def remove_from_frame(slug: str, version: str):
         return err("err.frame_offline")
     if r.returncode != 0:
         return err("err.frame_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
-    folders.pop(version, None)
-    write_meta(slug, version_folders=folders)
-    uploads.pop(f"{slug}#{version}", None)
-    frame_cache["t"] = 0
+    if g["slug"]:                               # forget the folder, so copying again makes a new one
+        meta = read_meta(g["slug"])
+        if g["version"]:
+            folders = meta.get("version_folders") or {}
+            folders.pop(g["version"], None)
+            write_meta(g["slug"], version_folders=folders)
+        elif meta.get("frame_folder") == folder:
+            write_meta(g["slug"], frame_folder=None)
+        uploads.pop(key, None)
+    gallery_cache["t"] = frame_cache["t"] = 0
     return None
+
+
+def remove_from_frame(slug: str, version: str):
+    """Take one version of a scene off the Frame."""
+    if not FRAME:
+        return err("err.no_frame")
+    if not slug or slug.startswith(".") or not version or version.startswith(".") or Path(version).name != version:
+        return err("err.no_version")
+    gallery = frame_gallery(force=True)
+    if gallery is None:
+        return err("err.frame_offline")
+    g = next((x for x in gallery if x["slug"] == slug and x["version"] == version), None)
+    if not g:
+        return err("err.not_on_frame_version")
+    return remove_frame_folder(g["folder"])
 
 
 def delete_version(slug: str, key: str):
@@ -1717,6 +1805,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, unfinished_runs())
         if u.path == "/api/groups":
             return self.send(200, groups())
+        if u.path == "/api/frame/gallery":
+            g = frame_gallery(force=bool(q.get("refresh")))
+            return self.send(200, {"online": g is not None, "configured": bool(FRAME), "scenes": g or []})
+        if u.path == "/api/frame/preview":
+            data = frame_preview(q.get("folder", ""))
+            return self.send(200, data, "image/png", cache=True) if data else self.send(404, b"", "image/png")
         if u.path == "/api/versions":
             return self.send(200, {"versions": versions_of(q.get("slug", ""))})
         if u.path == "/api/floorplan":
@@ -1759,7 +1853,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             p = None
         # Only flat objects of simple values; text fields are text
         if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
-                or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key", "version", "sizes", "scales",
+                or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key", "version", "sizes", "scales", "folder",
                                                            "align", "partition")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
@@ -1783,7 +1877,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/versions":
             e = start_versions(p)
         elif path == "/api/frame/remove":
-            e = remove_from_frame(p.get("slug", ""), p.get("version", ""))
+            e = (remove_frame_folder(p["folder"]) if p.get("folder") else
+                 remove_from_frame(p.get("slug", ""), p.get("version", "")))
         elif path == "/api/version/delete":
             e = delete_version(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/pick":

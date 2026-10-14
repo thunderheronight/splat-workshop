@@ -47,6 +47,8 @@ All changes: [CHANGELOG.md](CHANGELOG.md)
 - **Groups and tours**: group scenes (e.g. all rooms of your home) and put them together into one scene – a full version for Gaussian XR on the PC and a smaller one for the Frame. Recordings from one session share the Frame's tracking frame; Splat Workshop fits the rooms to each other (corrections A–D to choose), lets the borders between recordings run through doors and shows how well the rooms meet. Before starting it estimates the memory needed.
   <br><img src="docs/combine.png" width="360" alt="Dialog “Put together”: corrections A to D, borders between the recordings, size of the Frame version, full version, memory estimate">
   <br><sub>Example data – room names and preview images are placeholders.</sub>
+- **Versions** of a scene or tour side by side: fewer splats for the Frame (0.75–2 M), all or a limit for the PC, or your own size – each with its own place in the Frame's gallery, so you can compare what runs smoothly.
+- **On the Frame** tab: everything in Gaussian XR's gallery on the Frame with preview images, and taking things off it.
 - **Scale for models** like a model railway (Z, N, TT, H0, S, 0, G or your own): floor plan, sizes and the measuring tool show the original's size, and optionally Gaussian XR shows the model in its original size to walk through *(not tested on the Frame yet)*.
 - **Floor plans** *(experimental)* of single scenes or a whole group – recordings from one session line up by themselves into a plan of your whole home. Two styles: *Pretty* (colour top view, walls, the path you walked) and *Classic* (glowing point density), plus a simple measuring tool (click points, get distances – about ±5 cm).
   <br><img src="docs/floorplan.png" width="640" alt="Combined floor plan of an example home in the classic style, with the measuring tool">
@@ -115,7 +117,7 @@ Start **Splat Workshop** from the menu (or `./splat-workshop`). The tray icon ap
 | `scripts/to-frame.sh <run> "<name>"` | (re)copy a finished scene to the Frame |
 | `scripts/combine.sh <name> "<display name>" <run>=<label> ...` | put scenes together into a tour (`ALIGN=frame\|images\|shift\|rigid`, `FRAME_SPLATS`, `FULL=0`, `NO_UPLOAD=1`) |
 
-After copying, **restart Gaussian XR** on the Frame so the new scene appears in the gallery. A Steam “verify files” or app update can reset Gaussian XR's `Scenes` folder – Splat Workshop also keeps a copy in `~/Documents/GaussianSplats` on the Frame, and *Copy again* restores a scene.
+After copying, **restart Gaussian XR** on the Frame so the new scene appears in the gallery. A Steam “verify files” or app update can reset Gaussian XR's `Scenes` folder – everything stays on the PC, and *Copy again* restores a scene. The *On the Frame* tab under the finished scenes shows what is in the gallery on the Frame and takes things off it.
 
 ### Access from other devices
 

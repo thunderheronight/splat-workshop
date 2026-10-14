@@ -115,7 +115,7 @@ def test_copying_a_scene_to_the_frame(api, frame):
     folder = frame / SCENES / "20_Kitchen"
     assert sorted(p.name for p in folder.iterdir()) == [
         "kitchen.gallery.png", "kitchen.sceneinfo.png", "kitchen.sog", "kitchen.xrSceneTransform.json"]
-    assert (frame / "Documents" / "GaussianSplats" / "20_Kitchen" / "kitchen.sog").exists()   # backup copy
+    assert not (frame / "Documents" / "GaussianSplats").exists()        # no second copy on the Frame
     assert json.loads((RUNS / "Kitchen.ui.json").read_text())["frame_folder"] == "20_Kitchen"
     assert wait_for_tool("notify-send")                             # sent in the background
     assert {s["slug"]: s["on_frame"] for s in server.scenes()}["Kitchen"] is True

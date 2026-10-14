@@ -9,6 +9,14 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 - **Scale for models**, e.g. a model railway: set Z, N, TT, H0, S, 0, G or your own scale for a scene or a whole group (optionally passed on to its scenes). Floor plan, room sizes, the scale bar and the measuring tool then show the size of the original – a 10 cm H0 model reads as 8.7 m. The floor plan also looks for walls and floors in the model's scale, so a model is drawn like a real building.
 - **Walk through a model in its original size** in Gaussian XR (option): Splat Workshop sets Gaussian XR's `worldScale` when copying a scene or tour to the Frame – the scene files on the PC stay unchanged. *Not tested on the Frame yet.*
 
+- **Versions** of a scene or tour, several side by side: fewer splats for the Frame (0.75 / 1 / 1.5 / 2 M), all or a limit for the PC (3 / 5 / 8 M), or an own size – each also in the original's size for models. Every version gets its own place in the Frame's gallery (e.g. "Flat · 1 M" next to "Flat · 2 M"), so you can find out yourself what runs smoothly. Frame rates measured on a Steam Frame are shown for information.
+- **"On the Frame" tab** under the finished scenes: everything in Gaussian XR's gallery on the Frame with its preview image – scenes, tours, versions and Gaussian XR's own examples – and *Off the Frame* to delete any of them there (the PC is not touched).
+
+### Changed
+
+- **No backup copies on the Frame any more**: scenes are copied straight into the gallery. Everything is on the PC, and *Copy again* restores a scene after a Steam update. Copies left in `Documents/GaussianSplats` by older versions are removed together with their scene.
+- Putting a tour together offers 0.75 to 2 M splats or an own size for its Frame version (was 2 / 3.5 / 5 M – 5 M ran at about 14 fps on the Frame).
+
 ### Fixed
 
 - The floor plan no longer fails for scenes in which it finds no walls (e.g. a model without its scale).

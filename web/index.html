@@ -155,6 +155,7 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
 .toast.show { opacity: 1; }
 .hidden { display: none !important; }
+.invisible { visibility: hidden; }
 .group { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
 .ghead { display: flex; gap: 14px; flex-wrap: wrap; }
 .gthumb { width: 132px; height: 132px; flex: none; border-radius: 10px; background: #0b0d12 center/cover no-repeat; display: grid; place-items: center; font-size: 44px; }
@@ -322,9 +323,20 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
       <h2 data-i18n="scenes.title" style="margin:0"></h2>
       <div class="row"><button class="small" id="groupNewBtn" data-i18n="grp.new" data-i18n-title="grp.new.tip"></button></div>
     </div>
-    <div id="groupSuggest" class="suggest hidden"></div>
-    <div id="groupList"></div>
-    <div id="sceneGrid" class="grid"></div>
+    <div class="tabs" id="sceneTabs">
+      <button class="tab active" data-stab="pc" data-i18n="stab.pc"></button>
+      <button class="tab" data-stab="frame" data-i18n="stab.frame"></button>
+      <button class="small hidden" id="frameRefresh" title="↻" aria-label="↻">↻</button>
+    </div>
+    <div id="pcView">
+      <div id="groupSuggest" class="suggest hidden"></div>
+      <div id="groupList"></div>
+      <div id="sceneGrid" class="grid"></div>
+    </div>
+    <div id="frameView" class="hidden">
+      <p class="faint" style="font-size:12.5px;margin:0 0 12px" data-i18n="fg.hint"></p>
+      <div id="frameGrid" class="grid"></div>
+    </div>
   </section>
 
   <!-- cancelled / failed runs -->
@@ -733,8 +745,8 @@ document.querySelectorAll("#quality button").forEach(b => b.onclick = () => {
 document.querySelectorAll("input[name=target]").forEach(r => r.onchange = () => { S.targetTouched = true; targetChanged(); });
 ["frames", "scale", "maxg", "iter"].forEach(id => $("#" + id).oninput = updateStart);
 $("#name").oninput = () => { $("#name").dataset.auto = "0"; updateStart(); };
-function setTab(tab) { S.tab = tab; document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === tab)); }
-document.querySelectorAll(".tab").forEach(t => t.onclick = () => { setTab(t.dataset.tab); renderRecs(); });
+function setTab(tab) { S.tab = tab; document.querySelectorAll(".tab[data-tab]").forEach(x => x.classList.toggle("active", x.dataset.tab === tab)); }
+document.querySelectorAll(".tab[data-tab]").forEach(t => t.onclick = () => { setTab(t.dataset.tab); renderRecs(); });
 $("#refreshBtn").onclick = () => loadRecs(true);
 $("#pickBtn").onclick = async () => {
   const r = await api("/api/pick", {});
@@ -1060,6 +1072,43 @@ function openCombine(g) {
     $("#combineDlg").close(); toast(tr("cmb.started")); await poll(); loadScenes();
     $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
   };
+}
+
+/* ---------- what is on the Frame ---------- */
+function setSceneTab(tab) {
+  S.stab = tab;
+  document.querySelectorAll(".tab[data-stab]").forEach(x => x.classList.toggle("active", x.dataset.stab === tab));
+  $("#pcView").classList.toggle("hidden", tab !== "pc");
+  $("#frameView").classList.toggle("hidden", tab !== "frame");
+  $("#frameRefresh").classList.toggle("hidden", tab !== "frame");
+  $("#groupNewBtn").classList.toggle("invisible", tab !== "pc");
+  if (tab === "frame") loadFrameGallery();
+}
+document.querySelectorAll(".tab[data-stab]").forEach(t => t.onclick = () => setSceneTab(t.dataset.stab));
+$("#frameRefresh").onclick = () => loadFrameGallery(true);
+async function loadFrameGallery(refresh) {
+  const grid = $("#frameGrid");
+  if (!grid.children.length) grid.innerHTML = `<div class="empty" style="grid-column:1/-1">${tr("fg.loading")}</div>`;
+  const r = await api("/api/frame/gallery" + (refresh ? "?refresh=1" : ""));
+  if (!r.configured) { grid.innerHTML = `<div class="empty" style="grid-column:1/-1">${tr("frame.none")}</div>`; return; }
+  if (!r.online) { grid.innerHTML = `<div class="empty" style="grid-column:1/-1">${tr("frame.unreachable")}</div>`; return; }
+  const list = (r.scenes || []).filter(x => x && x.folder);
+  S.frameGallery = list;
+  grid.innerHTML = list.length ? list.map(x => `
+    <div class="rec scene" style="cursor:default">
+      <div class="thumb" style="background-image:url('/api/frame/preview?folder=${encodeURIComponent(x.folder).replace(/'/g, "%27")}&amp;s=${x.size}')"></div>
+      <div class="meta"><b>${esc(x.name)}</b>
+        <span>${tr("fg.kind." + x.kind)} · ${mb(x.size)}</span>
+        <span class="faint" style="overflow-wrap:anywhere">${esc(x.folder)}</span>
+        <div class="acts"><button class="small" data-fgdel="${esc(x.folder)}" title="${tr("fg.remove.title")}">🗑 ${tr("fg.remove")}</button></div>
+      </div></div>`).join("") : `<div class="empty" style="grid-column:1/-1">${tr("fg.empty")}</div>`;
+  grid.querySelectorAll("[data-fgdel]").forEach(b => b.onclick = async () => {
+    const x = S.frameGallery.find(y => y.folder === b.dataset.fgdel);
+    if (!confirm(tr(x.kind === "other" ? "fg.confirm.other" : "fg.confirm", {name: x.name, size: mb(x.size)}))) return;
+    const res = await api("/api/frame/remove", {folder: x.folder});
+    if (!res.ok) { toast(trErr(res.error)); return; }
+    toast(tr("fg.removed", {name: x.name})); loadFrameGallery(true); loadScenes();
+  });
 }
 
 /* ---------- versions ---------- */

@@ -150,6 +150,8 @@ def test_taking_a_version_off_the_frame_removes_only_that(api, frame):
     scenes, backup = frame / server.FRAME_SCENES, frame / server.FRAME_BACKUP
     (scenes / "04_BurtLakeHouse").mkdir()                      # an example scene of Gaussian XR
     (scenes / "30_Room-0.01m-old").mkdir()                     # someone else's folder with a similar name
+    (backup / "20_Room-0.01m").mkdir(parents=True)             # a copy left by version 0.2.3 or older
+    (backup / "21_Room-0.02m").mkdir()
     assert api.post("/api/frame/remove", {"slug": "Room", "version": "0.01m"})[0] == 200
     assert sorted(p.name for p in scenes.iterdir()) == ["04_BurtLakeHouse", "21_Room-0.02m", "30_Room-0.01m-old"]
     assert not (backup / "20_Room-0.01m").exists() and (backup / "21_Room-0.02m").exists()
