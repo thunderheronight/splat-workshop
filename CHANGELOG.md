@@ -2,6 +2,17 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.3] – 2026-10-14
+
+### Added
+
+- **Scale for models**, e.g. a model railway: set Z, N, TT, H0, S, 0, G or your own scale for a scene or a whole group (optionally passed on to its scenes). Floor plan, room sizes, the scale bar and the measuring tool then show the size of the original – a 10 cm H0 model reads as 8.7 m. The floor plan also looks for walls and floors in the model's scale, so a model is drawn like a real building.
+- **Walk through a model in its original size** in Gaussian XR (option): Splat Workshop sets Gaussian XR's `worldScale` when copying a scene or tour to the Frame – the scene files on the PC stay unchanged. *Not tested on the Frame yet.*
+
+### Fixed
+
+- The floor plan no longer fails for scenes in which it finds no walls (e.g. a model without its scale).
+
 ## [0.2.2] – 2026-10-14
 
 ### Changed
@@ -65,6 +76,7 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.2.3]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.1.0...v0.2.0

@@ -101,9 +101,11 @@ def heights(y):
     return np.percentile(y, 97), np.percentile(y, 3)
 
 
-def wall_angle(points_xz):
+def wall_angle(points_xz, bin_size=0.03):
     """Yaw that makes the walls axis-aligned: maximise the peakiness of the x/z histograms."""
     best, best_score = 0.0, -1
+    if len(points_xz) < 50:                                   # no walls found: leave it as it is
+        return best
     for deg in np.arange(0, 90, 0.5):
         a = np.radians(deg)
         c, s = np.cos(a), np.sin(a)
@@ -111,7 +113,7 @@ def wall_angle(points_xz):
         v = points_xz[:, 0] * s + points_xz[:, 1] * c
         score = 0
         for w in (u, v):
-            h, _ = np.histogram(w, bins=max(10, int((w.max() - w.min()) / 0.03)))
+            h, _ = np.histogram(w, bins=max(10, int((w.max() - w.min()) / bin_size)))
             score += float(np.sum(h.astype(np.float64) ** 2)) / len(w) ** 2
         if score > best_score:
             best, best_score = a, score
@@ -142,11 +144,16 @@ def main():
     ap.add_argument("runs", nargs="+", help="run folder, optionally =label")
     ap.add_argument("--title", default="")
     ap.add_argument("--comma", action="store_true", help="decimal comma in sizes")
+    ap.add_argument("--ratio", type=float, default=1.0,
+                    help="model scale, e.g. 87 for H0 (1:87): sizes and the scale bar show the original's size")
     ap.add_argument("--style", choices=("pretty", "classic"), default="pretty",
                     help="pretty: colour top view, glowing walls, camera path; classic: glowing point density only")
     args = ap.parse_args()
     out = Path(args.out)
     rng = np.random.default_rng(1)
+    # All lengths below are in metres of the original: a model (--ratio 87) is measured in its own scale,
+    # so its walls are looked for 1 to 2 cm above its floor instead of 0.9 to 1.9 m.
+    m = 1 / args.ratio
     scenes = []
     for arg in args.runs:
         run, _, label = arg.partition("=")
@@ -155,23 +162,25 @@ def main():
         floor, ceil = heights(xyz[:, 1])
         # keep the room: below the ceiling, not below the floor, and drop far-away floaters
         lo, hi = np.percentile(xyz[:, [0, 2]], 0.5, axis=0), np.percentile(xyz[:, [0, 2]], 99.5, axis=0)
-        inside = ((xyz[:, 1] > ceil + 0.25) & (xyz[:, 1] < floor + 0.15)
-                  & np.all(xyz[:, [0, 2]] >= lo - 0.3, axis=1) & np.all(xyz[:, [0, 2]] <= hi + 0.3, axis=1))
-        up = floor - xyz[:, 1]                                   # height above the floor in metres
-        walls = inside & (up > 0.9) & (up < 1.9)
+        inside = ((xyz[:, 1] > ceil + 0.25 * m) & (xyz[:, 1] < floor + 0.15 * m)
+                  & np.all(xyz[:, [0, 2]] >= lo - 0.3 * m, axis=1) & np.all(xyz[:, [0, 2]] <= hi + 0.3 * m, axis=1))
+        if inside.sum() < 100:                                   # e.g. a model drawn without its scale: keep all
+            inside = np.ones(len(xyz), bool)
+        up = floor - xyz[:, 1]                                   # height above the floor
+        walls = inside & (up > 0.9 * m) & (up < 1.9 * m)
         scenes.append({"label": label or run.name, "xyz": xyz[inside], "rgb": rgb[inside], "up": up[inside],
                        "walls": xyz[walls][:, [0, 2]], "cams": load_cameras(run), "floor": floor})
 
     all_walls = np.vstack([s["walls"] for s in scenes])
     sub = all_walls[rng.choice(len(all_walls), min(len(all_walls), 150_000), replace=False)]
-    angle = wall_angle(sub)
+    angle = wall_angle(sub, 0.03 * m)
     for s in scenes:
         s["p"] = rotate(s["xyz"][:, [0, 2]], angle)
         s["w"] = rotate(s["walls"], angle)
         s["c"] = rotate(s["cams"][:, [0, 2]], angle) if s["cams"] is not None else None
-        s["box"] = room_box(s["w"])
+        s["box"] = room_box(s["w"], 0.05 * m)
         if s["box"] is not None:                                   # keep only this room (plus a margin)
-            b0, b1 = s["box"][0] - 0.35, s["box"][1] + 0.35
+            b0, b1 = s["box"][0] - 0.35 * m, s["box"][1] + 0.35 * m
             ok = np.all((s["p"] >= b0) & (s["p"] <= b1), axis=1)
             s["p"], s["rgb"], s["up"] = s["p"][ok], s["rgb"][ok], s["up"][ok]
             okw = np.all((s["w"] >= b0) & (s["w"] <= b1), axis=1)
@@ -179,11 +188,11 @@ def main():
 
     boxes = [s["box"] for s in scenes if s["box"] is not None]
     if boxes:
-        lo = np.min([b[0] for b in boxes], axis=0) - 0.8
-        hi = np.max([b[1] for b in boxes], axis=0) + 0.8
+        lo = np.min([b[0] for b in boxes], axis=0) - 0.8 * m
+        hi = np.max([b[1] for b in boxes], axis=0) + 0.8 * m
     else:
         allp = np.vstack([s["p"] for s in scenes])
-        lo, hi = np.percentile(allp, 1, axis=0) - 0.5, np.percentile(allp, 99, axis=0) + 0.5
+        lo, hi = np.percentile(allp, 1, axis=0) - 0.5 * m, np.percentile(allp, 99, axis=0) + 0.5 * m
     span = hi - lo
     ppm = (SIZE - 160) / span.max()                               # pixels per metre
     W, H = int(span[0] * ppm) + 160, int(span[1] * ppm) + 200
@@ -212,23 +221,32 @@ def main():
         if s["box"] is not None:
             (bx0, bz0), (bx1, bz1) = s["box"]
             cx, cz = px(np.array([[(bx0 + bx1) / 2, (bz0 + bz1) / 2]]))
-            size = f"~ {bx1 - bx0:.1f} × {bz1 - bz0:.1f} m".replace(".", "," if args.comma else ".")
+            size = f"~ {(bx1 - bx0) * args.ratio:.1f} × {(bz1 - bz0) * args.ratio:.1f} m".replace(".", "," if args.comma else ".")
             for txt, fnt, dy in ((s["label"], f_label, -16), (size, f_small, 16)):
                 tw = d.textlength(txt, font=fnt)
                 d.text((cx[0] - tw / 2 + 1, cz[0] + dy - 13 + 1), txt, font=fnt, fill=(0, 0, 0))
                 d.text((cx[0] - tw / 2, cz[0] + dy - 13), txt, font=fnt, fill=(255, 255, 255) if dy < 0 else (210, 214, 224))
 
-    # scale bar (1 m) and title
-    d.line((W - 60 - ppm, H - 40, W - 60, H - 40), fill=(230, 230, 230), width=3)
-    for xx in (W - 60 - ppm, W - 60):
+    # scale bar: a round length of the original (for a model: of the real thing), about 150 px long
+    real_ppm = ppm / args.ratio                                    # pixels per metre of the original
+    length = min((0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000), key=lambda l: abs(l * real_ppm - 150))
+    bar = length * real_ppm
+    text = (f"{length * 100:g} cm" if length < 1 else f"{length:g} m")
+    d.line((W - 60 - bar, H - 40, W - 60, H - 40), fill=(230, 230, 230), width=3)
+    for xx in (W - 60 - bar, W - 60):
         d.line((xx, H - 47, xx, H - 33), fill=(230, 230, 230), width=3)
-    d.text((W - 60 - ppm / 2 - 12, H - 72), "1 m", font=f_small, fill=(230, 230, 230))
+    tw = d.textlength(text, font=f_small)
+    d.text((W - 60 - bar / 2 - tw / 2, H - 72), text, font=f_small, fill=(230, 230, 230))
+    if args.ratio != 1:
+        ratio = f"1:{args.ratio:g}".replace(".", "," if args.comma else ".")
+        d.text((W - 60 - bar - 20 - d.textlength(ratio, font=f_small), H - 50), ratio, font=f_small, fill=(230, 230, 230))
     if args.title:
         d.text((40, 32), args.title, font=f_title, fill=(235, 238, 245))
     out_img.save(out)
-    info = [{"label": s["label"], "size": [round(float(v), 2) for v in (s["box"][1] - s["box"][0])] if s["box"] is not None else None}
-            for s in scenes]
-    print(json.dumps({"angle": round(float(np.degrees(angle)), 1), "scenes": info, "pixels_per_metre": round(ppm, 1)}))
+    info = [{"label": s["label"], "size": [round(float(v) * args.ratio, 2) for v in (s["box"][1] - s["box"][0])]
+             if s["box"] is not None else None} for s in scenes]
+    print(json.dumps({"angle": round(float(np.degrees(angle)), 1), "scenes": info, "ratio": args.ratio,
+                      "pixels_per_metre": round(real_ppm, 4)}))
 
 
 def classic(scenes, px, W, H):

@@ -12,6 +12,7 @@
 #   FULL_NAME="..."                 name plate of the full version (default: "<name> (full)")
 #   PLAN_COMMA=1                    decimal comma on the floor plan used as preview
 #   NO_UPLOAD=1                     only compute, don't copy to the Frame
+#   WORLD_SCALE=87                  show a model in Gaussian XR in the size of the original (1:87)
 # A previous result of the same name stays until the new one is done.
 #
 # Lines starting with "@@" are machine-readable progress markers for the web interface.
@@ -37,6 +38,19 @@ work=$RUNS_DIR/.building
 tmp=$work/$slug
 stem=$(printf '%s' "$slug" | tr 'A-Z' 'a-z')
 frame_splats=${FRAME_SPLATS:-3500000}
+
+# Gaussian XR's worldScale in a scene's transform file, when WORLD_SCALE is set (a model shown in the
+# size of the original, e.g. 87 for H0)
+world_scale() {
+    [ -n "${WORLD_SCALE:-}" ] || return 0
+    python3 - "$1" "$WORLD_SCALE" <<'PY'
+import json, sys
+path, scale = sys.argv[1], float(sys.argv[2])
+data = json.load(open(path))
+data["worldScale"] = scale
+json.dump(data, open(path, "w"), indent=2)
+PY
+}
 
 main() {
     rm -rf "$tmp"
@@ -74,6 +88,7 @@ main() {
         uv run -q "$HERE/make_gallery.py" --plan "$tmp/plan.png" "$tmp/full" "${FULL_NAME:-$name (full)}" "$stem-full"
         cp "$tmp/full/scene.sog" "$tmp/full/$stem-full.sog"
         cp "$tmp/full/scene.xrSceneTransform.json" "$tmp/full/$stem-full.xrSceneTransform.json"
+        world_scale "$tmp/full/$stem-full.xrSceneTransform.json"
     fi
 
     # Replace the previous result only now

@@ -29,10 +29,24 @@ log=${LOG:-$RUNS_DIR/$slug.log}
 [ -f "$log" ] || log=$(grep -ls "Gaussian XR initial view" "$RUNS_DIR"/*.log 2>/dev/null | xargs -r grep -l "$out/" | head -1)
 [ -f "$log" ] || { echo "No pipeline log found for $slug (set LOG=...)" >&2; exit 1; }
 
+# Gaussian XR's worldScale in a scene's transform file, when WORLD_SCALE is set (a model shown in the
+# size of the original, e.g. 87 for H0)
+world_scale() {
+    [ -n "${WORLD_SCALE:-}" ] || return 0
+    python3 - "$1" "$WORLD_SCALE" <<'PY'
+import json, sys
+path, scale = sys.argv[1], float(sys.argv[2])
+data = json.load(open(path))
+data["worldScale"] = scale
+json.dump(data, open(path, "w"), indent=2)
+PY
+}
+
 # Gallery files: <stem>.sog / .xrSceneTransform.json / .gallery.png / .sceneinfo.png
 stem=${STEM:-$(printf '%s' "$slug" | tr 'A-Z' 'a-z')}
 cp "$out/scene.sog" "$out/$stem.sog"
 cp "$out/scene.xrSceneTransform.json" "$out/$stem.xrSceneTransform.json"
+world_scale "$out/$stem.xrSceneTransform.json"
 uv run -q "$HERE/make_gallery.py" "$out" "$log" "$name" "$stem"
 
 [ "${GALLERY_ONLY:-0}" = 1 ] && exit 0

@@ -372,6 +372,20 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   </div>
 </dialog>
 
+<dialog id="scaleDlg">
+  <h2 style="margin-top:0" id="scaleTitle"></h2>
+  <p class="muted" style="font-size:13px;margin-top:0" data-i18n="scale.hint"></p>
+  <div class="opts" id="scaleOpts"></div>
+  <label class="row" style="margin-top:10px;gap:8px;font-size:13.5px">1 : <input id="scaleCustom" type="number" min="1" max="1000" step="any" style="width:110px"></label>
+  <label class="row" id="scaleXrRow" style="flex-wrap:nowrap;align-items:flex-start;margin-top:12px;gap:8px;font-size:13.5px"><input type="checkbox" id="scaleXr" style="margin-top:3px"> <span data-i18n="scale.xr"></span></label>
+  <label class="row hidden" id="scaleMembersRow" style="flex-wrap:nowrap;align-items:flex-start;margin-top:8px;gap:8px;font-size:13.5px"><input type="checkbox" id="scaleMembers" checked> <span data-i18n="scale.members"></span></label>
+  <label class="row hidden" id="scaleFrameRow" style="flex-wrap:nowrap;align-items:flex-start;margin-top:8px;gap:8px;font-size:13.5px"><input type="checkbox" id="scaleFrame" checked> <span data-i18n="scale.frame"></span></label>
+  <div class="row" style="justify-content:flex-end;margin-top:16px">
+    <button id="scaleCancel" data-i18n="grp.cancel"></button>
+    <button class="primary" id="scaleOk" data-i18n="grp.save"></button>
+  </div>
+</dialog>
+
 <dialog id="renDlg">
   <h2 style="margin-top:0" id="renTitle"></h2>
   <p class="muted" id="renHint" style="font-size:13px"></p>
@@ -821,8 +835,9 @@ function sceneCard(s) {
       <div class="meta"><b>${esc(s.name)}</b>
         <span>${new Date(s.mtime * 1000).toLocaleDateString(LANG)} · ${s.gaussians ? tr("sc.splats", {n: num(s.gaussians / 1e6, 2)}) + " · " : ""}${mb(s.size)}</span>
         ${s.disk ? `<span class="faint">${tr("sc.disk", {size: mb(s.disk.total)})}</span>` : ""}
+        ${scaleLine(s)}
         ${s.replacing ? `<div class="fstate faint">${tr("sc.replacing")}</div>` : frameState(s)}
-        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
+        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
       </div></div>`;
 }
 const ALIGN_LETTER = {frame: "A", images: "B", shift: "C", rigid: "D"};
@@ -854,6 +869,7 @@ function groupBlock(g, bySlug) {
       <div class="gthumb" ${thumb}>${r && r.preview ? "" : "📁"}</div>
       <div class="gmeta"><b>📁 ${esc(g.name)}</b>
         <span>${tr("grp.rooms", {n: rooms.length})} · ${tr("sc.disk", {size: mb(disk)})}</span>
+        ${scaleLine(g)}
         ${tour}${busy}
         <div class="acts">
           <button class="small" data-gtoggle="${esc(g.slug)}" aria-expanded="${open}">${tr(open ? "grp.hide" : "grp.show", {n: rooms.length})}</button>
@@ -863,6 +879,7 @@ function groupBlock(g, bySlug) {
           ${r && r.ply ? `<button class="small pc-only" data-spirula="${esc(g.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
           ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}
           <button class="small" data-gedit="${esc(g.slug)}">${tr("grp.edit")}</button>
+          <button class="small" data-scale="${esc(g.slug)}" title="${tr("scale.button.title")}" ${g.busy ? "disabled" : ""}>📏${g.scale !== 1 ? " " + ratioText(g.scale) : ""}</button>
           <button class="small" data-clean="${esc(g.slug)}" title="${tr("grp.clean.title")}" aria-label="${tr("grp.clean.title")}" ${g.busy ? "disabled" : ""}>${tr("sc.clean")}</button>
           <button class="small" data-gdelete="${esc(g.slug)}" title="${tr("grp.delete.title")}" aria-label="${tr("grp.delete.title")}">${tr("sc.delete")}</button>
         </div>
@@ -894,6 +911,7 @@ async function loadScenes() {
   $("#sceneGrid").innerHTML = loose.length ? loose.map(sceneCard).join("")
     : S.groups.length ? "" : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
   document.querySelectorAll("[data-gtoggle]").forEach(b => b.onclick = () => { groupOpen(b.dataset.gtoggle, !groupOpen(b.dataset.gtoggle)); loadScenes(); });
+  document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => openScale(b.dataset.scale));
   document.querySelectorAll("[data-gedit]").forEach(b => b.onclick = () => openGroupDlg(S.groups.find(g => g.slug === b.dataset.gedit)));
   document.querySelectorAll("[data-gdelete]").forEach(b => b.onclick = () => deleteGroup(S.groups.find(g => g.slug === b.dataset.gdelete)));
   document.querySelectorAll("[data-combine]").forEach(b => b.onclick = () => openCombine(S.groups.find(g => g.slug === b.dataset.combine)));
@@ -1008,6 +1026,42 @@ function openCombine(g) {
     if (!r.ok) { toast(trErr(r.error)); return; }
     $("#combineDlg").close(); toast(tr("cmb.started")); await poll(); loadScenes();
     $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
+  };
+}
+
+/* ---------- scale (models) ---------- */
+const GAUGES = [[1, "scale.original"], [220, "Z"], [160, "N"], [120, "TT"], [87, "H0"], [64, "S"], [45, "0"], [22.5, "G"]];
+function ratioText(r) { return "1:" + num(r, r % 1 ? 1 : 0); }
+function scaleLine(x) {
+  if (!x.scale || x.scale === 1) return "";
+  return `<span class="faint">${tr("scale.line", {ratio: ratioText(x.scale)})}${x.scale_xr ? " · " + tr("scale.line.xr") : ""}</span>`;
+}
+function openScale(slug) {
+  const g = (S.groups || []).find(x => x.slug === slug), x = g || S.scenes.find(y => y.slug === slug);
+  if (!x) return;
+  const cur = x.scale || 1, known = GAUGES.some(([r]) => r === cur);
+  $("#scaleTitle").textContent = tr("scale.title", {name: x.name});
+  $("#scaleOpts").innerHTML = GAUGES.map(([r, label]) => `<label class="opt${r === cur ? " active" : ""}">
+      <input type="radio" name="scaleR" value="${r}" ${r === cur ? "checked" : ""}><div><b>${r === 1 ? tr(label) : label} · ${ratioText(r)}</b></div></label>`).join("")
+    + `<label class="opt${known ? "" : " active"}"><input type="radio" name="scaleR" value="custom" ${known ? "" : "checked"}><div><b>${tr("scale.custom")}</b></div></label>`;
+  $("#scaleCustom").value = known ? "" : cur;
+  const value = () => { const v = $("input[name=scaleR]:checked").value; return v === "custom" ? parseFloat($("#scaleCustom").value) : parseFloat(v); };
+  const sync = () => { $("#scaleOpts").querySelectorAll(".opt").forEach(l => l.classList.toggle("active", l.querySelector("input").checked));
+                       const one = value() === 1; $("#scaleXr").disabled = one; if (one) $("#scaleXr").checked = false; };
+  $("#scaleOpts").querySelectorAll("input").forEach(i => i.onchange = sync);
+  $("#scaleCustom").oninput = () => { $("input[name=scaleR][value=custom]").checked = true; sync(); };
+  $("#scaleXr").checked = !!x.scale_xr;
+  const onFrame = g ? g.result && g.result.on_frame : x.on_frame;
+  $("#scaleMembersRow").classList.toggle("hidden", !g);
+  $("#scaleFrameRow").classList.toggle("hidden", !(S.frameConfigured && onFrame));
+  sync();
+  $("#scaleDlg").showModal();
+  $("#scaleCancel").onclick = () => $("#scaleDlg").close();
+  $("#scaleOk").onclick = async () => {
+    const r = await api("/api/scale", {slug, scale: String(value()), xr: $("#scaleXr").checked, with_scenes: !!g && $("#scaleMembers").checked,
+                                       update_frame: !$("#scaleFrameRow").classList.contains("hidden") && $("#scaleFrame").checked});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    $("#scaleDlg").close(); toast(tr("scale.done")); loadScenes();
   };
 }
 

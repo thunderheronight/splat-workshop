@@ -29,7 +29,7 @@ from pathlib import Path
 from . import check, config
 from .i18n import T, detect
 
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 CFG = config.load()
 ROOT = config.ROOT
 WEB = ROOT / "web"
@@ -665,6 +665,40 @@ def watcher():
 
 # ---------------------------------------------------------------- copy to the Frame
 
+# ---------------------------------------------------------------- scale (models, e.g. a model railway)
+
+SCALE_MAX = 1000                           # 1:1000 – further than any model railway or building model
+
+
+def world_scale_env(meta: dict) -> dict:
+    """WORLD_SCALE for to-frame.sh/combine.sh: show a model in Gaussian XR in the size of the original."""
+    scale = meta.get("scale") or 1
+    return {"WORLD_SCALE": f"{scale:g}"} if meta.get("scale_xr") and scale != 1 else {}
+
+
+def set_scale(slug: str, ratio, xr: bool, members: bool, update_frame: bool):
+    """Scale 1:ratio of a scene or group (1 = original size). For a group optionally also for its scenes."""
+    try:
+        ratio = float(ratio)
+    except (TypeError, ValueError):
+        return err("err.bad_value", key="scale")
+    if not 1 <= ratio <= SCALE_MAX or ratio != ratio:
+        return err("err.range", key="scale", lo=1, hi=SCALE_MAX)
+    meta = read_meta(slug) if slug and Path(slug).name == slug and not slug.startswith(".") else {}
+    group = is_group(meta)
+    if not group and not (scene_dir(slug) and (RUNS / slug / "scene.sog").exists()):
+        return err("err.no_scene")
+    targets = [slug] + ([m for m in meta.get("members", []) if scene_dir(m)] if group and members else [])
+    if any(scene_busy(t_) for t_ in targets):
+        return err("err.scene_busy")
+    xr = bool(xr) and ratio != 1
+    for t_ in targets:
+        write_meta(t_, scale=ratio if ratio != 1 else None, scale_xr=xr)
+    if update_frame and FRAME and (RUNS / slug / "scene.sog").exists():
+        return start_upload(slug)                       # the Frame gets the new worldScale
+    return None
+
+
 def start_upload(slug: str):
     if not FRAME:
         return err("err.no_frame")
@@ -680,6 +714,7 @@ def start_upload(slug: str):
         for key, var in (("frame_folder", "TARGET"), ("stem", "STEM")):
             if meta.get(key):
                 env[var] = meta[key]
+        env.update(world_scale_env(meta))
         if meta.get("log"):
             env["LOG"] = str(RUNS / Path(meta["log"]).name)
         JOBS.mkdir(parents=True, exist_ok=True)
@@ -798,7 +833,8 @@ def scenes():
                     "recording": meta.get("recording"), "size": sog.stat().st_size,
                     "mtime": int(sog.stat().st_mtime), "gaussians": gauss, "preview": bool(gallery),
                     "ply": (d / "spirula" / "scene.ply").exists(), "on_frame": on_frame, "disk": disk_usage(d),
-                    "upload": upload_status(slug), "replacing": replacing})
+                    "upload": upload_status(slug), "replacing": replacing,
+                    "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr"))})
     return out
 
 
@@ -820,9 +856,11 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
         runs.append((d, read_meta(slug).get("name") or slug, ply.stat().st_mtime))
     if not runs or len(runs) > 12:
         return err("err.bad_request")
+    scales = {read_meta(slug).get("scale") or 1 for slug in dict.fromkeys(slugs)}
+    ratio = scales.pop() if len(scales) == 1 else 1
     title = title.strip()[:60]
     script = (SCRIPTS / "floorplan.py").stat().st_mtime        # a new version of the script draws anew
-    key = hashlib.sha1(json.dumps([[str(r[0]), r[1], r[2]] for r in runs] + [style, lang, title, script]).encode()).hexdigest()[:16]
+    key = hashlib.sha1(json.dumps([[str(r[0]), r[1], r[2]] for r in runs] + [style, lang, title, script, ratio]).encode()).hexdigest()[:16]
     out = CACHE / f"plan-{key}.png"
     meta = out.with_suffix(".json")
     with lock:
@@ -836,6 +874,8 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
                 cmd += ["--title", title]
             if lang == "de":
                 cmd.append("--comma")
+            if ratio != 1:
+                cmd += ["--ratio", str(ratio)]
             if not plan_slots.acquire(timeout=1):
                 return err("err.plan_busy")
             try:
@@ -1221,6 +1261,7 @@ def groups():
                    "on_frame": on_frame, "upload": upload_status(slug), "disk": disk_usage(d)}
         out.append({"slug": slug, "name": meta.get("name") or slug, "members": members, "result": res,
                     "busy": scene_busy(slug), "options": {k: meta.get(k) for k in ("align", "partition", "frame_splats", "full")},
+                    "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr")),
                     "splats": sum(scene_list[m].get("gaussians") or 0 for m in members)})
     return {"groups": out, "suggestion": suggestion(scene_list, out), "mem_available_gb": mem_available()}
 
@@ -1332,6 +1373,7 @@ def start_combine(p: dict):
             env["PLAN_COMMA"] = "1"
         if meta.get("frame_folder"):
             env["TARGET"] = meta["frame_folder"]
+        env.update(world_scale_env(meta))
         upload = bool(p.get("upload")) and bool(FRAME)
         if not upload:
             env["NO_UPLOAD"] = "1"
@@ -1563,6 +1605,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = save_group(p.get("slug", ""), p.get("name", ""), p.get("members", ""))
             if isinstance(e, str):
                 return self.send(200, {"ok": True, "slug": e})
+        elif path == "/api/scale":
+            e = set_scale(p.get("slug", ""), p.get("scale"), bool(p.get("xr")), bool(p.get("with_scenes")),
+                          bool(p.get("update_frame")))
         elif path == "/api/group/dismiss":
             st = load_state()
             st["dismissed_groups"] = sorted(set(st.get("dismissed_groups", [])) | {p.get("key", "")})[-50:]
