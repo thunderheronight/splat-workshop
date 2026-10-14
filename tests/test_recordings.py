@@ -3,7 +3,9 @@ import json
 import os
 import time
 
-from conftest import REC, RUNS, recording, server, tools_called, wait_for_tool
+import pytest
+
+from conftest import REC, RUNS, TRASH, recording, server, tools_called, wait_for_tool
 import synth
 
 VIDEOS = server.FRAME_VIDEOS
@@ -237,3 +239,63 @@ def test_fetching_only_what_is_on_the_frame(api, frame):
         status, r = api.post("/api/download", body)
         assert status == 400 and r["error"]["code"] == "err.not_on_frame", body
     assert api.post("/api/download", {"names": [NAMES[0]]})[1]["error"]["code"] == "err.bad_request"
+
+
+def test_deleting_a_recording_on_this_pc_moves_it_to_the_trash(api):
+    rec = recording()
+    assert api.post("/api/rename", {"name": rec.name, "new": "Kitchen"})[0] == 200
+    assert api.post("/api/recording/delete", {"name": "Kitchen.mp4", "where": "pc"})[0] == 200
+    assert not (REC / "Kitchen.mp4").exists() and (TRASH / "Kitchen.mp4").exists()
+    assert "Kitchen.mp4" not in json.loads((server.RECMETA).read_text())          # its old name is forgotten
+    assert api.get("/api/recordings")[1]["local"] == []
+
+
+@pytest.mark.parametrize("name", ["", "..", "../state/state.json", "nope.mp4"])
+def test_deleting_only_recordings_of_the_recordings_folder(api, name):
+    recording()
+    status, r = api.post("/api/recording/delete", {"name": name, "where": "pc"})
+    assert status == 400 and r["error"]["code"] == "err.not_local"
+    assert len(list(REC.iterdir())) == 1 and not list(TRASH.iterdir())
+    assert api.post("/api/recording/delete", {"name": "x", "where": "elsewhere"})[0] == 400
+
+
+def test_a_recording_an_unfinished_scene_needs_stays(api):
+    rec = recording()
+    synth.make_room(RUNS, "Kitchen", "A", recording=rec.name)
+    (RUNS / "Kitchen" / "scene.sog").unlink()                                       # not finished yet
+    status, r = api.post("/api/recording/delete", {"name": rec.name, "where": "pc"})
+    assert status == 400 and r["error"]["code"] == "err.recording_needed"
+    assert rec.exists()
+
+
+def test_deleting_a_recording_on_the_frame(api, frame):
+    name, _ = put_on_frame(frame)
+    other, _ = put_on_frame(frame, NAMES[1])
+    (REC / name).write_bytes(b"the copy on this PC")
+    assert api.post("/api/recording/delete", {"name": name, "where": "frame"})[0] == 200
+    assert not (frame / VIDEOS / name).exists() and (frame / VIDEOS / other).exists()
+    assert (REC / name).read_bytes() == b"the copy on this PC"                     # the PC is not touched
+    assert [f["name"] for f in api.get("/api/recordings")[1]["frame"]] == [other]
+    for bad in (name, "../" + other, "thumbnails", ""):
+        status, r = api.post("/api/recording/delete", {"name": bad, "where": "frame"})
+        assert status == 400 and r["error"]["code"] == "err.not_on_frame", bad
+    assert (frame / VIDEOS / other).exists()
+
+
+def test_a_recording_being_fetched_is_not_deleted(api, frame):
+    for n in NAMES[:2]:
+        put_on_frame(frame, n, b"x" * 20000)
+    server.frame_listing(force=True)
+    os.environ["FAKE_FRAME_SLOW"] = "1"
+    assert api.post("/api/download", {"names": "\n".join(NAMES[:2])})[0] == 200
+    for n in NAMES[:2]:                                     # fetching right now, and waiting
+        status, r = api.post("/api/recording/delete", {"name": n, "where": "frame"})
+        assert status == 400 and r["error"]["code"] == "err.recording_fetching"
+    assert all((frame / VIDEOS / n).exists() for n in NAMES[:2])
+
+
+def test_deleting_on_a_frame_that_is_off(api, frame):
+    name, _ = put_on_frame(frame)
+    os.environ["FAKE_FRAME_OFF"] = "1"
+    status, r = api.post("/api/recording/delete", {"name": name, "where": "frame"})
+    assert status == 400 and r["error"]["code"] == "err.frame_offline"

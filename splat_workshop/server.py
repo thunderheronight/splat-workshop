@@ -1583,6 +1583,66 @@ def rename_recording(name: str, new: str):
     return None
 
 
+def recording_in_use(name: str):
+    """Why a recording can't be deleted right now (converted, checked or fetched), or None."""
+    job = load_state().get("job") or {}
+    if job.get("recording") == name and pid_alive(job.get("pid", 0)):
+        return err("err.recording_busy")
+    if checks.get(name, {}).get("state") in ("queued", "running"):
+        return err("err.recording_busy")
+    if download_busy() and (name in [f["name"] for f in download_queue] or (download and download["name"] == name)):
+        return err("err.recording_fetching")
+    return None
+
+
+def delete_recording(name: str):
+    """A recording on this PC into the desktop trash (recoverable). Only from the recordings folder."""
+    src = REC / Path(name).name
+    if not name or not src.is_file() or src.parent.resolve() != REC.resolve():
+        return err("err.not_local")
+    if e := recording_in_use(src.name):
+        return e
+    unfinished = [m.name.removesuffix(".ui.json") for m in RUNS.glob("*.ui.json")
+                  if read_meta(m.name.removesuffix(".ui.json")).get("recording") == src.name]
+    unfinished = [s for s in unfinished if (RUNS / s).is_dir() and not (RUNS / s / "scene.sog").exists()]
+    if unfinished:
+        return err("err.recording_needed", name=read_meta(unfinished[0]).get("name") or unfinished[0])
+    try:
+        r = subprocess.run(["gio", "trash", "--", str(src)], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return err("err.trash_failed", detail=str(e))
+    if r.returncode != 0:
+        return err("err.trash_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
+    with lock:
+        meta = rec_meta()
+        if meta.pop(src.name, None) is not None:
+            write_json(RECMETA, meta, indent=1)
+        checks.pop(src.name, None)
+    frame_cache["t"] = 0
+    return None
+
+
+def delete_frame_recording(name: str):
+    """A recording on the Frame, for good (the Frame has no trash). Only from the Frame's recordings."""
+    if not FRAME:
+        return err("err.no_frame")
+    fr = frame_listing(force=True)
+    if fr is None:
+        return err("err.frame_offline")
+    if not any(f["name"] == name for f in fr["files"]) or Path(name).name != name:
+        return err("err.not_on_frame")
+    if e := recording_in_use(name):
+        return e
+    try:
+        r = subprocess.run(SSH + [f"rm -f -- {FRAME_VIDEOS}/{shq(name)}"], capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return err("err.frame_offline")
+    if r.returncode != 0:
+        return err("err.frame_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
+    frame_cache["t"] = 0
+    return None
+
+
 # ---------------------------------------------------------------- groups and tours (scripts/combine.sh)
 
 # A group is a <slug>.ui.json with kind "group" and its member scenes; once put together, the tour
@@ -1960,7 +2020,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Only flat objects of simple values; text fields are text
         if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
                 or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key", "version", "sizes", "scales", "folder",
-                                                           "names", "place",
+                                                           "names", "place", "where",
                                                            "align", "partition")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
@@ -2001,6 +2061,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"path": chosen})
         elif path == "/api/check":
             e = start_check(Path(p.get("name", "")).name)
+        elif path == "/api/recording/delete":
+            e = delete_frame_recording(p.get("name", "")) if p.get("where") == "frame" else (
+                delete_recording(p.get("name", "")) if p.get("where") == "pc" else err("err.bad_request"))
         elif path == "/api/rename":
             if p.get("slug"):
                 e = rename_scene(p["slug"], p.get("new", ""), bool(p.get("update_frame")))

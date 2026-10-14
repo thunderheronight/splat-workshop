@@ -673,8 +673,9 @@ function renderCheck() {
     const dl = S.dl && S.dl.name === f.name && !S.dl.finished ? S.dl : null;
     box.innerHTML = dl
       ? `<div style="flex:1"><span class="muted">${tr("probe.fetching", {done: mb(dl.done), total: mb(dl.total)})}</span><div class="bar"><div style="width:${(dl.done / dl.total * 100).toFixed(1)}%"></div></div></div>`
-      : `<span class="muted">${tr("probe.onFrame", {size: mb(f.size)})}</span><button class="small" id="fetchBtn">${esc(tr("probe.fetch"))}</button>`;
+      : `<span class="muted">${tr("probe.onFrame", {size: mb(f.size)})}</span><button class="small" id="fetchBtn">${esc(tr("probe.fetch"))}</button>${delButton(f)}`;
     const b = $("#fetchBtn"); if (b) b.onclick = () => fetchSel();
+    if ($("#delSel")) $("#delSel").onclick = () => deleteRecording(f);
     return;
   }
   const p = S.probe;
@@ -688,11 +689,35 @@ function renderCheck() {
   box.insertAdjacentHTML("afterbegin", `<div class="row" style="order:9;margin-left:auto">
     <button class="small" id="checkSel" title="${tr("check.title")}">${tr("check.run")}</button>
     <button class="small pc-only" id="playSel">${tr("play.button")}</button>
-    ${S.recs?.local.find(x => x.name === f.name)?.renamable ? `<button class="small" id="renSel">${tr("ren.button")}</button>` : ""}</div>`);
+    ${S.recs?.local.find(x => x.name === f.name)?.renamable ? `<button class="small" id="renSel">${tr("ren.button")}</button>` : ""}${delButton(f)}</div>`);
+  if ($("#delSel")) $("#delSel").onclick = () => deleteRecording(f);
   $("#playSel").onclick = () => play(f.name);
   if ($("#renSel")) $("#renSel").onclick = () => renameRecording(f);
   $("#checkSel").onclick = () => runCheck(f.name);
   loadCheck(f.name);
+}
+
+/* ---------- deleting one recording: on the Frame (for good) or on this PC (trash) ---------- */
+function delWhere(f) {
+  if (f.source === "frame") return S.recs && S.recs.frame_online && !queued(f.name) ? "frame" : null;
+  return S.recs?.local.find(x => x.name === f.name)?.renamable && !queued(f.name) ? "pc" : null;
+}
+function delButton(f) {
+  const where = delWhere(f);
+  return where ? `<button class="small" id="delSel" title="${tr("rdel." + where)}">${tr("rdel." + where)}</button>` : "";
+}
+async function deleteRecording(f) {
+  const where = delWhere(f);
+  if (!where) return;
+  const loc = S.recs.local.find(x => x.name === f.name), orig = loc ? loc.orig : f.name;
+  const other = where === "frame" ? !!(f.local || loc) : !!(S.recs.frame || []).find(x => x.name === orig);
+  const name = f.label || fmtDate(f.date) || f.name;
+  if (!confirm(tr(`rdel.confirm.${where}${other ? "" : ".only"}`, {name, size: mb(f.size)}))) return;
+  const r = await api("/api/recording/delete", {name: f.name, where});
+  if (!r.ok) { toast(trErr(r.error)); return; }
+  toast(tr("rdel.done." + where, {name}));
+  S.sel = null; S.probe = null; $("#checkRes").className = "hidden";
+  renderCheck(); updateStart(); loadRecs(true);
 }
 
 /* ---------- recording check ---------- */

@@ -11,6 +11,7 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 
 - **Versions** of a scene or tour, several side by side: fewer splats for the Frame (0.75 / 1 / 1.5 / 2 M), all or a limit for the PC (3 / 5 / 8 M), or an own size – each also in the original's size for models. Every version gets its own place in the Frame's gallery (e.g. "Flat · 1 M" next to "Flat · 2 M"), so you can find out yourself what runs smoothly. Frame rates measured on a Steam Frame are shown for information.
 - **Fetch several recordings from the Frame at once**: *Fetch all* (everything not on this PC yet) or tick recordings and *Fetch selection*. They come one after the other, with one progress bar for all and *Cancel*; recordings ticked while fetching join the queue. A notification at the end says when the Frame can be switched off; one that fails does not stop the others.
+- **Delete a recording**, one at a time: on the Frame (for good – with a clear warning if it is not on this PC yet) or on this PC (to the trash). A recording that is being converted, checked or fetched, or that an unfinished scene still needs, stays.
 - **"On the Frame" tab** under the finished scenes: everything in Gaussian XR's gallery on the Frame with its preview image – scenes, tours, versions and Gaussian XR's own examples – and *Off the Frame* to delete any of them there (the PC is not touched).
 
 ### Changed
