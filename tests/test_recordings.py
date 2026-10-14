@@ -3,7 +3,7 @@ import json
 import os
 import time
 
-from conftest import REC, RUNS, recording, server, tools_called
+from conftest import REC, RUNS, recording, server, wait_for_tool
 import synth
 
 VIDEOS = server.FRAME_VIDEOS
@@ -117,10 +117,7 @@ def test_copying_a_scene_to_the_frame(api, frame):
         "kitchen.gallery.png", "kitchen.sceneinfo.png", "kitchen.sog", "kitchen.xrSceneTransform.json"]
     assert (frame / "Documents" / "GaussianSplats" / "20_Kitchen" / "kitchen.sog").exists()   # backup copy
     assert json.loads((RUNS / "Kitchen.ui.json").read_text())["frame_folder"] == "20_Kitchen"
-    end = time.time() + 5                                             # the notification is sent in the background
-    while not any(c[0] == "notify-send" for c in tools_called()) and time.time() < end:
-        time.sleep(0.1)
-    assert any(c[0] == "notify-send" for c in tools_called())
+    assert wait_for_tool("notify-send")                             # sent in the background
     assert {s["slug"]: s["on_frame"] for s in server.scenes()}["Kitchen"] is True
 
 
@@ -135,3 +132,29 @@ def test_a_renamed_scene_stays_in_its_frame_folder(api, frame):
     assert scenes == ["20_Kitchen"]                                    # no second copy
     assert sorted(p.name for p in (frame / SCENES / "20_Kitchen").iterdir()) == [
         "kueche.gallery.png", "kueche.sceneinfo.png", "kueche.sog", "kueche.xrSceneTransform.json"]
+
+
+def test_a_broken_download_leaves_nothing_behind(api, frame):
+    name, data = put_on_frame(frame)
+    server.frame_listing(force=True)
+    os.environ["FAKE_FRAME_CUT"] = "1"                  # the connection breaks halfway
+    assert api.post("/api/download", {"name": name})[0] == 200
+    end = time.time() + 20
+    while not (server.download or {}).get("finished") and time.time() < end:
+        time.sleep(0.1)
+    assert server.download["error"]
+    assert not (REC / name).exists() and not (REC / (name + ".part")).exists()
+
+
+def test_a_scene_renamed_before_its_frame_folder_was_remembered(api, frame):
+    """Copied to the Frame by an older version (no frame_folder in its settings): renaming finds the
+    folder on the Frame, so copying again does not create a second one."""
+    synth.make_room(RUNS, "Kitchen", "A", name="Kitchen")
+    (frame / SCENES / "20_Kitchen").mkdir()
+    (frame / SCENES / "20_Kitchen" / "kitchen.sog").write_bytes(b"old")
+    server.frame_listing(force=True)
+    assert api.post("/api/rename", {"slug": "Kitchen", "new": "Küche"})[0] == 200
+    assert json.loads((RUNS / "Kueche.ui.json").read_text())["frame_folder"] == "20_Kitchen"
+    api.post("/api/upload", {"slug": "Kueche"})
+    assert wait_upload("Kueche")["ok"]
+    assert sorted(p.name for p in (frame / SCENES).iterdir()) == ["20_Kitchen"]

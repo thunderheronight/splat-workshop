@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from conftest import RUNS, recording, server, wait_job
+from conftest import RUNS, recording, server, wait_for_tool, wait_job
 import synth
 
 
@@ -197,3 +197,42 @@ def test_start_over_after_a_power_cut_keeps_the_old_scene_if_it_fails():
     js = convert(existing="fresh")
     assert js["result"] == "failed"
     assert (RUNS / "Kitchen" / "scene.sog").read_bytes() == old    # splat.sh first put the left-over back
+
+
+def test_start_over_from_the_list_of_cancelled_runs():
+    rec = recording()
+    # stopped while extracting images: what the pipeline leaves behind (state "running", half the images)
+    (RUNS / "Kitchen" / "dataset" / "images" / "cam0").mkdir(parents=True)
+    (RUNS / "Kitchen" / "dataset" / "images" / "cam0" / "0000.jpg").write_bytes(b"x")
+    (RUNS / "Kitchen" / "dataset" / "spirula-dataset.json").write_text('{"status": "running"}')
+    (RUNS / "Kitchen.log").write_text("Extraction progress: decoded 4% / saved 44 of 1000\n")
+    (RUNS / "Kitchen.ui.json").write_text(json.dumps({"name": "Kitchen", "recording": rec.name, "quality": "schnell"}))
+    assert server.resume_run("Kitchen", fresh=False)["code"] == "err.not_resumable"
+    assert server.resume_run("Kitchen", fresh=True) is None
+    js = wait_job()
+    assert js["result"] == "ok" and js["quality"] == "fast"    # settings of the first version understood
+    assert "Kitchen" in {s["slug"] for s in server.scenes()}
+    assert "Kitchen" not in {u["slug"] for u in server.unfinished_runs()}
+
+
+# ---------------------------------------------------------------- after a job: the watcher
+
+def test_after_a_job_the_watcher_notifies_and_tidies_up():
+    convert()
+    os.environ["FAKE_PIPELINE"] = "ok"
+    assert server.start_job({"path": str(recording()), "name": "Kitchen", "quality": "fast", "upload": False,
+                             "existing": "fresh"}) is None
+    assert server.watch_once(None) is True                    # running
+    wait_job()
+    assert "previous" in json.loads((RUNS / "Kitchen.ui.json").read_text())
+    assert server.watch_once(True) is False                   # it has just ended
+    assert "previous" not in json.loads((RUNS / "Kitchen.ui.json").read_text())
+    notes = wait_for_tool("notify-send")
+    assert notes and "Kitchen" in notes[-1][-1]
+
+
+def test_after_a_failed_job_the_watcher_says_so():
+    os.environ["FAKE_PIPELINE"] = "fail"
+    convert()
+    server.watch_once(True)
+    assert wait_for_tool("notify-send")

@@ -1,7 +1,7 @@
 """Who may talk to the server: only this PC (or the home network in LAN mode), never other websites."""
 import pytest
 
-from conftest import RUNS, server
+from conftest import RUNS, SHUTDOWNS, server
 import synth
 
 
@@ -62,6 +62,7 @@ def test_lan_mode_checks_the_real_client_address(monkeypatch, lan, client, ok):
     (b"{not json", {}),
     (b"", {"Content-Length": "-5"}),
     (b"", {"Content-Length": str(10 ** 9)}),
+    (b'{"slug": "x", "full": {"a": 1}}', {}),          # nested value in a field that is not text
 ])
 def test_invalid_requests_get_400_not_a_crash(api, body, headers):
     assert api.post("/api/rename", body, headers)[0] == 400
@@ -104,8 +105,13 @@ def test_no_paths_outside_the_runs_folder(api, leak, slug):
 def test_actions_on_the_screen_only_from_this_pc(api, monkeypatch, path, body):
     # video player, file dialog, folder, Spirula and quitting: not from another device in the LAN
     monkeypatch.setattr(server.Handler, "_from_this_pc", lambda self: False)
+    started = []
+    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: started.append(a))
+    monkeypatch.setattr(server, "pick_file", lambda: started.append("file dialog"))
+    synth.make_room(RUNS, "Room", "A")
     status, r = api.post(path, body)
     assert status == 403 and r["error"]["code"] == "err.pc_only"
+    assert started == [] and SHUTDOWNS == []                       # and nothing happened
 
 
 def test_from_this_pc_means_loopback():
@@ -134,3 +140,10 @@ def test_unknown_thumbnail_names_leave_no_cache_files(api):
     status, _ = api.get("/api/thumb?source=frame&name=whatever.mp4")
     assert status == 404
     assert not list(server.CACHE.glob("whatever*"))
+
+
+def test_nested_values_are_refused_in_any_field(api):
+    # a request that would work, apart from one nested value in a field that is not text
+    synth.make_room(RUNS, "Room", "A")
+    assert api.post("/api/rename", {"slug": "Room", "new": "Other", "update_frame": {"a": 1}})[0] == 400
+    assert (RUNS / "Room").is_dir() and not (RUNS / "Other").exists()

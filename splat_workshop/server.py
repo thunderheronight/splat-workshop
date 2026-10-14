@@ -625,33 +625,38 @@ def activity() -> dict:
             "checking": check_busy(), "uploading": any(u["proc"].poll() is None for u in uploads.values())}
 
 
+def watch_once(was_running):
+    """One look at the jobs: notification and tidying up when a run has ended. Returns whether one runs."""
+    if proc is not None:
+        proc.poll()                             # reap the zombie
+    js = job_status(tail=False)
+    running = bool(js and js["running"])
+    if was_running and not running and js:
+        mins = round((time.time() - js["started"]) / 60)
+        if js["result"] == "ok":
+            if js["info"].get("folder"):
+                write_meta(js["slug"], frame_folder=js["info"]["folder"])
+            with meta_lock:                     # the replaced scene's settings are not needed any more
+                meta = read_meta(js["slug"])
+                if meta.pop("previous", None) is not None:
+                    write_json(meta_file(js["slug"]), meta)
+            notify(t("notify.done.title"),
+                   t("notify.done.frame" if js["upload"] else "notify.done.local", name=js["name"], mins=mins))
+        elif js["result"] == "failed":
+            notify(t("notify.failed.title"), t("notify.failed", name=js["name"]))
+    if not running:
+        restore_previous()
+    for slug in list(uploads):
+        upload_status(slug)                     # notify even without an open page
+    return running
+
+
 def watcher():
-    """Notification when a run ends; stop the server after a longer idle time."""
+    """Every few seconds: notifications and tidying up; stop the server after a longer idle time."""
     was_running = None
     while True:
         time.sleep(3)
-        if proc is not None:
-            proc.poll()                         # reap the zombie
-        js = job_status(tail=False)
-        running = bool(js and js["running"])
-        if was_running and not running and js:
-            mins = round((time.time() - js["started"]) / 60)
-            if js["result"] == "ok":
-                if js["info"].get("folder"):
-                    write_meta(js["slug"], frame_folder=js["info"]["folder"])
-                with meta_lock:                 # the replaced scene's settings are not needed any more
-                    meta = read_meta(js["slug"])
-                    if meta.pop("previous", None) is not None:
-                        write_json(meta_file(js["slug"]), meta)
-                notify(t("notify.done.title"),
-                       t("notify.done.frame" if js["upload"] else "notify.done.local", name=js["name"], mins=mins))
-            elif js["result"] == "failed":
-                notify(t("notify.failed.title"), t("notify.failed", name=js["name"]))
-        was_running = running
-        if not running:
-            restore_previous()
-        for slug in list(uploads):
-            upload_status(slug)                 # notify even without an open page
+        was_running = running = watch_once(was_running)
         busy = (running or (download and not download.get("finished")) or check_busy()
                 or any(u["proc"].poll() is None for u in uploads.values()))
         if idle_exit and not busy and time.time() - last_request > CFG.idle_minutes * 60:

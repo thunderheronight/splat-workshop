@@ -43,6 +43,14 @@ mode = os.environ.get("FAKE_PIPELINE", "ok")
 run_json = out / "spirula" / "run.json"
 if "--resume" in sys.argv and run_json.exists() and json.loads(run_json.read_text()).get("status") != "complete":
     sys.exit("error: Incomplete training retained; use a new output directory to restart")
+# like the real one: an existing output folder is only continued with --resume, and only once the camera
+# positions are complete ("Incomplete native SfM retained" / "already exists without a matching manifest")
+dataset = out / "dataset" / "spirula-dataset.json"
+if out.exists() and any(out.iterdir()):
+    if "--resume" not in sys.argv:
+        sys.exit("error: Spirula SfM output already exists without a matching resume manifest")
+    if not dataset.exists() or json.loads(dataset.read_text()).get("status") != "complete":
+        sys.exit("error: Incomplete native SfM retained for diagnosis; use a fresh output directory")
 (out / "dataset").mkdir(parents=True, exist_ok=True)
 print("Extracting 20 images from 2 video streams", flush=True)
 (out / "dataset" / "spirula-dataset.json").write_text(json.dumps({"status": "complete"}))
@@ -87,6 +95,14 @@ shift; [ "$1" = -- ] && shift
 exec mv --backup=numbered -t "{TRASH}" -- "$@"
 ''')
 
+# Nothing may open on the desktop, even if the code under test is broken: file dialogs, xdg-open (folder,
+# video player) only leave a note in the tool log
+for tool in ("kdialog", "zenity", "xdg-open"):
+    script(BIN / tool, f'''#!{sys.executable}
+import json, sys
+with open("{TOOL_LOG}", "a") as log:
+    log.write(json.dumps(["{tool}", *sys.argv[1:]]) + "\\n")
+''')
 # notify-send: no desktop notifications from the tests, only a note in the tool log
 script(BIN / "notify-send", f'''#!{sys.executable}
 import json, sys
@@ -115,6 +131,10 @@ while args and args[0].startswith("-"):
     args = args[2:] if args[0] in ("-o", "-p", "-i") else args[1:]
 cmd = " ".join(args[1:])
 env = {{**os.environ, "HOME": "{FRAME_HOME}"}}
+if os.environ.get("FAKE_FRAME_CUT") and cmd.startswith("cat "):   # the connection breaks halfway
+    out = subprocess.run(["bash", "-c", cmd], cwd="{FRAME_HOME}", env=env, capture_output=True).stdout
+    sys.stdout.buffer.write(out[:len(out) // 2])
+    sys.exit(255)
 sys.exit(subprocess.run(["bash", "-c", cmd or "true"], cwd="{FRAME_HOME}", env=env).returncode)
 ''')
 script(BIN / "scp", f'''#!{sys.executable}
@@ -165,11 +185,25 @@ def clean():
         d.mkdir()
     for cache in (server.usage_cache, server.probe_cache, server.uploads, server.checks):
         cache.clear()
-    for k in ("FAKE_PIPELINE", "FAKE_FRAME_OFF", "FRAME_HOST"):
+    for k in ("FAKE_PIPELINE", "FAKE_FRAME_OFF", "FAKE_FRAME_CUT", "FRAME_HOST"):
         os.environ.pop(k, None)
     os.environ["FRAME_HOST"] = ""
     TOOL_LOG.unlink(missing_ok=True)
     server.frame_cache.update(t=0, data=None)
+
+
+SHUTDOWNS = []                             # calls of server.shutdown during the current test
+
+
+@pytest.fixture(autouse=True)
+def never_exit(monkeypatch):
+    """Quitting must never end the test run – a broken guard would otherwise make it stop silently (green)."""
+    SHUTDOWNS.clear()
+    monkeypatch.setattr(server, "shutdown", lambda cancel: SHUTDOWNS.append(cancel))
+
+    def no_exit(code=0):
+        raise RuntimeError(f"os._exit({code}) called during a test")
+    monkeypatch.setattr(server.os, "_exit", no_exit)
 
 
 @pytest.fixture
@@ -187,6 +221,17 @@ def frame(monkeypatch):
 def tools_called():
     """Calls of the fake tools so far, e.g. [["splat-transform", "-w", ...], ...]."""
     return [json.loads(line) for line in TOOL_LOG.read_text().splitlines()] if TOOL_LOG.exists() else []
+
+
+def wait_for_tool(name, timeout=5):
+    """Calls of one fake tool, waiting a little for ones started in the background (notifications)."""
+    end = time.time() + timeout
+    while time.time() < end:
+        calls = [c for c in tools_called() if c[0] == name]
+        if calls:
+            return calls
+        time.sleep(0.1)
+    return []
 
 
 def recording(name="2026-10-12_16-40-00_stereo.mp4"):
