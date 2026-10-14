@@ -135,7 +135,8 @@ def save_state(st: dict) -> None:
 
 def pid_alive(pid: int) -> bool:
     try:
-        return "splat.sh" in Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
+        cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
+        return "splat.sh" in cmd or "combine.sh" in cmd
     except OSError:
         return False
 
@@ -430,8 +431,33 @@ def hms(s: str) -> float:
     return int(h) * 3600 + int(m) * 60 + float(sec)
 
 
+RX_CPHASE = re.compile(r"^@@ cphase (\d)", re.M)
+RX_CPCT = re.compile(r"^@@ pct (\d+)", re.M)
+RX_CTOTAL = re.compile(r"^@@ total (\d+)", re.M)
+
+
+def parse_combine(text: str) -> dict:
+    """Progress of combine.sh: phases 0 align, 1 assemble, 2 reduce, 3 convert, 4 copy to the Frame."""
+    last = list(RX_CPHASE.finditer(text))[-1]
+    phase, rest = int(last[1]), text[last.end():]
+    pcts = RX_CPCT.findall(rest)
+    pct = int(pcts[-1]) if pcts else None
+    info = {}
+    if tot := RX_CTOTAL.findall(text):
+        info["splats"] = int(tot[-1])
+    if "@@ phase upload" in rest:
+        phase, pct = 4, None
+    if d := RX_DONE.search(text):
+        info["done"] = True
+        if d[1] == "frame" and d[2]:
+            info["folder"] = d[2]
+    return {"phase": phase, "pct": pct, "eta": None, "info": info}
+
+
 def parse_output(text: str) -> dict:
     text = text.replace("\r", "\n")
+    if "@@ cphase" in text:
+        return parse_combine(text)
     phase, pct, eta = 0, None, None
     info = {}
     m = None
@@ -730,7 +756,7 @@ def scenes():
     out = []
     if not RUNS.is_dir():
         return out
-    found = [(d, False) for d in RUNS.glob("*/") if (d / "scene.sog").exists()]
+    found = [(d, False) for d in RUNS.glob("*/") if (d / "scene.sog").exists() and not is_group(read_meta(d.name))]
     # A scene that is being computed again stays in the list (without actions) until it is replaced
     found += [(d, True) for d in PREVIOUS.glob("*/run/")
               if (d / "scene.sog").exists() and not (RUNS / d.parent.name / "scene.sog").exists()]
@@ -895,9 +921,10 @@ def unfinished_runs():
     out = []
     for slug in sorted(slugs):
         d, log = RUNS / slug, RUNS / f"{slug}.log"
-        if slug.startswith(".") or slug == busy or (d / "scene.sog").exists() or (PREVIOUS / slug).exists():
-            continue
         meta = metas.get(slug, {})
+        if slug.startswith(".") or slug == busy or (d / "scene.sog").exists() or (PREVIOUS / slug).exists() \
+                or is_group(meta):
+            continue
         parsed = parse_output(log.read_text(errors="replace")) if log.exists() and d.is_dir() else None
         parts = [p for p in (d, log, RUNS / f"{slug}.out", meta_file(slug)) if p.exists()]
         size = sum(dir_size(p) if p.is_dir() else p.stat().st_size for p in parts)
@@ -952,6 +979,9 @@ def delete_scene(slug: str):
         return err("err.trash_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
     usage_cache.pop(d, None)
     uploads.pop(slug, None)
+    for g, gm in all_groups().items():
+        if slug in gm.get("members", []):
+            write_meta(g, members=[m for m in gm["members"] if m != slug])
     return None
 
 
@@ -972,9 +1002,10 @@ def move_scene(slug: str, new: str) -> None:
         meta["frame_folder"] = next((s for s in fr["scenes"] if re.fullmatch(r"\d\d_" + re.escape(slug), s)), None)
     old_stem, new_stem = meta.get("stem") or slug.lower(), new.lower()
     d.rename(nd)
-    for f in nd.glob(f"{glob_escape(old_stem)}.*"):
-        if f.name[len(old_stem):] in (".sog", ".xrSceneTransform.json", ".gallery.png", ".sceneinfo.png"):
-            f.rename(nd / (new_stem + f.name[len(old_stem):]))
+    for folder, old, new_ in ((nd, old_stem, new_stem), (nd / "full", f"{old_stem}-full", f"{new_stem}-full")):
+        for f in folder.glob(f"{glob_escape(old)}.*"):         # full/: the full version of a tour
+            if f.name[len(old):] in (".sog", ".xrSceneTransform.json", ".gallery.png", ".sceneinfo.png"):
+                f.rename(folder / (new_ + f.name[len(old):]))
     log = RUNS / Path(meta.get("log") or f"{slug}.log").name
     if log.exists():
         log.rename(RUNS / f"{new}.log")
@@ -995,6 +1026,9 @@ def move_scene(slug: str, new: str) -> None:
         if (st.get("job") or {}).get("slug") == slug:
             st["job"]["slug"] = new
             save_state(st)
+    for g, gm in all_groups().items():
+        if slug in gm.get("members", []):
+            write_meta(g, members=[new if m == slug else m for m in gm["members"]])
 
 
 def glob_escape(s: str) -> str:
@@ -1084,6 +1118,203 @@ def rename_recording(name: str, new: str):
         if (st.get("job") or {}).get("recording") == src.name:
             st["job"]["recording"] = dst.name
             save_state(st)
+    return None
+
+
+# ---------------------------------------------------------------- groups and tours (scripts/combine.sh)
+
+# A group is a <slug>.ui.json with kind "group" and its member scenes; once put together, the tour
+# lives in <slug>/ like a scene (scene.sog = Frame version, full/ = all splats, spirula/scene.ply).
+ALIGNS = ("frame", "images", "shift", "rigid")
+PARTITIONS = ("view", "nearest")
+SESSION_GAP = 20 * 60                      # recordings closer than this belong to one session (suggestion)
+
+
+def is_group(meta: dict) -> bool:
+    return meta.get("kind") == "group"
+
+
+def all_groups() -> dict:
+    out = {}
+    for f in RUNS.glob("*.ui.json"):
+        slug = f.name.removesuffix(".ui.json")
+        if is_group(meta := read_meta(slug)):
+            out[slug] = meta
+    return out
+
+
+def recorded_at(meta: dict):
+    """When the scene's recording was made (from the Frame's file name), or None."""
+    rec = meta.get("recording") or ""
+    orig = rec_meta().get(rec, {}).get("orig", rec)
+    m = re.match(r"(\d{4})-(\d\d)-(\d\d)_(\d\d)-(\d\d)-(\d\d)", orig)
+    return time.mktime(time.strptime("-".join(m.groups()), "%Y-%m-%d-%H-%M-%S")) if m else None
+
+
+def mem_available() -> float:
+    try:
+        kb = next(int(l.split()[1]) for l in Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable"))
+        return round(kb / 1048576, 1)
+    except (OSError, StopIteration, ValueError):
+        return 0.0
+
+
+def groups():
+    scene_list = {s["slug"]: s for s in scenes()}
+    fr = frame_listing()
+    out = []
+    for slug, meta in sorted(all_groups().items(), key=lambda kv: (kv[1].get("name") or kv[0]).lower()):
+        members = [m for m in meta.get("members", []) if m in scene_list]
+        d, res = RUNS / slug, None
+        if (d / "scene.sog").exists():
+            try:
+                info = json.loads((d / "combine.json").read_text())
+            except (OSError, ValueError):
+                info = {}
+            built = (d / "scene.sog").stat().st_mtime
+            used = sorted(Path(r["run"]).name for r in info.get("rooms", {}).values())
+            on_frame = None
+            if fr is not None:
+                folder = meta.get("frame_folder")
+                on_frame = (folder in fr["scenes"]) if folder else any(
+                    re.fullmatch(r"\d\d_" + re.escape(slug), x) for x in fr["scenes"])
+            full = d / "full" / "scene.sog"
+            res = {"size": (d / "scene.sog").stat().st_size, "full_size": full.stat().st_size if full.exists() else None,
+                   "splats": info.get("splats"), "frame_splats": meta.get("frame_splats"),
+                   "align": info.get("align"), "partition": info.get("partition"), "hub": info.get("hub"),
+                   "seams": info.get("seams", {}), "mtime": int(built),
+                   "stale": used != sorted(members) or any((RUNS / m / "scene.sog").stat().st_mtime > built for m in members),
+                   "preview": bool(next(d.glob("*.gallery.png"), None)), "ply": (d / "spirula" / "scene.ply").exists(),
+                   "on_frame": on_frame, "upload": upload_status(slug), "disk": disk_usage(d)}
+        out.append({"slug": slug, "name": meta.get("name") or slug, "members": members, "result": res,
+                    "busy": scene_busy(slug), "options": {k: meta.get(k) for k in ("align", "partition", "frame_splats", "full")},
+                    "splats": sum(scene_list[m].get("gaussians") or 0 for m in members)})
+    return {"groups": out, "suggestion": suggestion(scene_list, out), "mem_available_gb": mem_available()}
+
+
+def suggestion(scene_list: dict, group_list: list):
+    """Scenes recorded right after each other and not in a group yet: offer them as one group."""
+    grouped = {m for g in group_list for m in g["members"]}
+    timed = sorted((t, slug) for slug in scene_list if slug not in grouped
+                   and (t := recorded_at(read_meta(slug))) is not None)
+    runs, cur = [], []
+    for t, slug in timed:
+        if cur and t - cur[-1][0] > SESSION_GAP:
+            runs.append(cur)
+            cur = []
+        cur.append((t, slug))
+    runs.append(cur)
+    dismissed = set(load_state().get("dismissed_groups", []))
+    for r in sorted(runs, key=len, reverse=True):
+        key = ",".join(sorted(s for _, s in r))
+        if len(r) >= 2 and key not in dismissed:
+            return {"members": [s for _, s in r], "key": key, "date": time.strftime("%Y-%m-%d", time.localtime(r[0][0]))}
+    return None
+
+
+def save_group(slug: str, name: str, members: str):
+    """Create (no slug) or change a group. Returns its slug, or an error."""
+    name = clean_name(name, file=False)
+    if not name:
+        return err("err.bad_name")
+    members = [m for m in dict.fromkeys(members.split(",")) if m]
+    scene_slugs = {s["slug"] for s in scenes()}
+    if not members or any(m not in scene_slugs for m in members):
+        return err("err.bad_request")
+    existing = all_groups()
+    for g, gm in existing.items():
+        if g != slug and (both := set(gm.get("members", [])) & set(members)):
+            return err("err.in_other_group", group=gm.get("name") or g)
+    new = config.slugify(name)
+    if not new or new.startswith("."):
+        return err("err.bad_name")
+    taken = lambda x: (RUNS / x).exists() or meta_file(x).exists() or (RUNS / f"{x}.log").exists()
+    if not slug:
+        if taken(new):
+            return err("err.scene_name_taken")
+        write_json(meta_file(new), {"kind": "group", "name": name, "members": members})
+        return new
+    if slug not in existing:
+        return err("err.no_scene")
+    if scene_busy(slug):
+        return err("err.scene_busy")
+    renamed = name != existing[slug].get("name")
+    if new != slug:
+        if taken(new):
+            return err("err.scene_name_taken")
+        if (RUNS / slug).exists():
+            move_scene(slug, new)
+        else:
+            meta_file(slug).rename(meta_file(new))
+            if (RUNS / f"{slug}.log").exists():
+                (RUNS / f"{slug}.log").rename(RUNS / f"{new}.log")
+        slug = new
+    write_meta(slug, name=name, members=members)
+    d = RUNS / slug
+    if renamed and (d / "scene.sog").exists():                  # new name plates on the tour
+        stem = slug.lower()
+        cmds = [([str(SCRIPTS / "to-frame.sh"), str(d), name], {"GALLERY_ONLY": "1", "LOG": str(RUNS / f"{slug}.log")})]
+        if (d / "full" / "scene.sog").exists() and (d / "plan.png").exists():
+            cmds.append((["uv", "run", "-q", str(SCRIPTS / "make_gallery.py"), "--plan", str(d / "plan.png"),
+                          str(d / "full"), t("tour.full_name", name=name), f"{stem}-full"], {}))
+        for cmd, extra in cmds:
+            try:
+                subprocess.run(cmd, cwd=ROOT, timeout=120, env={**os.environ, **extra},
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+            except subprocess.TimeoutExpired:
+                pass
+    return slug
+
+
+def start_combine(p: dict):
+    global proc
+    slug = p.get("slug", "")
+    meta = read_meta(slug) if slug and Path(slug).name == slug else {}
+    if not is_group(meta):
+        return err("err.no_scene")
+    align, partition = p.get("align") or "images", p.get("partition") or "view"
+    if align not in ALIGNS or partition not in PARTITIONS:
+        return err("err.bad_request")
+    try:
+        frame_splats = int(p.get("frame_splats") or 3_500_000)
+    except (TypeError, ValueError):
+        return err("err.bad_value", key="frame_splats")
+    if not 500_000 <= frame_splats <= 10_000_000:
+        return err("err.range", key="frame_splats", lo=500_000, hi=10_000_000)
+    scene_list = {s["slug"]: s for s in scenes()}
+    members = [m for m in meta.get("members", []) if m in scene_list
+               and (RUNS / m / "spirula" / "scene.ply").exists() and (RUNS / m / "dataset/sparse/0/images.bin").exists()]
+    if len(members) < 2:
+        return err("err.combine_too_few")
+    full = bool(p.get("full", True))
+    with lock:
+        if (cur := load_state().get("job")) and pid_alive(cur["pid"]):
+            return err("err.job_busy")
+        if any(scene_busy(m) for m in members) or scene_busy(slug):
+            return err("err.scene_busy")
+        name = meta.get("name") or slug
+        env = {**os.environ, "ALIGN": align, "PARTITION": partition, "FRAME_SPLATS": str(frame_splats),
+               "FULL": "1" if full else "0", "FULL_NAME": t("tour.full_name", name=name)}
+        if t.lang == "de":
+            env["PLAN_COMMA"] = "1"
+        if meta.get("frame_folder"):
+            env["TARGET"] = meta["frame_folder"]
+        upload = bool(p.get("upload")) and bool(FRAME)
+        if not upload:
+            env["NO_UPLOAD"] = "1"
+        pairs = [f"{RUNS / m}={scene_list[m]['name']}" for m in members]
+        JOBS.mkdir(parents=True, exist_ok=True)
+        out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_{slug}.out"
+        with open(out, "wb") as fh:
+            proc = subprocess.Popen(keep_awake([str(SCRIPTS / "combine.sh"), slug, name, *pairs],
+                                               t("inhibit.combine", name=name)), cwd=ROOT, env=env, stdout=fh,
+                                    stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+        st = load_state()
+        st["job"] = {"kind": "combine", "pid": proc.pid, "out": str(out), "name": name, "slug": slug,
+                     "recording": "", "rooms": len(members), "quality": align, "partition": partition,
+                     "upload": upload, "full": full, "started": time.time(), "overrides": {}}
+        save_state(st)
+        write_meta(slug, align=align, partition=partition, frame_splats=frame_splats, full=full)
     return None
 
 
@@ -1213,6 +1444,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, scenes())
         if u.path == "/api/unfinished":
             return self.send(200, unfinished_runs())
+        if u.path == "/api/groups":
+            return self.send(200, groups())
         if u.path == "/api/floorplan":
             data = floorplan([x for x in q.get("slugs", "").split(",") if x], q.get("style", "pretty"),
                              q.get("lang", "en"), q.get("title", ""))
@@ -1291,6 +1524,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = clean_scene(p.get("slug", ""), p.get("what", ""))
         elif path == "/api/delete":
             e = delete_scene(p.get("slug", ""))
+        elif path == "/api/group":
+            e = save_group(p.get("slug", ""), p.get("name", ""), p.get("members", ""))
+            if isinstance(e, str):
+                return self.send(200, {"ok": True, "slug": e})
+        elif path == "/api/group/dismiss":
+            st = load_state()
+            st["dismissed_groups"] = sorted(set(st.get("dismissed_groups", [])) | {p.get("key", "")})[-50:]
+            save_state(st)
+        elif path == "/api/combine":
+            e = start_combine(p)
         elif path == "/api/resume":
             e = resume_run(p.get("slug", ""), bool(p.get("fresh")))
             if e == "exists":                   # e.g. the training images were cleaned up in the meantime

@@ -155,6 +155,20 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
 .toast.show { opacity: 1; }
 .hidden { display: none !important; }
+.group { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+.ghead { display: flex; gap: 14px; flex-wrap: wrap; }
+.gthumb { width: 132px; height: 132px; flex: none; border-radius: 10px; background: #0b0d12 center/cover no-repeat; display: grid; place-items: center; font-size: 44px; }
+.gmeta { flex: 1; min-width: 220px; display: grid; gap: 3px; align-content: start; }
+.gmeta b { font-size: 15px; overflow-wrap: anywhere; } .gmeta span { font-size: 12.5px; color: var(--muted); }
+.gmeta .warn { color: var(--warn); }
+.group .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.group .ginner { margin-top: 12px; }
+.suggest { border: 1px dashed var(--accent); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 13.5px; }
+.suggest .row { margin-top: 8px; }
+dialog.wide { max-width: 560px; }
+dialog select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; }
+dialog h3 { font-size: 13.5px; margin: 16px 0 8px; }
+.opts { display: grid; gap: 6px; }
 .unfin { display: grid; gap: 8px; }
 .unfin .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .unfin .row b { overflow-wrap: anywhere; } .unfin .row .sp { flex: 1; }
@@ -304,8 +318,11 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   <section class="card">
     <div class="row" style="justify-content:space-between;margin-bottom:14px">
       <h2 data-i18n="scenes.title" style="margin:0"></h2>
-      <button class="small" id="planAllBtn" data-i18n="plan.all" data-i18n-title="plan.all.title"></button>
+      <div class="row"><button class="small" id="groupNewBtn" data-i18n="grp.new" data-i18n-title="grp.new.tip"></button>
+        <button class="small" id="planAllBtn" data-i18n="plan.all" data-i18n-title="plan.all.title"></button></div>
     </div>
+    <div id="groupSuggest" class="suggest hidden"></div>
+    <div id="groupList"></div>
     <div id="sceneGrid" class="grid"></div>
   </section>
 
@@ -326,6 +343,36 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
     <button class="primary" id="exFresh" data-i18n="exists.fresh"></button>
   </div>
 </dialog>
+<dialog id="groupDlg">
+  <h2 style="margin-top:0" id="groupTitle"></h2>
+  <label class="field"><span data-i18n="grp.name"></span><input id="groupName" type="text" maxlength="80" style="width:100%" autocomplete="off"></label>
+  <p class="muted" style="font-size:13px;margin:12px 0 6px" data-i18n="grp.pick"></p>
+  <div id="groupPick" class="pick"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:16px">
+    <button id="groupCancel" data-i18n="grp.cancel"></button>
+    <button class="primary" id="groupSave" data-i18n="grp.save"></button>
+  </div>
+</dialog>
+
+<dialog id="combineDlg" class="wide">
+  <h2 style="margin-top:0" id="cmbTitle"></h2>
+  <p class="muted" style="font-size:13px;margin-top:0" data-i18n="cmb.hint"></p>
+  <h3 data-i18n="cmb.align"></h3>
+  <div class="opts" id="cmbAlign"></div>
+  <h3 data-i18n="cmb.part"></h3>
+  <div class="opts" id="cmbPart"></div>
+  <h3 data-i18n="cmb.size"></h3>
+  <select id="cmbSize"><option value="2000000" data-i18n="cmb.size.2"></option><option value="3500000" data-i18n="cmb.size.35"></option><option value="5000000" data-i18n="cmb.size.5"></option></select>
+  <label class="row" style="margin-top:14px;gap:8px;font-size:13.5px"><input type="checkbox" id="cmbFull"> <span data-i18n="cmb.full"></span></label>
+  <p class="faint" id="cmbMem" style="font-size:12.5px;margin:6px 0 0"></p>
+  <div id="cmbMemLow" class="msg warn hidden" data-i18n="cmb.mem.low"></div>
+  <label class="row" id="cmbUploadRow" style="margin-top:10px;gap:8px;font-size:13.5px"><input type="checkbox" id="cmbUpload"> <span data-i18n="cmb.upload"></span></label>
+  <div class="row" style="justify-content:flex-end;margin-top:18px">
+    <button id="cmbCancel" data-i18n="grp.cancel"></button>
+    <button class="primary" id="cmbStart" data-i18n="cmb.start"></button>
+  </div>
+</dialog>
+
 <dialog id="renDlg">
   <h2 style="margin-top:0" id="renTitle"></h2>
   <p class="muted" id="renHint" style="font-size:13px"></p>
@@ -707,12 +754,13 @@ function renderJob() {
   if (!j || (!j.running && S.dismissed === j.out)) { card.classList.add("hidden"); return; }
   card.classList.remove("hidden");
   $("#jobName").textContent = j.name;
-  const qk = QUALITY_ALIAS[j.quality] || j.quality;
-  $("#jobSub").textContent = tr("job.sub", {rec: j.recording, q: tr("q." + qk), target: tr(j.upload ? "job.toFrame" : "job.pcOnly"),
-                                            time: mins(Date.now() / 1000 - j.started)});
+  const qk = QUALITY_ALIAS[j.quality] || j.quality, combine = j.kind === "combine";
+  const target = tr(j.upload ? "job.toFrame" : "job.pcOnly"), time = mins(Date.now() / 1000 - j.started);
+  $("#jobSub").textContent = combine ? tr("job.sub.combine", {n: j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
+                                     : tr("job.sub", {rec: j.recording, q: tr("q." + qk), target, time});
   $("#cancelBtn").classList.toggle("hidden", !j.running);
   $("#dismissBtn").classList.toggle("hidden", j.running);
-  const phases = [0, 1, 2, 3, 4].slice(0, j.upload ? 5 : 4).map(i => tr("phase." + i));
+  const phases = [0, 1, 2, 3, 4].slice(0, j.upload ? 5 : 4).map(i => tr((combine && i < 4 ? "cphase." : "phase.") + i));
   const finished = !j.running && j.result === "ok";
   $("#steps").style.gridTemplateColumns = `repeat(${phases.length}, 1fr)`;
   $("#steps").innerHTML = phases.map((p, i) => {
@@ -772,12 +820,8 @@ function uploadBtn(s) {
   const label = tr(s.on_frame ? "sc.reupload" : "sc.toFrame"), title = tr(s.on_frame ? "sc.reupload.title" : "sc.toFrame.title");
   return `<button class="small${s.on_frame ? "" : " primary"}" data-upload="${esc(s.slug)}" title="${title}" ${busy || s.on_frame === null ? "disabled" : ""}>${label}</button>`;
 }
-async function loadScenes() {
-  const list = await api("/api/scenes");
-  const arr = Array.isArray(list) ? list : Object.values(list).filter(x => typeof x === "object");
-  S.scenes = arr;
-  $("#planAllBtn").classList.toggle("hidden", arr.filter(s => s.ply).length < 2);
-  $("#sceneGrid").innerHTML = arr.length ? arr.map(s => `
+function sceneCard(s) {
+  return `
     <div class="rec scene" style="cursor:default">
       <div class="thumb" style="${s.preview ? `background-image:url('/api/preview?slug=${encodeURIComponent(s.slug)}&t=${s.mtime}')` : ""}">${s.preview ? "" : "◌"}</div>
       <div class="meta"><b>${esc(s.name)}</b>
@@ -785,7 +829,84 @@ async function loadScenes() {
         ${s.disk ? `<span class="faint">${tr("sc.disk", {size: mb(s.disk.total)})}</span>` : ""}
         ${s.replacing ? `<div class="fstate faint">${tr("sc.replacing")}</div>` : frameState(s)}
         <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
-      </div></div>`).join("") : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
+      </div></div>`;
+}
+const ALIGN_LETTER = {frame: "A", images: "B", shift: "C", rigid: "D"};
+function groupOpen(slug, set) {
+  let open = [];
+  try { open = JSON.parse(localStorage.getItem("openGroups") || "[]"); } catch {}
+  if (set === undefined) return open.includes(slug);
+  open = open.filter(x => x !== slug); if (set) open.push(slug);
+  try { localStorage.setItem("openGroups", JSON.stringify(open)); } catch {}
+}
+function groupBlock(g, bySlug) {
+  const rooms = g.members.map(m => bySlug[m]).filter(Boolean), r = g.result, open = groupOpen(g.slug);
+  const disk = rooms.reduce((a, s) => a + (s.disk ? s.disk.total : 0), 0) + (r && r.disk ? r.disk.total : 0);
+  let tour = `<span>${tr("grp.none")}</span>`;
+  if (r) {
+    const frameN = Math.min(r.frame_splats || r.splats || 0, r.splats || 0), seams = Object.values(r.seams || {}).map(x => x.cm).sort((a, b) => a - b);
+    const med = seams.length ? seams[Math.floor(seams.length / 2)] : null, max = seams.length ? seams[seams.length - 1] : null;
+    const detail = Object.entries(r.seams || {}).map(([k, v]) => `${k.replace("|", " – ")}: ${num(v.cm, 1)} cm`).join("\n");
+    tour = `<span>${tr("grp.tour", {frame: tr("million", {n: num(frameN / 1e6, 1)}), fsize: mb(r.size),
+              full: r.full_size ? tr("grp.tour.full", {n: tr("million", {n: num((r.splats || 0) / 1e6, 1)}), size: mb(r.full_size)}) : ""})}</span>
+      <span title="${esc(detail)}">${med != null ? tr("grp.seams", {med: num(med, 1), max: num(max, 1), align: ALIGN_LETTER[r.align] || "?"}) : ""}</span>
+      ${r.stale ? `<span class="warn">${tr("grp.stale")}</span>` : ""}
+      ${frameState({upload: r.upload, on_frame: r.on_frame})}`;
+  }
+  const thumb = r && r.preview ? `style="background-image:url('/api/preview?slug=${encodeURIComponent(g.slug)}&t=${r.mtime}')"` : "";
+  const busy = g.busy ? `<span>${tr("grp.busy")}</span>` : "";
+  return `<div class="group">
+    <div class="ghead">
+      <div class="gthumb" ${thumb}>${r && r.preview ? "" : "📁"}</div>
+      <div class="gmeta"><b>📁 ${esc(g.name)}</b>
+        <span>${tr("grp.rooms", {n: rooms.length})} · ${tr("sc.disk", {size: mb(disk)})}</span>
+        ${tour}${busy}
+        <div class="acts">
+          <button class="small" data-gtoggle="${esc(g.slug)}" aria-expanded="${open}">${tr(open ? "grp.hide" : "grp.show", {n: rooms.length})}</button>
+          <button class="small${!r || r.stale ? " primary" : ""}" data-combine="${esc(g.slug)}" ${g.busy || rooms.length < 2 ? "disabled" : ""}>${tr(r ? "grp.recombine" : "grp.combine")}</button>
+          ${r ? uploadBtn({slug: g.slug, on_frame: r.on_frame, upload: r.upload}) : ""}
+          ${rooms.some(s => s.ply) ? `<button class="small" data-gplan="${esc(g.slug)}">${tr("sc.plan")}</button>` : ""}
+          ${r && r.ply ? `<button class="small pc-only" data-spirula="${esc(g.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
+          ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}
+          <button class="small" data-gedit="${esc(g.slug)}">${tr("grp.edit")}</button>
+          <button class="small" data-gdelete="${esc(g.slug)}" title="${tr("grp.delete.title")}" aria-label="${tr("grp.delete.title")}">${tr("sc.delete")}</button>
+        </div>
+      </div>
+    </div>
+    ${open ? `<div class="grid ginner">${rooms.map(sceneCard).join("")}</div>` : ""}
+  </div>`;
+}
+async function loadScenes() {
+  const [list, gr] = await Promise.all([api("/api/scenes"), api("/api/groups")]);
+  const arr = Array.isArray(list) ? list : Object.values(list).filter(x => x && typeof x === "object" && x.slug);
+  S.scenes = arr; S.groups = gr.groups || []; S.memGB = gr.mem_available_gb;
+  const bySlug = Object.fromEntries(arr.map(s => [s.slug, s]));
+  const inGroup = new Set(S.groups.flatMap(g => g.members));
+  $("#planAllBtn").classList.toggle("hidden", arr.filter(s => s.ply).length < 2);
+  $("#groupNewBtn").classList.toggle("hidden", arr.length < 2);
+  const sug = gr.suggestion;
+  S.suggestion = sug;
+  $("#groupSuggest").classList.toggle("hidden", !sug);
+  if (sug) {
+    const day = new Date(sug.date).toLocaleDateString(LANG, {day: "numeric", month: "numeric"});
+    $("#groupSuggest").innerHTML = `${esc(tr("grp.suggest", {n: sug.members.length, date: day,
+        names: sug.members.map(m => bySlug[m] ? bySlug[m].name : m).join(", ")}))}
+      <div class="row"><button class="small primary" id="sugYes">${tr("grp.suggest.yes")}</button><button class="small" id="sugNo">${tr("grp.suggest.no")}</button></div>`;
+    $("#sugYes").onclick = () => openGroupDlg(null, {members: sug.members, name: tr("grp.suggest.name", {date: day})});
+    $("#sugNo").onclick = async () => { await api("/api/group/dismiss", {key: sug.key}); loadScenes(); };
+  }
+  $("#groupList").innerHTML = S.groups.map(g => groupBlock(g, bySlug)).join("");
+  const loose = arr.filter(s => !inGroup.has(s.slug));
+  $("#sceneGrid").innerHTML = loose.length ? loose.map(sceneCard).join("")
+    : S.groups.length ? "" : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
+  document.querySelectorAll("[data-gtoggle]").forEach(b => b.onclick = () => { groupOpen(b.dataset.gtoggle, !groupOpen(b.dataset.gtoggle)); loadScenes(); });
+  document.querySelectorAll("[data-gedit]").forEach(b => b.onclick = () => openGroupDlg(S.groups.find(g => g.slug === b.dataset.gedit)));
+  document.querySelectorAll("[data-gdelete]").forEach(b => b.onclick = () => deleteGroup(S.groups.find(g => g.slug === b.dataset.gdelete)));
+  document.querySelectorAll("[data-combine]").forEach(b => b.onclick = () => openCombine(S.groups.find(g => g.slug === b.dataset.combine)));
+  document.querySelectorAll("[data-gplan]").forEach(b => b.onclick = () => {
+    const g = S.groups.find(x => x.slug === b.dataset.gplan);
+    openPlan(g.members.filter(m => bySlug[m] && bySlug[m].ply), g.name);
+  });
   document.querySelectorAll("[data-upload]").forEach(b => b.onclick = async () => {
     const r = await api("/api/upload", {slug: b.dataset.upload});
     if (!r.ok) { toast(trErr(r.error)); return; }
@@ -836,6 +957,62 @@ async function deleteScene(sc) {
   const r = await api("/api/delete", {slug: sc.slug});
   if (!r.ok) { toast(trErr(r.error)); return; }
   toast(tr("del.done", {name: sc.name})); loadScenes();
+}
+
+/* ---------- groups and tours ---------- */
+function openGroupDlg(g, preset) {
+  const members = new Set(g ? g.members : (preset && preset.members) || []);
+  const owner = {};
+  (S.groups || []).forEach(x => { if (!g || x.slug !== g.slug) x.members.forEach(m => owner[m] = x.name); });
+  $("#groupTitle").textContent = tr(g ? "grp.edit.title" : "grp.new.title");
+  $("#groupName").value = g ? g.name : (preset && preset.name) || "";
+  $("#groupPick").innerHTML = S.scenes.map(sc => `<label><input type="checkbox" value="${esc(sc.slug)}" ${members.has(sc.slug) ? "checked" : ""} ${owner[sc.slug] ? "disabled" : ""}>
+      ${esc(sc.name)}${owner[sc.slug] ? `<span>${esc(tr("grp.inOther", {group: owner[sc.slug]}))}</span>` : ""}</label>`).join("");
+  $("#groupDlg").showModal(); $("#groupName").select();
+  $("#groupCancel").onclick = () => $("#groupDlg").close();
+  $("#groupSave").onclick = async () => {
+    const picked = [...document.querySelectorAll("#groupPick input:checked")].map(i => i.value);
+    const r = await api("/api/group", {slug: g ? g.slug : "", name: $("#groupName").value.trim(), members: picked.join(",")});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    $("#groupDlg").close(); groupOpen(r.slug, true); loadScenes();
+  };
+}
+async function deleteGroup(g) {
+  const r = g.result;
+  if (!confirm(tr("grp.delete.confirm", {name: g.name, tour: r ? tr("grp.delete.tour", {size: mb(r.disk ? r.disk.total : r.size)}) : ""}))) return;
+  const res = await api("/api/delete", {slug: g.slug});
+  if (!res.ok) { toast(trErr(res.error)); return; }
+  toast(tr("grp.deleted")); loadScenes();
+}
+function openCombine(g) {
+  const o = g.options || {};
+  const radios = (box, name, values, cur) => { $(box).innerHTML = values.map(v => `<label class="opt${v === cur ? " active" : ""}">
+      <input type="radio" name="${name}" value="${v}" ${v === cur ? "checked" : ""}><div><b>${tr(`${name}.${v}`)}</b><span>${tr(`${name}.${v}.text`)}</span></div></label>`).join("");
+    $(box).querySelectorAll("input").forEach(i => i.onchange = () =>
+      $(box).querySelectorAll(".opt").forEach(l => l.classList.toggle("active", l.querySelector("input").checked))); };
+  radios("#cmbAlign", "cmb.align", ["frame", "images", "shift", "rigid"], o.align || "images");
+  radios("#cmbPart", "cmb.part", ["view", "nearest"], o.partition || "view");
+  $("#cmbTitle").textContent = tr("cmb.title", {name: g.name});
+  $("#cmbSize").value = String(o.frame_splats || 3500000);
+  // memory, measured on six rooms: reduce ~0.45 GB per million splats, full SOG ~0.65 GB per million
+  const total = (g.splats || 0) * 0.85 / 1e6, needFrame = Math.max(1.5, 0.45 * total), needFull = Math.max(needFrame, 0.65 * total);
+  const avail = S.memGB || 0, lowFull = avail && needFull > avail;
+  $("#cmbMem").textContent = tr("cmb.mem", {frame: num(needFrame, 1), full: num(needFull, 1), avail: num(avail, 1)});
+  $("#cmbFull").checked = o.full !== false && !lowFull;
+  const updMem = () => $("#cmbMemLow").classList.toggle("hidden", !(avail && ($("#cmbFull").checked ? needFull : needFrame) > avail));
+  $("#cmbFull").onchange = updMem; updMem();
+  $("#cmbUploadRow").classList.toggle("hidden", !S.frameConfigured);
+  $("#cmbUpload").checked = !!S.frameOnline;
+  $("#combineDlg").showModal();
+  $("#cmbCancel").onclick = () => $("#combineDlg").close();
+  $("#cmbStart").onclick = async () => {
+    const r = await api("/api/combine", {slug: g.slug, align: $("input[name='cmb.align']:checked").value,
+      partition: $("input[name='cmb.part']:checked").value, frame_splats: $("#cmbSize").value,
+      full: $("#cmbFull").checked, upload: S.frameConfigured && $("#cmbUpload").checked});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    $("#combineDlg").close(); toast(tr("cmb.started")); await poll(); loadScenes();
+    $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
+  };
 }
 
 /* ---------- renaming ---------- */

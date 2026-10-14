@@ -5,6 +5,7 @@
 """Create the preview image (512x512) and name plate (358x86) for the Gaussian XR gallery.
 
 Usage: uv run make_gallery.py <run folder> <pipeline log> <display name> <file stem>
+       uv run make_gallery.py --plan <floor plan.png> <run folder> <display name> <file stem>
 Reads the initial view from the log ("Gaussian XR initial view: cam0/... Display rotation X°")
 and writes <file stem>.gallery.png and <file stem>.sceneinfo.png into the run folder.
 The look matches the example scenes that ship with Gaussian XR.
@@ -82,7 +83,22 @@ def label(text: str, out: Path) -> None:
     img.save(out)
 
 
+def from_plan(plan: Path, out: Path) -> None:
+    """Preview of a combined scene: its floor plan, centred on a square."""
+    img = Image.open(plan).convert("RGB")
+    side = max(img.size)
+    square = Image.new("RGB", (side, side), img.getpixel((5, 5)))
+    square.paste(img, ((side - img.width) // 2, (side - img.height) // 2))
+    square.resize((512, 512), Image.LANCZOS).convert("RGBA").save(out)
+
+
 def main() -> None:
+    if len(sys.argv) == 6 and sys.argv[1] == "--plan":
+        plan, run, name, stem = Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4], sys.argv[5]
+        from_plan(plan, run / f"{stem}.gallery.png")
+        label(name, run / f"{stem}.sceneinfo.png")
+        print(f"Preview image from the floor plan, name plate \"{name}\"")
+        return
     if len(sys.argv) != 5:
         sys.exit(__doc__)
     run, log, name, stem = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4]
