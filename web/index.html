@@ -166,6 +166,8 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .gmeta .warn { color: var(--warn); }
 .group .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .group .ginner { margin-top: 12px; }
+.group .group { background: var(--panel); grid-column: 1 / -1; margin-bottom: 0; }
+.group .group .gthumb { width: 96px; height: 96px; font-size: 34px; }
 .suggest { border: 1px dashed var(--accent); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 13.5px; }
 .suggest .row { margin-top: 8px; }
 dialog.wide { max-width: 560px; }
@@ -368,6 +370,9 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 <dialog id="groupDlg">
   <h2 style="margin-top:0" id="groupTitle"></h2>
   <label class="field"><span data-i18n="grp.name"></span><input id="groupName" type="text" maxlength="80" style="width:100%" autocomplete="off"></label>
+  <label class="chk" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0 0;font-size:14px">
+    <input type="checkbox" id="groupRoom" style="margin-top:3px"><span><b data-i18n="grp.room"></b><br>
+    <span class="faint" style="font-size:12.5px" data-i18n="grp.room.hint"></span></span></label>
   <p class="muted" style="font-size:13px;margin:12px 0 6px" data-i18n="grp.pick"></p>
   <div id="groupPick" class="pick"></div>
   <div class="row" style="justify-content:flex-end;margin-top:16px">
@@ -963,9 +968,14 @@ function groupOpen(slug, set) {
   open = open.filter(x => x !== slug); if (set) open.push(slug);
   try { localStorage.setItem("openGroups", JSON.stringify(open)); } catch {}
 }
-function groupBlock(g, bySlug) {
-  const rooms = g.members.map(m => bySlug[m]).filter(Boolean), r = g.result, open = groupOpen(g.slug);
-  const disk = rooms.reduce((a, s) => a + (s.disk ? s.disk.total : 0), 0) + (r && r.disk ? r.disk.total : 0);
+function groupBlock(g, bySlug, byGroup) {
+  const scenes = (g.scenes || g.members).map(m => bySlug[m]).filter(Boolean), r = g.result, open = groupOpen(g.slug);
+  const inner = g.members.map(m => byGroup[m]).filter(Boolean);                   // rooms inside a home
+  const own = g.members.map(m => bySlug[m]).filter(Boolean);
+  const disk = scenes.reduce((a, s) => a + (s.disk ? s.disk.total : 0), 0) + (r && r.disk ? r.disk.total : 0)
+    + inner.reduce((a, x) => a + (x.result && x.result.disk ? x.result.disk.total : 0), 0);
+  const count = g.room ? tr("grp.room.recordings", {n: scenes.length})
+    : inner.length ? tr("grp.home.count", {rooms: g.rooms, n: scenes.length}) : tr("grp.rooms", {n: scenes.length});
   let tour = `<span>${tr("grp.none")}</span>`;
   if (r) {
     const frameN = Math.min(r.frame_splats || r.splats || 0, r.splats || 0), seams = Object.values(r.seams || {}).map(x => x.cm).sort((a, b) => a - b);
@@ -979,18 +989,19 @@ function groupBlock(g, bySlug) {
   }
   const thumb = r && r.preview ? `style="background-image:url('/api/preview?slug=${encodeURIComponent(g.slug)}&t=${r.mtime}')"` : "";
   const busy = g.busy ? `<span>${tr("grp.busy")}</span>` : "";
-  return `<div class="group">
+  const icon = g.room ? "🚪" : "📁";
+  return `<div class="group${g.room ? " room" : ""}">
     <div class="ghead">
-      <div class="gthumb" ${thumb}>${r && r.preview ? "" : "📁"}</div>
-      <div class="gmeta"><b>📁 ${esc(g.name)}</b>
-        <span>${tr("grp.rooms", {n: rooms.length})} · ${tr("sc.disk", {size: mb(disk)})}</span>
+      <div class="gthumb" ${thumb}>${r && r.preview ? "" : icon}</div>
+      <div class="gmeta"><b>${icon} ${esc(g.name)}</b>
+        <span>${count} · ${tr("sc.disk", {size: mb(disk)})}</span>
         ${scaleLine(g)}
         ${tour}${busy}
         <div class="acts">
-          <button class="small" data-gtoggle="${esc(g.slug)}" aria-expanded="${open}">${tr(open ? "grp.hide" : "grp.show", {n: rooms.length})}</button>
-          <button class="small${!r || r.stale ? " primary" : ""}" data-combine="${esc(g.slug)}" ${g.busy || rooms.length < 2 ? "disabled" : ""}>${tr(r ? "grp.recombine" : "grp.combine")}</button>
+          <button class="small" data-gtoggle="${esc(g.slug)}" aria-expanded="${open}">${tr(open ? "grp.hide" : g.room ? "grp.show.recordings" : inner.length ? "grp.show.rooms" : "grp.show", {n: inner.length + own.length})}</button>
+          <button class="small${!r || r.stale ? " primary" : ""}" data-combine="${esc(g.slug)}" ${g.busy || scenes.length < 2 ? "disabled" : ""}>${tr(r ? "grp.recombine" : g.room ? "grp.room.combine" : "grp.combine")}</button>
           ${r ? uploadBtn({slug: g.slug, on_frame: r.on_frame, upload: r.upload}) : ""}
-          ${rooms.some(s => s.ply) ? `<button class="small" data-gplan="${esc(g.slug)}">${tr("sc.plan")}</button>` : ""}
+          ${scenes.some(s => s.ply) ? `<button class="small" data-gplan="${esc(g.slug)}">${tr("sc.plan")}</button>` : ""}
           ${r && r.ply ? `<button class="small pc-only" data-spirula="${esc(g.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
           ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}
           <button class="small" data-gedit="${esc(g.slug)}">${tr("grp.edit")}</button>
@@ -1001,7 +1012,7 @@ function groupBlock(g, bySlug) {
         </div>
       </div>
     </div>
-    ${open ? `<div class="grid ginner">${rooms.map(sceneCard).join("")}</div>` : ""}
+    ${open ? `<div class="grid ginner">${inner.map(x => groupBlock(x, bySlug, byGroup)).join("")}${own.map(sceneCard).join("")}</div>` : ""}
   </div>`;
 }
 async function loadScenes() {
@@ -1022,7 +1033,8 @@ async function loadScenes() {
     $("#sugYes").onclick = () => openGroupDlg(null, {members: sug.members, name: tr("grp.suggest.name", {date: day})});
     $("#sugNo").onclick = async () => { await api("/api/group/dismiss", {key: sug.key}); loadScenes(); };
   }
-  $("#groupList").innerHTML = S.groups.map(g => groupBlock(g, bySlug)).join("");
+  const byGroup = Object.fromEntries(S.groups.map(g => [g.slug, g]));
+  $("#groupList").innerHTML = S.groups.filter(g => !g.parent).map(g => groupBlock(g, bySlug, byGroup)).join("");
   const loose = arr.filter(s => !inGroup.has(s.slug));
   $("#sceneGrid").innerHTML = loose.length ? loose.map(sceneCard).join("")
     : S.groups.length ? "" : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
@@ -1034,7 +1046,7 @@ async function loadScenes() {
   document.querySelectorAll("[data-combine]").forEach(b => b.onclick = () => openCombine(S.groups.find(g => g.slug === b.dataset.combine)));
   document.querySelectorAll("[data-gplan]").forEach(b => b.onclick = () => {
     const g = S.groups.find(x => x.slug === b.dataset.gplan);
-    openPlan(g.members.filter(m => bySlug[m] && bySlug[m].ply), g.name, g.slug);
+    openPlan((g.scenes || g.members).filter(m => bySlug[m] && bySlug[m].ply), g.name, g.slug);
   });
   document.querySelectorAll("[data-upload]").forEach(b => b.onclick = async () => {
     const r = await api("/api/upload", {slug: b.dataset.upload});
@@ -1095,15 +1107,29 @@ function openGroupDlg(g, preset) {
   (S.groups || []).forEach(x => { if (!g || x.slug !== g.slug) x.members.forEach(m => owner[m] = x.name); });
   $("#groupTitle").textContent = tr(g ? "grp.edit.title" : "grp.new.title");
   $("#groupName").value = g ? g.name : (preset && preset.name) || "";
-  // One group per scene: scenes of other groups are not offered at all
-  const free = S.scenes.filter(sc => !owner[sc.slug]);
-  $("#groupPick").innerHTML = free.length ? free.map(sc => `<label><input type="checkbox" value="${esc(sc.slug)}" ${members.has(sc.slug) ? "checked" : ""}>
-      ${esc(sc.name)}</label>`).join("") : `<p class="faint" style="font-size:13px;margin:0">${tr("grp.noFree")}</p>`;
+  // A room (several recordings of one room) inside a home stays a room; a home with rooms can't become one
+  $("#groupRoom").checked = !!(g ? g.room : preset && preset.room);
+  $("#groupRoom").disabled = !!(g && (g.parent || (S.groups || []).some(x => x.room && g.members.includes(x.slug))));
+  const pick = () => {
+    const keep = new Set([...document.querySelectorAll("#groupPick input:checked")].map(i => i.value));
+    if (keep.size) { members.clear(); keep.forEach(m => members.add(m)); }
+    // One group per scene: scenes of other groups are not offered at all; a home may also hold free rooms
+    const free = S.scenes.filter(sc => !owner[sc.slug]).map(sc => ({slug: sc.slug, name: sc.name, room: false}));
+    const rooms = $("#groupRoom").checked ? [] : (S.groups || []).filter(x => x.room && !owner[x.slug] && (!g || x.slug !== g.slug))
+      .map(x => ({slug: x.slug, name: x.name, room: true, n: x.scenes.length}));
+    const all = [...rooms, ...free];
+    $("#groupPick").innerHTML = all.length ? all.map(x => `<label><input type="checkbox" value="${esc(x.slug)}" ${members.has(x.slug) ? "checked" : ""}>
+      ${x.room ? "🚪 " : ""}${esc(x.name)}${x.room ? `<span>${tr("grp.room.recordings", {n: x.n})}</span>` : ""}</label>`).join("")
+      : `<p class="faint" style="font-size:13px;margin:0">${tr("grp.noFree")}</p>`;
+  };
+  $("#groupPick").innerHTML = ""; pick();
+  $("#groupRoom").onchange = pick;
   $("#groupDlg").showModal(); $("#groupName").select();
   $("#groupCancel").onclick = () => $("#groupDlg").close();
   $("#groupSave").onclick = async () => {
     const picked = [...document.querySelectorAll("#groupPick input:checked")].map(i => i.value);
-    const r = await api("/api/group", {slug: g ? g.slug : "", name: $("#groupName").value.trim(), members: picked.join(",")});
+    const r = await api("/api/group", {slug: g ? g.slug : "", name: $("#groupName").value.trim(), members: picked.join(","),
+                                       room: $("#groupRoom").checked});
     if (!r.ok) { toast(trErr(r.error)); return; }
     $("#groupDlg").close(); groupOpen(r.slug, true); loadScenes();
   };
@@ -1339,7 +1365,7 @@ function openClean(slug) {
   const g = (S.groups || []).find(x => x.slug === slug);
   let sc = S.scenes.find(x => x.slug === slug);
   if (g) {
-    const rooms = g.members.map(m => S.scenes.find(x => x.slug === m)).filter(x => x && x.disk);
+    const rooms = (g.scenes || g.members).map(m => S.scenes.find(x => x.slug === m)).filter(x => x && x.disk);
     const sum = k => rooms.reduce((a, x) => a + (x.disk[k] || 0), 0);
     sc = {name: g.name, disk: {temp: sum("temp"), images: sum("images"), total: sum("total")}, n: rooms.length};
   }

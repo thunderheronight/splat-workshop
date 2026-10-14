@@ -2,6 +2,17 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] – 0.3
+
+### Added
+
+- **Rooms made of several recordings**: mark a group as *one room made of several recordings*, e.g. two short rounds through the living room. When it is put together, every part of the room comes from the recording that saw it best. Each recording still gets up to 500 image pairs, so several short recordings give a room far more detail than one long one.
+- **A home made of rooms**: a group may hold such rooms next to single scenes. Putting it together always starts from the original recordings in one go, each in its room: within a room every part from the best recording, between rooms the borders run through the doors as before. Nothing is reduced twice. The floor plan names and measures rooms instead of recordings, and the scale of a home reaches its rooms and their recordings.
+
+### Fixed
+
+- Recordings of the same room no longer count as "walking in" to each other. Before, two overlapping recordings could hide the real walk-in of another room, which then claimed part of the room.
+
 ## [0.2.3] – 2026-10-14
 
 ### Added

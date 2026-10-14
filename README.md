@@ -44,6 +44,7 @@ All changes: [CHANGELOG.md](CHANGELOG.md)
 - **Conversions survive everything**: they run as their own process; close the browser, quit the tray, restart – reopen Splat Workshop and you see the progress again.
 - **Cancel & resume**: a cancelled conversion continues from its last saved state.
 - **Recording check** without AI: plain per-second measurements with a colour-coded timeline and concrete hints (“0:45–0:59 little structure”). See [What the check measures](#what-the-check-measures).
+- **Rooms from several recordings** *(0.3)*: a room can be made of several short recordings (each up to 500 image pairs), and a home of such rooms – every part comes from the recording that saw it best, the borders between rooms run through the doors.
 - **Groups and tours**: group scenes (e.g. all rooms of your home) and put them together into one scene – a full version for Gaussian XR on the PC and a smaller one for the Frame. Recordings from one session share the Frame's tracking frame; Splat Workshop fits the rooms to each other (corrections A–D to choose), lets the borders between recordings run through doors and shows how well the rooms meet. Before starting it estimates the memory needed.
   <br><img src="docs/combine.png" width="360" alt="Dialog “Put together”: corrections A to D, borders between the recordings, size of the Frame version, full version, memory estimate">
   <br><sub>Example data – room names and preview images are placeholders.</sub>
