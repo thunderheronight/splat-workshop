@@ -61,7 +61,10 @@ plan_slots = threading.BoundedSemaphore(2)   # floor plans drawn at the same tim
 last_request = time.time()
 idle_exit = True
 proc = None                        # Popen of the running splat.sh (if started by this server)
-download = None                    # {"name", "total", "done", "error", "finished"}
+download = None                    # file being fetched: {"name", "total", "done", "error", "finished"}
+download_queue = []                # files waiting, fetched one after the other: [{"name", "size"}]
+download_batch = {}                # since the queue was last empty: {"files", "bytes", "done_files", "done_bytes", "failed"}
+download_proc = None               # ssh of the file being fetched (to cancel it)
 uploads = {}                       # slug -> {"proc", "out", "started", "notified"}
 frame_cache = {"t": 0, "data": None}
 probe_cache = {}
@@ -398,37 +401,99 @@ def check_worker():
 
 # ---------------------------------------------------------------- download from the Frame
 
-def start_download(name: str, size: int):
-    global download
+def download_busy() -> bool:
+    return bool(download_queue) or bool(download and not download.get("finished"))
+
+
+def start_download(files: list):
+    """Fetch recordings from the Frame, one after the other ([{"name", "size"}]). Files already on this PC are
+    skipped (a single one is refused). Adds to the queue when a download is already running."""
     with lock:
-        if download and not download.get("finished"):
-            return err("err.download_busy")
-        if (REC / name).exists():
-            return err("err.name_taken")
-        download = {"name": name, "total": size, "done": 0, "error": None, "finished": False}
-
-    def run():
-        REC.mkdir(parents=True, exist_ok=True)
-        part = REC / (name + ".part")
-        try:
-            with open(part, "wb") as fh:
-                p = subprocess.Popen(keep_awake(SSH + [f"cat {FRAME_VIDEOS}/{shq(name)}"], t("inhibit.download")),
-                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-                while chunk := p.stdout.read(1 << 20):
-                    fh.write(chunk)
-                    download["done"] += len(chunk)
-                rc = p.wait()
-            if rc != 0 or download["done"] != size:
-                raise RuntimeError("transfer interrupted")
-            part.rename(REC / name)
-            frame_cache["t"] = 0
-        except Exception as e:  # noqa: BLE001 – shown in the interface
-            download["error"] = str(e)
-            part.unlink(missing_ok=True)
-        download["finished"] = True
-
-    threading.Thread(target=run, daemon=True).start()
+        waiting = {f["name"] for f in download_queue} | ({download["name"]} if download_busy() and download else set())
+        new = [f for f in files if not (REC / f["name"]).exists() and f["name"] not in waiting]
+        if not new:
+            return err("err.name_taken") if len(files) == 1 and (REC / files[0]["name"]).exists() else (
+                err("err.download_busy") if files else err("err.not_on_frame"))
+        idle = not download_busy()
+        if idle:
+            download_batch.clear()
+            download_batch.update(files=0, bytes=0, done_files=0, done_bytes=0, failed=[])
+        download_batch["files"] += len(new)
+        download_batch["bytes"] += sum(f["size"] for f in new)
+        download_queue.extend(new)
+        if idle:
+            threading.Thread(target=download_worker, daemon=True).start()
     return None
+
+
+def download_worker():
+    global download
+    while True:
+        with lock:
+            if not download_queue:
+                break
+            f = download_queue.pop(0)
+            download = {"name": f["name"], "total": f["size"], "done": 0, "error": None, "finished": False}
+        fetch(f["name"], f["size"])
+        with lock:
+            download_batch["done_files"] += 1
+            download_batch["done_bytes"] += f["size"]
+            if download["error"]:
+                download_batch["failed"].append(f["name"])
+            download["finished"] = True
+    b = download_batch
+    if b.get("done_files") and not b.get("cancelled"):
+        ok = b["done_files"] - len(b["failed"])
+        if b["failed"]:
+            notify(t("notify.download_failed.title"), t("notify.download_failed", n=len(b["failed"]), ok=ok))
+        else:
+            notify(t("notify.download.title"), t("notify.download", n=ok))
+
+
+def fetch(name: str, size: int):
+    """One recording from the Frame, via a .part file (never a half file under the real name)."""
+    global download_proc
+    REC.mkdir(parents=True, exist_ok=True)
+    part = REC / (name + ".part")
+    try:
+        with open(part, "wb") as fh:
+            p = download_proc = subprocess.Popen(keep_awake(SSH + [f"cat {FRAME_VIDEOS}/{shq(name)}"],
+                                                            t("inhibit.download")),
+                                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            while chunk := p.stdout.read(1 << 20):
+                fh.write(chunk)
+                download["done"] += len(chunk)
+            rc = p.wait()
+        if download.get("cancelled"):
+            raise RuntimeError("cancelled")
+        if rc != 0 or download["done"] != size:
+            raise RuntimeError("transfer interrupted")
+        part.rename(REC / name)
+        frame_cache["t"] = 0
+    except Exception as e:  # noqa: BLE001 – shown in the interface
+        download["error"] = str(e)
+        part.unlink(missing_ok=True)
+    finally:
+        download_proc = None
+
+
+def cancel_download():
+    """Empty the queue and stop the file being fetched (its half is removed)."""
+    with lock:
+        if not download_busy():
+            return err("err.no_download")
+        download_queue.clear()
+        download_batch["cancelled"] = True
+        if download and not download.get("finished"):
+            download["cancelled"] = True
+            if download_proc and download_proc.poll() is None:
+                download_proc.kill()
+    return None
+
+
+def download_status():
+    return {**(download or {}), "queue": [f["name"] for f in download_queue], "batch": dict(download_batch),
+            "busy": download_busy()} if download or download_queue else None
 
 
 # ---------------------------------------------------------------- conversion
@@ -639,8 +704,10 @@ def activity() -> dict:
     job = None
     if js and js["running"]:
         job = {k: js.get(k) for k in ("name", "phase", "pct", "eta", "upload")}
-    dl = download if download and not download.get("finished") else None
-    return {"job": job, "download": {"pct": round(100 * dl["done"] / max(dl["total"], 1))} if dl else None,
+    b = download_batch
+    pct = (round(100 * (b["done_bytes"] + (download["done"] if download and not download.get("finished") else 0))
+                 / max(b["bytes"], 1)) if download_busy() else None)
+    return {"job": job, "download": {"pct": pct} if pct is not None else None,
             "checking": check_busy(), "uploading": any(u["proc"].poll() is None for u in uploads.values())}
 
 
@@ -676,7 +743,7 @@ def watcher():
     while True:
         time.sleep(3)
         was_running = running = watch_once(was_running)
-        busy = (running or (download and not download.get("finished")) or check_busy()
+        busy = (running or download_busy() or check_busy()
                 or any(u["proc"].poll() is None for u in uploads.values()))
         if idle_exit and not busy and time.time() - last_request > CFG.idle_minutes * 60:
             os._exit(0)
@@ -1837,7 +1904,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, check_status(Path(q.get("name", "")).name))
         if u.path == "/api/status":
             ups = {s: upload_status(s) for s in list(uploads)}
-            return self.send(200, {"job": job_status(), "download": download, "uploads": ups})
+            return self.send(200, {"job": job_status(), "download": download_status(), "uploads": ups})
         if u.path == "/api/scenes":
             return self.send(200, scenes())
         if u.path == "/api/unfinished":
@@ -1893,6 +1960,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Only flat objects of simple values; text fields are text
         if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
                 or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key", "version", "sizes", "scales", "folder",
+                                                           "names", "place",
                                                            "align", "partition")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
@@ -1909,8 +1977,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = cancel_job()
         elif path == "/api/download":
             fr = frame_listing()
-            f = next((f for f in (fr or {}).get("files", []) if f["name"] == p.get("name")), None)
-            e = start_download(f["name"], f["size"]) if f else err("err.not_on_frame")
+            names = p["names"].split("\n") if p.get("names") else [p.get("name")]     # several: one per line
+            on_frame = {f["name"]: f for f in (fr or {}).get("files", [])}
+            files = [on_frame[n] for n in names if isinstance(n, str) and n in on_frame]
+            e = start_download(files) if files else err("err.not_on_frame")
+        elif path == "/api/download/cancel":
+            e = cancel_download()
         elif path == "/api/upload":
             e = start_upload(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/versions":

@@ -67,6 +67,8 @@ label.field small { font-size: 12px; color: var(--faint); line-height: 1.4; }
 .play:hover { transform: scale(1.08); }
 .cbadge { position: absolute; left: 8px; top: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
   font-size: 13px; font-weight: 700; color: #0b0d12; }
+.dlpick { position: absolute; right: 6px; top: 6px; padding: 4px; border-radius: 8px; background: rgba(11,13,18,.6); line-height: 0; cursor: pointer; }
+.dlpick input { width: 18px; height: 18px; margin: 0; cursor: pointer; accent-color: var(--accent); }
 .cbadge.ok { background: var(--ok); } .cbadge.warn { background: var(--warn); } .cbadge.bad { background: var(--bad); }
 
 /* recording check */
@@ -261,10 +263,15 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
       <button class="tab active" data-tab="frame" data-i18n="tab.frame"></button>
       <button class="tab" data-tab="local" data-i18n="tab.local"></button>
       <span style="flex:1"></span>
+      <button class="small hidden" id="dlSelBtn" data-i18n-title="dl.sel.title"></button>
+      <button class="small hidden" id="dlAllBtn" data-i18n-title="dl.all.title"></button>
       <button class="small" id="checkAllBtn" data-i18n="checkAll" data-i18n-title="checkAll.title"></button>
       <button class="small pc-only" id="pickBtn" data-i18n="pick"></button>
       <button class="small" id="refreshBtn" data-i18n-title="refresh.title">↻</button>
     </div>
+    <div id="dlBar" class="hidden" style="display:flex;gap:10px;align-items:center;margin:0 0 12px">
+      <div style="flex:1"><span class="muted" id="dlText"></span><div class="bar"><div id="dlFill" style="width:0"></div></div></div>
+      <button class="small" id="dlCancel" data-i18n="dl.cancel"></button></div>
     <div id="recGrid" class="grid"></div>
     <div id="checkBox" class="hidden"></div>
     <div id="checkRes" class="hidden"></div>
@@ -474,7 +481,7 @@ const PRESETS = {
   high: d => ({frames: clamp(Math.round(d * 5), 100, 500), scale: 1, maxg: 2, iter: 30000}),
   max: d => ({frames: clamp(Math.round(d * 8), 100, 500), scale: 1, maxg: 3, iter: 50000}),
 };
-const S = { tab: "frame", recs: null, sel: null, probe: null, quality: "high", job: null, dl: null, dismissed: null,
+const S = { tab: "frame", recs: null, picked: new Set(), sel: null, probe: null, quality: "high", job: null, dl: null, dismissed: null,
             frameOnline: null, frameConfigured: true };
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -566,15 +573,17 @@ function renderRecs() {
     const sel = S.sel && S.sel.name === f.name ? " sel" : "";
     const local = S.tab === "frame" && f.local ? `<span class="badge">${tr("onPc")}</span>` : "";
     const onPc = S.tab === "local" || f.local;
+    const pick = S.tab === "frame" && !f.local && !queued(f.name)
+      ? `<label class="dlpick" title="${tr("dl.pick")}"><input type="checkbox" data-pick="${esc(f.name)}"${S.picked.has(f.name) ? " checked" : ""}></label>` : "";
     const play = onPc ? `<button class="play pc-only" data-play="${esc(f.name)}" title="${tr("play.title")}" aria-label="${tr("play.title")}">${PLAY}</button>` : "";
     return `<div class="rec${sel}" data-i="${i}" role="button" tabindex="0">
-      <div class="thumb" data-src="/api/thumb?source=${onPc ? "local" : "frame"}&name=${encodeURIComponent(f.name)}">${badge(f)}${play}</div>
-      <div class="meta"><b>${esc(f.label || fmtDate(f.date) || f.name)}</b><span>${f.label && f.date ? esc(fmtDate(f.date)) + " · " : ""}${mb(f.size)} ${local}</span></div></div>`;
+      <div class="thumb" data-src="/api/thumb?source=${onPc ? "local" : "frame"}&name=${encodeURIComponent(f.name)}">${badge(f)}${play}${pick}</div>
+      <div class="meta"><b>${esc(f.label || fmtDate(f.date) || f.name)}</b><span>${f.label && f.date ? esc(fmtDate(f.date)) + " · " : ""}${mb(f.size)} ${local}${queued(f.name) ? `<span class="badge">${tr("dl.queued")}</span>` : ""}</span></div></div>`;
   }).join("");
   g.querySelectorAll(".thumb").forEach(t => {
     const url = t.dataset.src, img = new Image();
     img.onload = () => { t.style.backgroundImage = `url(${JSON.stringify(url)})`; };
-    img.onerror = () => { if (!t.querySelector(".play")) t.textContent = "◌"; };
+    img.onerror = () => { if (!t.querySelector(".play")) t.insertAdjacentHTML("afterbegin", "<span>◌</span>"); };
     img.src = url;
   });
   g.querySelectorAll(".rec").forEach(b => {
@@ -582,6 +591,47 @@ function renderRecs() {
     b.onkeydown = e => { if ((e.key === "Enter" || e.key === " ") && e.target === b) { e.preventDefault(); b.click(); } };
   });
   g.querySelectorAll("[data-play]").forEach(b => b.onclick = e => { e.stopPropagation(); play(b.dataset.play); });
+  g.querySelectorAll(".dlpick").forEach(b => { b.onclick = e => e.stopPropagation(); b.onkeydown = e => e.stopPropagation(); });
+  g.querySelectorAll("[data-pick]").forEach(c => c.onchange = () => {
+    c.checked ? S.picked.add(c.dataset.pick) : S.picked.delete(c.dataset.pick); renderDlButtons();
+  });
+  renderDlButtons();
+}
+
+/* ---------- fetching several recordings from the Frame, one after the other ---------- */
+function queued(name) { const d = S.dl; return !!(d && d.busy && ((d.name === name && !d.finished) || (d.queue || []).includes(name))); }
+function fetchable() { return S.recs && S.recs.frame_online ? (S.recs.frame || []).filter(f => !f.local && !queued(f.name)) : []; }
+function renderDlButtons() {
+  const onFrame = S.tab === "frame", all = fetchable();
+  for (const n of [...S.picked]) if (!all.some(f => f.name === n)) S.picked.delete(n);
+  const picked = all.filter(f => S.picked.has(f.name));
+  const size = list => mb(list.reduce((a, f) => a + f.size, 0));
+  $("#dlAllBtn").classList.toggle("hidden", !onFrame || !all.length);
+  $("#dlAllBtn").textContent = "⬇ " + tr("dl.all", {n: all.length, size: size(all)});
+  $("#dlSelBtn").classList.toggle("hidden", !onFrame || !picked.length);
+  $("#dlSelBtn").textContent = "⬇ " + tr("dl.sel", {n: picked.length, size: size(picked)});
+}
+async function fetchMany(list) {
+  if (!list.length) return;
+  const r = await api("/api/download", {names: list.map(f => f.name).join("\n")});
+  if (!r.ok) { toast(trErr(r.error)); return; }
+  S.picked.clear();
+  S.dl = {...(S.dl || {}), busy: true, queue: [...((S.dl && S.dl.queue) || []), ...list.map(f => f.name)]};
+  renderRecs(); renderDlBar();
+}
+$("#dlAllBtn").onclick = () => fetchMany(fetchable());
+$("#dlSelBtn").onclick = () => fetchMany(fetchable().filter(f => S.picked.has(f.name)));
+$("#dlCancel").onclick = async () => {
+  const r = await api("/api/download/cancel", {});
+  if (!r.ok) toast(trErr(r.error));
+};
+function renderDlBar() {
+  const d = S.dl, b = d && d.batch, on = !!(d && d.busy && b && b.files);
+  $("#dlBar").classList.toggle("hidden", !on);
+  if (!on) return;
+  const cur = d.finished ? 0 : d.done || 0, done = (b.done_bytes || 0) + cur;
+  $("#dlText").textContent = tr("dl.progress", {i: Math.min(b.done_files + 1, b.files), n: b.files, done: mb(done), total: mb(b.bytes)});
+  $("#dlFill").style.width = (done / Math.max(b.bytes, 1) * 100).toFixed(1) + "%";
 }
 function badge(f) {
   const lv = f.check || (S.recs?.local.find(x => x.name === f.name) || {}).check;
@@ -708,7 +758,8 @@ async function checkAll() {
 async function fetchSel() {
   const r = await api("/api/download", {name: S.sel.name});
   if (!r.ok) { toast(trErr(r.error)); return false; }
-  S.dl = {name: S.sel.name, done: 0, total: S.sel.size, finished: false};
+  if (!S.dl || !S.dl.busy) S.dl = {name: S.sel.name, done: 0, total: S.sel.size, finished: false, busy: true, queue: []};
+  else S.dl.queue = [...(S.dl.queue || []), S.sel.name];
   renderCheck(); updateStart();
   return new Promise(res => { S.dlWait = res; });
 }
@@ -737,7 +788,7 @@ function updateStart() {
   const total = Math.round(train + s.frames * 2.5 / 60 + 1);
   const busy = S.job && S.job.running;
   const ready = S.sel && (!S.probe || S.probe.ok) && $("#name").value.trim();
-  $("#startBtn").disabled = !ready || busy || (S.dl && !S.dl.finished);
+  $("#startBtn").disabled = !ready || busy || !!(S.sel && queued(S.sel.name));
   $("#estimate").innerHTML = busy ? tr("est.busy") : !S.sel ? tr("est.none") :
     tr("est", {frames: s.frames, maxg: num(s.maxg, 1), iter: s.iter / 1000, mins: total});
 }
@@ -1393,12 +1444,23 @@ async function poll() {
   $("#offline").classList.toggle("hidden", !offline);
   document.body.classList.toggle("offline", offline);
   if (offline) return;
+  const wasFetching = !!(S.dl && S.dl.busy), doneFiles = S.dl && S.dl.batch ? S.dl.batch.done_files : 0;
   S.job = r.job; S.dl = r.download;
-  if (S.dl && S.dl.finished && S.dlWait && S.sel && S.dl.name === S.sel.name) {
+  renderDlBar();
+  const nowFetching = !!(S.dl && S.dl.busy);
+  if (wasFetching && (!nowFetching || (S.dl.batch && S.dl.batch.done_files !== doneFiles))) {
+    await loadRecs();
+    if (!nowFetching && S.dl && S.dl.batch) {
+      const b = S.dl.batch, failed = (b.failed || []).length;
+      toast(b.cancelled ? tr("dl.cancelled") : failed ? tr("dl.failed", {n: failed}) : tr("dl.done", {n: b.done_files}));
+    }
+  }
+  // The chosen recording was fetched (also as part of several – the next one may already be on its way)
+  if (S.dlWait && S.sel && !queued(S.sel.name)) {
     const res = S.dlWait; S.dlWait = null;
-    if (S.dl.error) { toast(tr("err.generic") + ": " + S.dl.error); renderCheck(); res(false); }
-    else { await loadRecs(); const f = S.recs.local.find(x => x.name === S.sel.name);
-           if (f) { S.sel.path = f.path; await runProbe(f.path); } res(true); }
+    await loadRecs(); const f = S.recs.local.find(x => x.name === S.sel.name);
+    if (f) { S.sel.path = f.path; await runProbe(f.path); res(true); }
+    else { toast(tr("err.generic") + ": " + ((S.dl && S.dl.name === S.sel.name && S.dl.error) || tr("dl.failed", {n: 1}))); renderCheck(); res(false); }
   } else if (S.dl && !S.dl.finished && S.sel && S.dl.name === S.sel.name) renderCheck();
   renderJob(); updateStart();
   const running = !!(S.job && S.job.running);

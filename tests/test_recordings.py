@@ -3,7 +3,7 @@ import json
 import os
 import time
 
-from conftest import REC, RUNS, recording, server, wait_for_tool
+from conftest import REC, RUNS, recording, server, tools_called, wait_for_tool
 import synth
 
 VIDEOS = server.FRAME_VIDEOS
@@ -158,3 +158,82 @@ def test_a_scene_renamed_before_its_frame_folder_was_remembered(api, frame):
     api.post("/api/upload", {"slug": "Kueche"})
     assert wait_upload("Kueche")["ok"]
     assert sorted(p.name for p in (frame / SCENES).iterdir()) == ["20_Kitchen"]
+
+
+def wait_fetched(timeout=30):
+    end = time.time() + timeout
+    while server.download_busy() and time.time() < end:
+        time.sleep(0.05)
+    assert not server.download_busy()
+    return server.download_status()
+
+
+def fetch_notes(wait=0):
+    """Notifications about fetching (others of an earlier test may still arrive in the background)."""
+    end = time.time() + wait
+    while True:
+        notes = [c for c in tools_called() if c[0] == "notify-send" and "recording(s)" in c[-1]]
+        if notes or time.time() >= end:
+            return notes
+        time.sleep(0.05)
+
+
+NAMES = [f"2026-10-14_1{i}-00-00_stereo.mp4" for i in range(4)]
+
+
+def test_fetching_several_recordings_one_after_the_other(api, frame):
+    for i, n in enumerate(NAMES):
+        put_on_frame(frame, n, bytes([65 + i]) * 3000)
+    (REC / NAMES[0]).write_bytes(b"already here")                    # skipped, never overwritten
+    server.frame_listing(force=True)
+    os.environ["FAKE_FRAME_SLOW"] = "1"
+    assert api.post("/api/download", {"names": "\n".join(NAMES[:3])})[0] == 200
+    st = api.get("/api/status")[1]["download"]
+    assert st["busy"] and st["batch"]["files"] == 2
+    assert [st["name"], *st["queue"]] == NAMES[1:3] or st["queue"] == NAMES[1:3]
+    assert api.post("/api/download", {"names": f"{NAMES[3]}\n{NAMES[2]}"})[0] == 200   # added while running
+    assert api.post("/api/download", {"names": NAMES[2]})[1]["error"]["code"] == "err.download_busy"
+    st = wait_fetched()
+    assert st["batch"]["files"] == st["batch"]["done_files"] == 3 and st["batch"]["failed"] == []
+    assert (REC / NAMES[0]).read_bytes() == b"already here"
+    for i, n in enumerate(NAMES[1:], 1):
+        assert (REC / n).read_bytes() == bytes([65 + i]) * 3000
+    assert not list(REC.glob("*.part"))
+    note = fetch_notes(wait=5)
+    assert len(note) == 1 and "3 recording(s)" in note[0][-1]           # one notification at the end
+
+
+def test_a_failed_one_does_not_stop_the_others(api, frame):
+    for n in NAMES[:2]:
+        put_on_frame(frame, n)
+    server.frame_listing(force=True)
+    (frame / VIDEOS / NAMES[0]).unlink()                               # gone from the Frame in the meantime
+    assert api.post("/api/download", {"names": "\n".join(NAMES[:2])})[0] == 200
+    st = wait_fetched()
+    assert st["batch"]["failed"] == [NAMES[0]] and (REC / NAMES[1]).exists() and not (REC / NAMES[0]).exists()
+    assert not list(REC.glob("*.part"))
+    assert [n[-1] for n in fetch_notes(wait=5)] == ["1 recording(s) could not be fetched (1 did) – is the Frame switched on?"]
+
+
+def test_cancelling_empties_the_queue(api, frame):
+    for n in NAMES[:3]:
+        put_on_frame(frame, n, b"x" * 20000)
+    server.frame_listing(force=True)
+    os.environ["FAKE_FRAME_SLOW"] = "1"
+    assert api.post("/api/download", {"names": "\n".join(NAMES[:3])})[0] == 200
+    time.sleep(0.3)
+    assert api.post("/api/download/cancel", {})[0] == 200
+    st = wait_fetched()
+    assert st["queue"] == [] and st["batch"]["cancelled"]
+    assert not list(REC.iterdir())                                     # no file and no half of one
+    assert not fetch_notes(wait=0.5)
+    assert api.post("/api/download/cancel", {})[1]["error"]["code"] == "err.no_download"
+
+
+def test_fetching_only_what_is_on_the_frame(api, frame):
+    put_on_frame(frame, NAMES[0])
+    server.frame_listing(force=True)
+    for body in ({"names": "../../etc/passwd"}, {"names": "x\n.."}, {"names": "\n"}):
+        status, r = api.post("/api/download", body)
+        assert status == 400 and r["error"]["code"] == "err.not_on_frame", body
+    assert api.post("/api/download", {"names": [NAMES[0]]})[1]["error"]["code"] == "err.bad_request"
