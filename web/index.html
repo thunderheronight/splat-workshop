@@ -876,7 +876,7 @@ async function loadScenes() {
   S.scenes = arr; S.groups = gr.groups || []; S.memGB = gr.mem_available_gb;
   const bySlug = Object.fromEntries(arr.map(s => [s.slug, s]));
   const inGroup = new Set(S.groups.flatMap(g => g.members));
-  $("#groupNewBtn").classList.toggle("hidden", arr.length < 2);
+  $("#groupNewBtn").classList.toggle("hidden", !arr.some(s => !inGroup.has(s.slug)));
   const sug = gr.suggestion;
   S.suggestion = sug;
   $("#groupSuggest").classList.toggle("hidden", !sug);
@@ -959,8 +959,10 @@ function openGroupDlg(g, preset) {
   (S.groups || []).forEach(x => { if (!g || x.slug !== g.slug) x.members.forEach(m => owner[m] = x.name); });
   $("#groupTitle").textContent = tr(g ? "grp.edit.title" : "grp.new.title");
   $("#groupName").value = g ? g.name : (preset && preset.name) || "";
-  $("#groupPick").innerHTML = S.scenes.map(sc => `<label><input type="checkbox" value="${esc(sc.slug)}" ${members.has(sc.slug) ? "checked" : ""} ${owner[sc.slug] ? "disabled" : ""}>
-      ${esc(sc.name)}${owner[sc.slug] ? `<span>${esc(tr("grp.inOther", {group: owner[sc.slug]}))}</span>` : ""}</label>`).join("");
+  // One group per scene: scenes of other groups are not offered at all
+  const free = S.scenes.filter(sc => !owner[sc.slug]);
+  $("#groupPick").innerHTML = free.length ? free.map(sc => `<label><input type="checkbox" value="${esc(sc.slug)}" ${members.has(sc.slug) ? "checked" : ""}>
+      ${esc(sc.name)}</label>`).join("") : `<p class="faint" style="font-size:13px;margin:0">${tr("grp.noFree")}</p>`;
   $("#groupDlg").showModal(); $("#groupName").select();
   $("#groupCancel").onclick = () => $("#groupDlg").close();
   $("#groupSave").onclick = async () => {
