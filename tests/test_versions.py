@@ -132,3 +132,46 @@ def test_one_job_at_a_time():
     assert server.start_job({"path": str(rec), "name": "Other", "quality": "fast", "upload": False}) is None
     time.sleep(1)
     assert server.start_versions({"slug": "Room", "sizes": "10000"})["code"] == "err.job_busy"
+
+
+def upload(api, slug, key):
+    assert api.post("/api/upload", {"slug": slug, "version": key})[0] == 200
+    end = time.time() + 60
+    while (u := server.upload_status(f"{slug}#{key}")) and u["running"] and time.time() < end:
+        time.sleep(0.2)
+    assert server.upload_status(f"{slug}#{key}")["ok"]
+
+
+def test_taking_a_version_off_the_frame_removes_only_that(api, frame):
+    room()
+    make("Room", "10000,20000")
+    upload(api, "Room", "0.01m")
+    upload(api, "Room", "0.02m")
+    scenes, backup = frame / server.FRAME_SCENES, frame / server.FRAME_BACKUP
+    (scenes / "04_BurtLakeHouse").mkdir()                      # an example scene of Gaussian XR
+    (scenes / "30_Room-0.01m-old").mkdir()                     # someone else's folder with a similar name
+    assert api.post("/api/frame/remove", {"slug": "Room", "version": "0.01m"})[0] == 200
+    assert sorted(p.name for p in scenes.iterdir()) == ["04_BurtLakeHouse", "21_Room-0.02m", "30_Room-0.01m-old"]
+    assert not (backup / "20_Room-0.01m").exists() and (backup / "21_Room-0.02m").exists()
+    assert "0.01m" not in json.loads((RUNS / "Room.ui.json").read_text())["version_folders"]
+    v = {x["key"]: x for x in server.versions_of("Room")}
+    assert v["0.01m"]["on_frame"] is False and v["0.02m"]["on_frame"]       # still on the PC, off the Frame
+    status, r = api.post("/api/frame/remove", {"slug": "Room", "version": "0.01m"})
+    assert status == 400 and r["error"]["code"] == "err.not_on_frame_version"
+
+
+@pytest.mark.parametrize("version", ["", "..", "../0.02m", ".hidden"])
+def test_taking_off_the_frame_only_with_a_proper_version(api, frame, version):
+    room()
+    assert api.post("/api/frame/remove", {"slug": "Room", "version": version})[0] == 400
+
+
+def test_taking_off_a_frame_that_is_off(api, frame):
+    room()
+    make("Room", "10000")
+    upload(api, "Room", "0.01m")
+    os.environ["FAKE_FRAME_OFF"] = "1"
+    status, r = api.post("/api/frame/remove", {"slug": "Room", "version": "0.01m"})
+    assert status == 400 and r["error"]["code"] == "err.frame_offline"
+    os.environ.pop("FAKE_FRAME_OFF")
+    assert (frame / server.FRAME_SCENES / "20_Room-0.01m").exists()

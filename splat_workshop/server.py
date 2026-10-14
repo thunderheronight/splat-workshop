@@ -44,6 +44,7 @@ STATE = STATE_DIR / "state.json"
 FRAME = CFG.frame_host
 FRAME_VIDEOS = "Videos/ArcturusVisionCamera"
 FRAME_SCENES = ".local/share/Steam/steamapps/common/ArcturusVisionGaussianXR/Scenes"
+FRAME_BACKUP = "Documents/GaussianSplats"     # to-frame.sh keeps a copy of every scene here
 SSH = ["ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes", FRAME]
 HOSTNAME = socket.gethostname().lower()
 # Names the server may be reached under (protects against DNS rebinding); IP addresses always work
@@ -815,6 +816,40 @@ def start_versions(p: dict):
                      "recording": "", "quality": "", "upload": False, "started": time.time(), "overrides": {},
                      "steps": [s.split("|")[3].removeprefix(name + " · ") for s in specs]}
         save_state(st)
+    return None
+
+
+def remove_from_frame(slug: str, version: str):
+    """Take a version off the Frame: its gallery folder and the backup copy. Only a folder this version
+    got from Splat Workshop (remembered, or named exactly <NN>_<scene>-<version>) – never anything else."""
+    if not FRAME:
+        return err("err.no_frame")
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    if not d or not version or version.startswith(".") or Path(version).name != version:
+        return err("err.no_version")
+    meta = read_meta(slug)
+    folders = meta.get("version_folders") or {}
+    folder = folders.get(version)
+    fr = frame_listing(force=True)
+    if fr is None:
+        return err("err.frame_offline")
+    if not folder:
+        folder = next((x for x in fr["scenes"] if re.fullmatch(r"\d\d_" + re.escape(f"{slug}-{version}"), x)), None)
+    if not folder or not re.fullmatch(r"\d\d_[A-Za-z0-9._-]+", folder) or folder not in fr["scenes"]:
+        return err("err.not_on_frame_version")
+    if (u := uploads.get(f"{slug}#{version}")) and u["proc"].poll() is None:
+        return err("err.upload_busy")
+    try:
+        r = subprocess.run(SSH + [f"rm -rf -- {FRAME_SCENES}/{shq(folder)} {FRAME_BACKUP}/{shq(folder)}"],
+                           capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return err("err.frame_offline")
+    if r.returncode != 0:
+        return err("err.frame_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
+    folders.pop(version, None)
+    write_meta(slug, version_folders=folders)
+    uploads.pop(f"{slug}#{version}", None)
+    frame_cache["t"] = 0
     return None
 
 
@@ -1747,6 +1782,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = start_upload(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/versions":
             e = start_versions(p)
+        elif path == "/api/frame/remove":
+            e = remove_from_frame(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/version/delete":
             e = delete_version(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/pick":

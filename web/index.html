@@ -1102,12 +1102,20 @@ async function drawVersions(slug) {
       <span class="muted" style="font-size:12.5px">${tr("million", {n: num(v.splats / 1e6, 2)})} · ${mb(v.size)}${v.stale ? " · " + tr("ver.stale") : ""}</span>
       <span class="sp"></span>${frameState({upload: v.upload, on_frame: v.on_frame})}
       ${S.frameConfigured ? `<button class="small" data-vup="${esc(v.key)}" ${v.upload && v.upload.running ? "disabled" : ""}>${tr(v.on_frame ? "sc.reupload" : "sc.toFrame")}</button>` : ""}
+      ${v.on_frame ? `<button class="small" data-vunframe="${esc(v.key)}" title="${tr("ver.unframe.title")}">${tr("ver.unframe")}</button>` : ""}
       <button class="small" data-vdel="${esc(v.key)}" title="${tr("ver.delete")}" aria-label="${tr("ver.delete")}">${tr("sc.delete")}</button>
     </div>`).join("") : `<p class="faint" style="font-size:13px;margin:0">${tr("ver.none")}</p>`;
   $("#verList").querySelectorAll("[data-vup]").forEach(b => b.onclick = async () => {
     const res = await api("/api/upload", {slug, version: b.dataset.vup});
     if (!res.ok) { toast(trErr(res.error)); return; }
     toast(tr("sc.uploadStarted")); setTimeout(() => drawVersions(slug), 1500);
+  });
+  $("#verList").querySelectorAll("[data-vunframe]").forEach(b => b.onclick = async () => {
+    const v = list.find(x => x.key === b.dataset.vunframe);
+    if (!confirm(tr("ver.unframe.confirm", {name: v.label}))) return;
+    const res = await api("/api/frame/remove", {slug, version: v.key});
+    if (!res.ok) { toast(trErr(res.error)); return; }
+    toast(tr("ver.unframed", {name: v.label})); drawVersions(slug);
   });
   $("#verList").querySelectorAll("[data-vdel]").forEach(b => b.onclick = async () => {
     const v = list.find(x => x.key === b.dataset.vdel);
