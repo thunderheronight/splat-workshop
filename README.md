@@ -2,6 +2,10 @@
 
 **A graphical interface for the Arcturus Vision reconstruction pipeline: pick a recording from the Arcturus Vision Camera on your Steam Frame, check it, run the conversion and get the result straight into the Gaussian XR gallery on the headset. With a web interface, a tray icon and a recording check.**
 
+![No root needed](https://img.shields.io/badge/root-not%20needed-2ea44f) ![No jailbreak](https://img.shields.io/badge/jailbreak-not%20needed-2ea44f) [![Release](https://img.shields.io/github/v/release/thunderheronight/splat-workshop)](https://github.com/thunderheronight/splat-workshop/releases)
+
+> **No root, no jailbreak.** On the Frame, Splat Workshop only uses the official *Developer Mode* from the Steam settings and SSH as the normal user – nothing is installed on the headset and its system stays untouched. On the PC it runs as your user, too (only the prerequisites like ffmpeg come from your package manager).
+
 [Deutsch](README.de.md)
 
 ![Splat Workshop: conversion in progress, recordings with check badges, check result and finished scenes](docs/screenshot.png)
