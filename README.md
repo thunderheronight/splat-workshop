@@ -28,6 +28,9 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 - 🧹 **Disk usage, clean-up, delete** per scene, and a list of **cancelled runs** to resume or remove.
 - 🛡️ **Safer**: *Start over* keeps the old scene until the new one is done; the PC no longer goes to sleep mid-conversion.
 
+<img src="docs/groups.png" width="800" alt="A group “Example home” with six rooms: the tour put together from them, its floor plan as preview, how well the rooms meet, and the rooms below">
+<br><sub>Example data – room names and preview images are placeholders; the tour preview is the synthetic example home.</sub>
+
 All changes: [CHANGELOG.md](CHANGELOG.md)
 
 ## Features
@@ -38,6 +41,8 @@ All changes: [CHANGELOG.md](CHANGELOG.md)
 - **Cancel & resume**: a cancelled conversion continues from its last saved state.
 - **Recording check** without AI: plain per-second measurements with a colour-coded timeline and concrete hints (“0:45–0:59 little structure”). See [What the check measures](#what-the-check-measures).
 - **Groups and tours**: group scenes (e.g. all rooms of your home) and put them together into one scene – a full version for Gaussian XR on the PC and a smaller one for the Frame. Recordings from one session share the Frame's tracking frame; Splat Workshop fits the rooms to each other (corrections A–D to choose), lets the borders between recordings run through doors and shows how well the rooms meet. Before starting it estimates the memory needed.
+  <br><img src="docs/combine.png" width="360" alt="Dialog “Put together”: corrections A to D, borders between the recordings, size of the Frame version, full version, memory estimate">
+  <br><sub>Example data – room names and preview images are placeholders.</sub>
 - **Floor plans** *(experimental)* of single scenes or a whole group – recordings from one session line up by themselves into a plan of your whole home. Two styles: *Pretty* (colour top view, walls, the path you walked) and *Classic* (glowing point density), plus a simple measuring tool (click points, get distances – about ±5 cm).
   <br><img src="docs/floorplan.png" width="640" alt="Combined floor plan of an example home in the classic style, with the measuring tool">
   <br><sub>Example home – synthetic data, drawn with the same renderer. Combining rooms relies on the Frame keeping its tracking frame between recordings; how well that holds for a whole home is still being tested.</sub>

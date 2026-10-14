@@ -26,6 +26,9 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 - 🧹 **Speicherplatz, Aufräumen, Löschen** pro Szene und eine Liste **abgebrochener Läufe** zum Fortsetzen oder Entfernen.
 - 🛡️ **Sicherer**: *Neu rechnen* behält die alte Szene, bis die neue fertig ist; der PC geht während einer Umwandlung nicht mehr in den Standby.
 
+<img src="docs/groups.png" width="800" alt="Eine Gruppe „Example home“ mit sechs Räumen: der daraus zusammengesetzte Rundgang, sein Grundriss als Vorschau, wie gut die Räume aneinanderpassen, darunter die Räume">
+<br><sub>Beispieldaten (englische Oberfläche) – Raumnamen und Vorschaubilder sind Platzhalter, die Rundgang-Vorschau ist die synthetische Beispielwohnung.</sub>
+
 Alle Änderungen: [CHANGELOG.md](CHANGELOG.md) (englisch)
 
 ## Funktionen
@@ -36,6 +39,8 @@ Alle Änderungen: [CHANGELOG.md](CHANGELOG.md) (englisch)
 - **Abbrechen & Fortsetzen** ab dem letzten Zwischenstand.
 - **Aufnahmeprüfung ohne KI**: reine Messwerte je Sekunde, farbige Zeitleiste und konkrete Hinweise („0:45–0:59 wenig Struktur“).
 - **Gruppen und Rundgänge**: Szenen gruppieren (z. B. alle Räume der Wohnung) und zu einer Szene zusammensetzen – eine volle Fassung für Gaussian XR am PC und eine kleinere für die Frame. Aufnahmen aus einem Durchgang teilen das Tracking-Koordinatensystem der Frame; die Werkstatt richtet die Räume aneinander aus (Korrekturen A–D zur Wahl), legt die Grenzen zwischen den Aufnahmen in die Türen und zeigt, wie gut die Räume aneinanderpassen. Vor dem Start schätzt sie den Speicherbedarf.
+  <br><img src="docs/combine.png" width="360" alt="Dialog „Zusammensetzen“: Korrekturen A bis D, Grenzen zwischen den Aufnahmen, Größe der Frame-Fassung, volle Fassung, Speicherschätzung">
+  <br><sub>Beispieldaten (englische Oberfläche) – Raumnamen und Vorschaubilder sind Platzhalter.</sub>
 - **Grundrisse** *(experimentell)* einzelner Szenen oder einer ganzen Gruppe – Aufnahmen aus einem Durchgang fügen sich von selbst zum Grundriss der ganzen Wohnung. Zwei Stile: *Hübsch* (Draufsicht in Farbe, Wände, gelaufener Weg) und *Klassisch* (leuchtende Punktdichte), dazu ein einfaches Messwerkzeug (Punkte anklicken, Abstände ablesen – etwa ±5 cm genau).
 - **Fertige Szenen**: später auf die Frame übertragen, erneut übertragen, umbenennen (Ordner und Namensschild ziehen mit), löschen (in den Papierkorb), Ordner oder Spirula Studio öffnen.
 - **Abgebrochene Läufe** werden mit ihrem Stand angezeigt: fortsetzen, neu starten oder löschen.
