@@ -614,7 +614,8 @@ def job_status(tail=True) -> dict | None:
     return res
 
 
-def start_job(p: dict):
+def start_job(p: dict, part: str = "", chain: dict = None):
+    """A conversion; `part` (e.g. "120.0-245.5") converts only that stretch of the recording."""
     global proc
     with lock:
         if (cur := load_state().get("job")) and pid_alive(cur["pid"]):
@@ -641,8 +642,10 @@ def start_job(p: dict):
                 if not lo <= v <= hi:
                     return err("err.range", key=key, lo=lo, hi=hi)
                 env[key] = str(v)
-        if not p.get("upload", True) or not FRAME:
-            env["NO_UPLOAD"] = "1"
+        if not p.get("upload", True) or not FRAME or part:
+            env["NO_UPLOAD"] = "1"                  # a part alone is no scene for the Frame
+        if part:
+            env["PART"] = part
         args = []
         previous = None
         if (RUNS / slug).exists():
@@ -667,13 +670,97 @@ def start_job(p: dict):
         st = load_state()
         st["job"] = {"pid": proc.pid, "out": str(out), "name": name, "slug": slug, "recording": Path(path).name,
                      "quality": env["QUALITY"], "upload": "NO_UPLOAD" not in env, "started": time.time(),
-                     "overrides": {k: env[k] for k in ("FRAMES", "SCALE", "MAXG", "ITER") if k in env}}
+                     "overrides": {k: env[k] for k in ("FRAMES", "SCALE", "MAXG", "ITER") if k in env},
+                     **({"part": part} if part else {}), **({"chain": chain} if chain else {})}
         save_state(st)
         RUNS.mkdir(parents=True, exist_ok=True)
-        write_meta(slug, name=name, recording=Path(path).name, quality=env["QUALITY"],
+        write_meta(slug, name=name, recording=Path(path).name, quality=env["QUALITY"], part=part or None,
                    **({} if "--resume" in args else {"cleaned": [], "recording_renamed": False}),
                    **({"previous": previous} if previous is not None else {}))
     return None
+
+
+# ---------------------------------------------------------------- a long recording in parts
+# The Arcturus pipeline takes at most 500 image pairs per recording. web/index.html suggests as many parts
+# as a recording needs for the full rate of its quality preset, all equally long (no short rest).
+
+PARTS_MAX = 10
+PART_OVERLAP = 4.0                         # seconds both neighbouring parts get, so they surely meet
+
+
+def part_ranges(duration: float, n: int) -> list:
+    step = duration / n
+    return [(max(0.0, i * step - (PART_OVERLAP / 2 if i else 0)),
+             min(duration, (i + 1) * step + (PART_OVERLAP / 2 if i < n - 1 else 0))) for i in range(n)]
+
+
+def start_parts(p: dict):
+    """Convert a long recording in n parts one after the other, then make them one room and put it
+    together (each part gets up to 500 image pairs)."""
+    try:
+        n = int(p.get("parts"))
+    except (TypeError, ValueError):
+        return err("err.bad_value", key="parts")
+    if not 2 <= n <= PARTS_MAX:
+        return err("err.range", key="parts", lo=2, hi=PARTS_MAX)
+    path, room = p.get("path", ""), clean_name(p.get("name") or "", file=False)
+    if local_path(Path(path).name) != path:
+        return err("err.unknown_recording")
+    duration = probe(path).get("duration") or 0
+    if duration / n < 20:
+        return err("err.parts_too_short", secs=20)
+    room_slug = config.slugify(room)
+    if not room_slug or room_slug.startswith("."):
+        return err("err.bad_name")
+    names = [t("part.name", name=room, i=i + 1, n=n) for i in range(n)]
+    slugs = [config.slugify(x) for x in names]
+    taken = lambda x: (RUNS / x).exists() or meta_file(x).exists() or (RUNS / f"{x}.log").exists()
+    if any(taken(x) for x in [room_slug, *slugs]) or len(set(slugs)) < n or room_slug in slugs:
+        return err("err.scene_name_taken")
+    ranges = part_ranges(duration, n)
+    chain = {"room": room, "path": path, "quality": p.get("quality", "high"), "i": 0, "n": n,
+             "parts": [{"name": x, "slug": s_, "part": f"{a:.2f}-{b:.2f}"} for x, s_, (a, b) in zip(names, slugs, ranges)],
+             "settings": {k: p.get(k) for k in ("frames", "scale", "maxg", "iter") if p.get(k) not in (None, "")},
+             "upload": bool(p.get("upload", True)) and bool(FRAME)}
+    first = chain["parts"][0]
+    return start_job({**chain["settings"], "path": path, "name": first["name"], "quality": chain["quality"],
+                      "upload": False}, part=first["part"], chain={"i": 0, "n": n, "room": room, "parts": chain["parts"],
+                                                                     "settings": chain["settings"], "upload": chain["upload"]})
+
+
+def advance_parts():
+    """After a part: the next one; after the last: the parts become one room, which is put together."""
+    js = job_status(tail=False)
+    ch = js and js.get("chain")
+    if not ch or js["running"] or ch.get("done"):
+        return
+    st = load_state()
+    st["job"]["chain"]["done"] = True             # only once, also after a restart of the server
+    save_state(st)
+    room = ch["room"]
+    if js["result"] != "ok":
+        if js["result"] == "failed":
+            notify(t("notify.parts_failed.title"), t("notify.parts_failed", name=room, i=ch["i"] + 1, n=ch["n"]))
+        return
+    i = ch["i"] + 1
+    if i < ch["n"]:
+        nxt = ch["parts"][i]
+        e = start_job({**ch["settings"], "path": js_path(js), "name": nxt["name"], "quality": js["quality"], "upload": False},
+                      part=nxt["part"], chain={**ch, "i": i})
+        if e:
+            notify(t("notify.parts_failed.title"), t("notify.parts_failed", name=room, i=i + 1, n=ch["n"]))
+        return
+    slug = save_group("", room, ",".join(x["slug"] for x in ch["parts"]), room=True)
+    if isinstance(slug, dict):
+        notify(t("notify.parts_failed.title"), t("notify.parts_failed", name=room, i=ch["n"], n=ch["n"]))
+        return
+    e = start_combine({"slug": slug, "upload": ch["upload"], "full": True})
+    notify(t("notify.parts_done.title"), t("notify.parts_done", name=room, n=ch["n"]) if not e else
+           t("notify.parts_done_alone", name=room, n=ch["n"]))
+
+
+def js_path(js: dict) -> str:
+    return local_path(js["recording"]) or ""
 
 
 def cancel_job():
@@ -719,7 +806,9 @@ def watch_once(was_running):
     running = bool(js and js["running"])
     if was_running and not running and js:
         mins = round((time.time() - js["started"]) / 60)
-        if js["result"] == "ok":
+        if js.get("chain"):
+            pass                                # advance_parts() reports at the end
+        elif js["result"] == "ok":
             if js["info"].get("folder"):
                 write_meta(js["slug"], frame_folder=js["info"]["folder"])
             with meta_lock:                     # the replaced scene's settings are not needed any more
@@ -732,6 +821,7 @@ def watch_once(was_running):
             notify(t("notify.failed.title"), t("notify.failed", name=js["name"]))
     if not running:
         restore_previous()
+        advance_parts()
     for slug in list(uploads):
         upload_status(slug)                     # notify even without an open page
     return running
@@ -1411,7 +1501,7 @@ def resume_run(slug: str, fresh: bool):
         return err("err.not_resumable")
     quality = QUALITY_ALIASES.get(meta.get("quality"), meta.get("quality") or "high")
     return start_job({"path": rec, "name": meta["name"], "quality": quality, "existing": "fresh" if fresh else "resume",
-                      "upload": bool(FRAME) and frame_listing() is not None})
+                      "upload": bool(FRAME) and frame_listing() is not None}, part=meta.get("part") or "")
 
 
 def delete_scene(slug: str):
@@ -1605,8 +1695,9 @@ def recording_in_use(name: str):
     return None
 
 
-def delete_recording(name: str):
-    """A recording on this PC into the desktop trash (recoverable). Only from the recordings folder."""
+def delete_recording(name: str, force: bool = False):
+    """A recording on this PC into the desktop trash (recoverable). Only from the recordings folder.
+    If parts were cut from it, only when asked for once more (`force`): it is the original for cutting again."""
     src = REC / Path(name).name
     if not name or not src.is_file() or src.parent.resolve() != REC.resolve():
         return err("err.not_local")
@@ -1617,6 +1708,11 @@ def delete_recording(name: str):
     unfinished = [s for s in unfinished if (RUNS / s).is_dir() and not (RUNS / s / "scene.sog").exists()]
     if unfinished:
         return err("err.recording_needed", name=read_meta(unfinished[0]).get("name") or unfinished[0])
+    # parts are cut from the original again when needed (start over, resume): ask once more
+    parts = [m.name.removesuffix(".ui.json") for m in RUNS.glob("*.ui.json")
+             if (pm := read_meta(m.name.removesuffix(".ui.json"))).get("recording") == src.name and pm.get("part")]
+    if parts and not force:
+        return err("err.recording_has_parts", name=read_meta(parts[0]).get("name") or parts[0], n=len(parts))
     try:
         r = subprocess.run(["gio", "trash", "--", str(src)], capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:
@@ -2097,6 +2193,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if e == "exists":
                 slug = config.slugify((p.get("name") or "").strip())
                 return self.send(409, {"error": err("exists"), "no_resume": no_resume(slug)})
+        elif path == "/api/parts":
+            e = start_parts(p)
+            if e == "exists":
+                e = err("err.scene_name_taken")
         elif path == "/api/cancel":
             e = cancel_job()
         elif path == "/api/download":
@@ -2127,7 +2227,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = start_check(Path(p.get("name", "")).name)
         elif path == "/api/recording/delete":
             e = delete_frame_recording(p.get("name", "")) if p.get("where") == "frame" else (
-                delete_recording(p.get("name", "")) if p.get("where") == "pc" else err("err.bad_request"))
+                delete_recording(p.get("name", ""), bool(p.get("force"))) if p.get("where") == "pc" else err("err.bad_request"))
         elif path == "/api/rename":
             if p.get("slug"):
                 e = rename_scene(p["slug"], p.get("new", ""), bool(p.get("update_frame")))

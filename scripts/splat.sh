@@ -13,6 +13,10 @@
 #       max   ~8 image pairs per second of video (100-500), full resolution, up to 3 M splats, 50k steps
 #   FRAMES, SCALE, MAXG, ITER  override single preset values
 #   NO_UPLOAD=1   only compute, don't copy to the Frame
+#   PART=120-245  only this stretch of the recording (seconds): cut losslessly with the original
+#                 timestamps (the pipeline matches the images to the poses by time) into
+#                 runs/.parts/<name>.mp4, which goes again once the scene is done. A long recording in
+#                 several parts gets up to 500 image pairs per part.
 #   FRESH=1       start an existing run of the same name over; its result stays until the new one
 #                 is done and comes back if the new run fails or is cancelled
 #   Interrupted? Run the same command again with --resume.
@@ -62,6 +66,24 @@ out=$RUNS_DIR/$slug
 log=$RUNS_DIR/$slug.log
 mkdir -p "$RUNS_DIR"
 
+# A stretch of the recording: cut it once (the same file again for --resume)
+secs=
+if [ -n "${PART:-}" ]; then
+    start=${PART%-*}; end=${PART#*-}
+    [[ "$start" =~ ^[0-9]+(\.[0-9]+)?$ && "$end" =~ ^[0-9]+(\.[0-9]+)?$ ]] \
+        && awk -v a="$start" -v b="$end" 'BEGIN { exit !(b > a) }' \
+        || { echo "PART must be <start>-<end> in seconds, e.g. 120-245" >&2; exit 1; }
+    cut=$RUNS_DIR/.parts/$slug.mp4
+    if [ ! -f "$cut" ]; then
+        mkdir -p "$RUNS_DIR/.parts"
+        echo "Cutting $start-$end s out of $(basename "$in") ..."
+        ffmpeg -v error -y -copyts -ss "$start" -i "$in" -to "$end" -map 0 -c copy -copy_unknown "$cut.tmp.mp4"
+        mv "$cut.tmp.mp4" "$cut"
+    fi
+    in=$cut
+    secs=$(awk -v a="$start" -v b="$end" 'BEGIN { print b - a }')
+fi
+
 # FRESH: set the previous result aside, delete it only once the new one is there
 prev=$RUNS_DIR/.previous/$slug
 restore_previous() {
@@ -109,8 +131,8 @@ fi
 
 # Image pairs from the duration: <per second>, clamped to the pipeline limits 100..500
 pairs() {
-    local secs
-    secs=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$in")
+    local secs=$secs
+    [ -n "$secs" ] || secs=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$in")
     awk -v s="$secs" -v r="$1" 'BEGIN { f = int(s * r + 0.5); if (f < 100) f = 100; if (f > 500) f = 500; print f }'
 }
 
@@ -132,6 +154,10 @@ SS_LANG=en uv run av1_to_3dgs.py "$in" "$out" \
   --splat-transform "$SPLAT_TRANSFORM" \
   "${quality[@]}" "$@" 2>&1 | tee -a "$log"
 [ -f "$out/scene.sog" ] || { echo "No scene.sog was produced, see $log" >&2; exit 1; }
+if [ -n "${PART:-}" ]; then
+    rm -f "$cut"                        # cut again from the recording when needed
+    rmdir "$RUNS_DIR/.parts" 2>/dev/null || true
+fi
 rm -rf "$prev"
 rmdir "$RUNS_DIR/.previous" 2>/dev/null || true
 

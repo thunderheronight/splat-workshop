@@ -29,6 +29,7 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 ## New in 0.3 *(experimental)*
 
 - 🚪 **Rooms made of several recordings** – mark a group as *one room made of several recordings*, e.g. two short rounds through the living room. When put together, every part of the room comes from the recording that saw it best. The Arcturus pipeline uses at most 500 image pairs per recording, so several short recordings give a room far more detail than one long one.
+- ✂️ **Split a long video** – for long recordings Splat Workshop offers *Split the video* (full detail, takes longer) or *Convert in one piece* (sooner, fewer image pairs per second). Split, the parts are converted one after the other and become one room by themselves. The original recording stays untouched.
 - 🏠 **A home made of rooms** – a group may hold such rooms next to single scenes. It is put together from the original recordings in one go: within a room every part from the best recording, between rooms the borders run through the doors. Nothing is reduced twice; the floor plan names and measures rooms instead of recordings.
 - 🐛 **Fixed**: recordings of the same room no longer count as “walking in” to each other – before, they could hide the real walk-in of another room, which then claimed part of the room.
 
@@ -124,7 +125,7 @@ Start **Splat Workshop** from the menu (or `./splat-workshop`). The tray icon ap
 | `./splat-workshop --background` | tray icon only (autostart) |
 | `./splat-workshop --no-tray` | without tray; the server stops itself after 20 idle minutes |
 | `./splat-workshop --server` | server in the foreground |
-| `scripts/splat.sh <recording> "<name>"` | convert on the command line (`QUALITY=fast\|high\|max`, `NO_UPLOAD=1`, `--resume`) |
+| `scripts/splat.sh <recording> "<name>"` | convert on the command line (`QUALITY=fast\|high\|max`, `NO_UPLOAD=1`, `PART=120-245` for a stretch, `--resume`) |
 | `scripts/to-frame.sh <run> "<name>"` | (re)copy a finished scene to the Frame |
 | `scripts/combine.sh <name> "<display name>" <run>=<label> ...` | put scenes together into a tour (`ALIGN=frame\|images\|shift\|rigid`, `FRAME_SPLATS`, `FULL=0`, `NO_UPLOAD=1`, `ROOMS='["Kitchen","Kitchen","Hallway"]'` for rooms made of several recordings) |
 
@@ -139,7 +140,7 @@ Set `lan = true` in `[server]`. The page is then reachable at `http://<pc addres
 - **Light**: daylight plus room lights indoors. Dark recordings get noisy and patchy.
 - **HDR, 30 fps** in the camera app works best; the pipeline tone-maps HLG automatically. Don't use “Linear”.
 - **Rooms**: 30–90 s each, walk slowly, turn slowly, look at things from several sides.
-- **Large rooms**: the pipeline uses at most 500 image pairs per recording – at 5 per second (*High*) that is reached after 100 s, a 4-minute recording only gets 2 per second. Better make two or three shorter recordings of a large room in one session and group them as *one room made of several recordings*.
+- **Large rooms**: the pipeline uses at most 500 image pairs per recording – at 5 per second (*High*) that is reached after 100 s, a 4-minute recording only gets 2 per second. For a long recording, choose *Split the video* when starting – or make two or three shorter recordings of a large room in one session and group them as *one room made of several recordings*.
 - **Objects**: walk around them in a slow circle (15–40 s) and keep them in the middle of the picture.
 - Avoid pointing at **bare walls, ceilings or tiles** for long – there is nothing for the software to hold on to.
 - Moving people or pets become ghostly smears.

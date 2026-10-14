@@ -33,10 +33,13 @@ def script(path: Path, text: str):
 
 
 # Fake pipeline: behaves like av1_to_3dgs.py as far as Splat Workshop can see (progress lines, result files).
-# FAKE_PIPELINE=ok (default) | fail | slow (waits for 60 s, to be cancelled)
+# FAKE_PIPELINE=ok (default) | fail | slow (waits for 60 s, to be cancelled) | room (a synthetic recording of
+# room A from tests/synth.py that can really be put together: "part-1" in the recording's name walks round
+# the left half, other parts the right half)
 script(PIPE / "av1_to_3dgs.py", r'''
 import base64, json, os, sys, time
 from pathlib import Path
+TESTS = %r''' % str(Path(__file__).parent) + r'''
 out = Path(sys.argv[2])
 mode = os.environ.get("FAKE_PIPELINE", "ok")
 # like the real pipeline: an unfinished training blocks --resume ("Incomplete training retained")
@@ -64,6 +67,17 @@ for step in (1000, 2000, 3000):
         time.sleep(20)
 (out / "spirula").mkdir(exist_ok=True)
 (out / "spirula" / "scene.ply").write_bytes(b"ply\n")
+if mode == "room":
+    import re, shutil, tempfile
+    sys.path.insert(0, TESTS)
+    import synth
+    first = re.search(r"part-1-of", Path(sys.argv[1]).name) is not None
+    tmp = Path(tempfile.mkdtemp())
+    made = synth.make_room(tmp, "x", "A", loop=(1.1, 1.5, 0.6, 0.8) if first else (2.9, 1.5, 0.6, 0.8),
+                           colour=(1, 0, 0) if first else (0, 1, 0))
+    shutil.copytree(made / "dataset", out / "dataset", dirs_exist_ok=True)
+    shutil.copy(made / "spirula" / "scene.ply", out / "spirula" / "scene.ply")
+    shutil.rmtree(tmp)
 run_json.write_text(json.dumps({"status": "complete"}))
 print("spirula: 1,000 Gaussians in " + str(out / "spirula" / "scene.ply"), flush=True)
 (out / "scene.sog").write_bytes(b"fake sog")
@@ -108,6 +122,21 @@ script(BIN / "notify-send", f'''#!{sys.executable}
 import json, sys
 with open("{TOOL_LOG}", "a") as log:
     log.write(json.dumps(["notify-send", *sys.argv[1:]]) + "\\n")
+''')
+# ffmpeg: cutting a part of a recording (-copyts) is only noted in the tool log and gives a small file;
+# everything else goes to the real ffmpeg
+script(BIN / "ffmpeg", f'''#!{sys.executable}
+import json, os, sys
+args = sys.argv[1:]
+if "-copyts" in args:
+    with open("{TOOL_LOG}", "a") as log:
+        log.write(json.dumps(["ffmpeg", *args]) + "\\n")
+    open(args[-1], "wb").write(b"a part of a recording")
+    sys.exit(0)
+real = {shutil.which("ffmpeg")!r}
+if not real:
+    sys.exit("no ffmpeg")
+os.execv(real, [real, *args])
 ''')
 # ffprobe: a good Arcturus recording (two video streams, gpmd, 60 s) unless the file name says otherwise:
 # "mono" one video stream, "nogpmd" no metadata stream, "short" 5 s, "brief" 15 s

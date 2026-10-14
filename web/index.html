@@ -318,6 +318,16 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
             <div><b data-i18n="t.pc"></b><span data-i18n="t.pc.sub"></span></div></label>
         </div>
         <div id="targetWarn" class="msg warn hidden" data-i18n="t.offline"></div>
+        <div id="splitBox" class="hidden" style="margin-top:16px">
+          <div class="field" style="margin-bottom:6px" data-i18n="split"></div>
+          <div class="target">
+            <label class="opt" id="optSplit"><input type="radio" name="split" value="parts">
+              <div><b id="splitTitle"></b> <input type="number" id="splitN" min="2" max="10" step="1" style="width:58px;padding:3px 6px;margin:0 4px"><em id="splitRec" class="faint" style="font-size:12.5px;font-style:normal"></em>
+                <span id="splitPro"></span><span id="splitCon"></span></div></label>
+            <label class="opt" id="optWhole"><input type="radio" name="split" value="whole">
+              <div><b data-i18n="split.whole"></b><span id="wholePro"></span><span id="wholeCon"></span></div></label>
+          </div>
+        </div>
       </div>
     </div>
     <div class="startrow">
@@ -718,7 +728,11 @@ async function deleteRecording(f) {
   const other = where === "frame" ? !!(f.local || loc) : !!(S.recs.frame || []).find(x => x.name === orig);
   const name = f.label || fmtDate(f.date) || f.name;
   if (!confirm(tr(`rdel.confirm.${where}${other ? "" : ".only"}`, {name, size: mb(f.size)}))) return;
-  const r = await api("/api/recording/delete", {name: f.name, where});
+  let r = await api("/api/recording/delete", {name: f.name, where});
+  if (!r.ok && r.error && r.error.code === "err.recording_has_parts") {        // the original of cut parts
+    if (!confirm(trErr(r.error) + "\n\n" + tr("rdel.parts.confirm"))) return;
+    r = await api("/api/recording/delete", {name: f.name, where, force: true});
+  }
   if (!r.ok) { toast(trErr(r.error)); return; }
   toast(tr("rdel.done." + where, {name}));
   S.sel = null; S.probe = null; $("#checkRes").className = "hidden";
@@ -808,19 +822,55 @@ function settings() {
     maxg: v("maxg") ? +v("maxg") : pre.maxg, iter: v("iter") ? +v("iter") : pre.iter, pre,
   };
 }
+/* ---------- a long recording in parts: each part gets up to 500 image pairs (the pipeline's limit) ---------- */
+const PAIR_RATE = {high: 5, max: 8}, PAIRS_MAX = 500;
+function splitInfo() {
+  const d = S.probe && S.probe.ok ? S.probe.duration || 0 : 0, rate = PAIR_RATE[S.quality];
+  if (!S.sel || !d || !rate || $("#frames").value.trim() || d * rate <= PAIRS_MAX) return null;
+  const suggested = clamp(Math.ceil(d * rate / PAIRS_MAX), 2, 10);
+  return {d, rate, suggested, max: Math.max(2, Math.min(10, Math.floor(d / 20)))};
+}
+function renderSplit() {
+  const info = splitInfo();
+  $("#splitBox").classList.toggle("hidden", !info);
+  if (!info) { S.split = null; return; }
+  const key = S.sel.name + "|" + S.quality;
+  if (!S.split || S.split.key !== key) S.split = {key, parts: true, n: Math.min(info.suggested, info.max)};
+  const n = S.split.n, part = info.d / n, perPart = Math.min(PAIRS_MAX, Math.round(part * info.rate));
+  const rateParts = num(Math.min(info.rate, PAIRS_MAX / part), 1), rateWhole = num(PAIRS_MAX / info.d, 1);
+  $("#splitN").value = n; $("#splitN").max = info.max;
+  $("#splitTitle").textContent = tr("split.parts", {rec: ""}).trim();
+  $("#splitPro").textContent = "＋ " + tr("split.parts.pro", {rate: rateParts, whole: rateWhole, pairs: perPart, len: mmss(Math.round(part))});
+  $("#splitRec").textContent = n === info.suggested ? tr("ver.recommended") : "";
+  $("#splitCon").textContent = "－ " + tr("split.parts.con", {n});
+  $("#wholePro").textContent = "＋ " + tr("split.whole.pro");
+  $("#wholeCon").textContent = "－ " + tr("split.whole.con", {rate: rateWhole, full: info.rate});
+  $("#optSplit").classList.toggle("active", S.split.parts); $("#optWhole").classList.toggle("active", !S.split.parts);
+  document.querySelector(`input[name=split][value=${S.split.parts ? "parts" : "whole"}]`).checked = true;
+}
+document.querySelectorAll("input[name=split]").forEach(r => r.onchange = () => { S.split.parts = r.value === "parts"; updateStart(); });
+$("#splitN").oninput = () => {
+  const info = splitInfo(), n = parseInt($("#splitN").value, 10);
+  if (info && n >= 2 && n <= info.max) { S.split.n = n; S.split.parts = true; updateStart(); }
+};
+$("#splitN").onclick = e => e.preventDefault();          // inside the label: typing, not choosing
 function updateStart() {
+  renderSplit();
   const s = settings();
   for (const k of ["frames", "scale", "maxg", "iter"]) $("#" + k).placeholder = num(s.pre[k], k === "scale" || k === "maxg" ? 1 : 0);
   // rough time estimate (measured on an RTX 4070 SUPER: 30k steps, 2 M splats, full resolution ≈ 30 min;
   // preparation ≈ 2.5 s per image pair)
   const res = s.scale >= 1 ? 1 : s.scale >= 0.5 ? 0.33 + (s.scale - 0.5) * 1.34 : 0.2;
   const train = s.iter / 1000 * res * Math.pow(s.maxg / 2, 0.8);
-  const total = Math.round(train + s.frames * 2.5 / 60 + 1);
+  const parts = S.split && S.split.parts ? S.split.n : 1;
+  const frames = parts > 1 ? Math.min(PAIRS_MAX, Math.round(S.probe.duration / parts * PAIR_RATE[S.quality])) : s.frames;
+  const total = Math.round((train + frames * 2.5 / 60 + 1) * parts);
   const busy = S.job && S.job.running;
   const ready = S.sel && (!S.probe || S.probe.ok) && $("#name").value.trim();
   $("#startBtn").disabled = !ready || busy || !!(S.sel && queued(S.sel.name));
   $("#estimate").innerHTML = busy ? tr("est.busy") : !S.sel ? tr("est.none") :
-    tr("est", {frames: s.frames, maxg: num(s.maxg, 1), iter: s.iter / 1000, mins: total});
+    parts > 1 ? tr("est.parts", {n: parts, frames, maxg: num(s.maxg, 1), iter: s.iter / 1000, mins: total})
+              : tr("est", {frames: s.frames, maxg: num(s.maxg, 1), iter: s.iter / 1000, mins: total});
 }
 document.querySelectorAll("#quality button").forEach(b => b.onclick = () => {
   S.quality = b.dataset.q; document.querySelectorAll("#quality button").forEach(x => x.classList.toggle("active", x === b)); updateStart();
@@ -854,6 +904,12 @@ async function start(existing) {
   const v = id => $("#" + id).value.trim();
   const body = {path: S.sel.path, name: $("#name").value.trim(), quality: S.quality, upload: target() === "frame", existing,
     frames: v("frames") || null, scale: v("scale") || null, maxg: v("maxg") ? Math.round(+v("maxg") * 1e6) : null, iter: v("iter") || null};
+  if (S.split && S.split.parts && !existing) {               // in parts, then one room
+    const r = await api("/api/parts", {...body, parts: S.split.n});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    S.dismissed = null; toast(tr("started.parts", {n: S.split.n})); poll(); window.scrollTo({top: 0, behavior: "smooth"});
+    return;
+  }
   const r = await api("/api/start", body);
   if (r.status === 409) {
     $("#existsText").textContent = tr(r.no_resume ? "exists.noresume." + r.no_resume : "exists.text", {name: body.name});
@@ -884,6 +940,7 @@ function renderJob() {
   const versions = j.kind === "versions";
   $("#jobSub").textContent = versions ? tr("job.sub.versions", {n: (j.steps || []).length, time})
                            : combine ? tr("job.sub.combine", {n: j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
+                                     : j.chain ? tr("job.sub.part", {i: j.chain.i + 1, n: j.chain.n, room: j.chain.room, q: tr("q." + qk), time})
                                      : tr("job.sub", {rec: j.recording, q: tr("q." + qk), target, time});
   $("#cancelBtn").classList.toggle("hidden", !j.running);
   $("#dismissBtn").classList.toggle("hidden", j.running);

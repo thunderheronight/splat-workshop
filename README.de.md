@@ -27,6 +27,7 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 ## Neu in 0.3 *(experimentell)*
 
 - 🚪 **Räume aus mehreren Aufnahmen** – eine Gruppe als *Ein Raum aus mehreren Aufnahmen* markieren, z. B. zwei kurze Runden durchs Wohnzimmer. Beim Zusammensetzen kommt jeder Teil des Raums aus der Aufnahme, die ihn am besten gesehen hat. Die Arcturus-Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – mehrere kurze Aufnahmen geben einem Raum also deutlich mehr Detail als eine lange.
+- ✂️ **Lange Videos aufteilen** – bei langen Aufnahmen bietet die Werkstatt *Video aufteilen* (volle Detailtiefe, dauert länger) oder *Video nicht aufteilen* (schneller, weniger Bildpaare pro Sekunde) an. Aufgeteilt werden die Teile nacheinander umgewandelt und von selbst zu einem Raum. Die Original-Aufnahme bleibt unverändert.
 - 🏠 **Eine Wohnung aus Räumen** – eine Gruppe darf solche Räume neben einzelnen Szenen enthalten. Zusammengesetzt wird in einem Durchgang aus den Original-Aufnahmen: innerhalb eines Raums jeder Teil aus der besten Aufnahme, zwischen den Räumen laufen die Grenzen durch die Türen. Nichts wird doppelt ausgedünnt; der Grundriss benennt und misst Räume statt Aufnahmen.
 - 🐛 **Behoben**: Aufnahmen desselben Raums gelten nicht mehr gegenseitig als „Weg hinein“ – vorher konnten sie den echten Weg aus einem anderen Raum verdecken, der sich dann einen Teil des Raums nahm.
 
@@ -98,7 +99,7 @@ Nach dem Übertragen **Gaussian XR auf der Frame neu starten**, damit die Szene 
 
 - Viel Licht (Tageslicht plus Raumlicht), **HDR mit 30 fps** in der Kamera-App, nicht „Linear“.
 - **Räume**: 30–90 s pro Raum, langsam gehen und langsam drehen, Dinge von mehreren Seiten zeigen.
-- **Große Räume**: Die Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – bei 5 pro Sekunde (*Hoch*) ist das nach 100 s erreicht, eine 4-Minuten-Aufnahme bekommt nur noch 2 pro Sekunde. Besser zwei oder drei kürzere Aufnahmen eines großen Raums in einem Durchgang machen und sie als *Ein Raum aus mehreren Aufnahmen* gruppieren.
+- **Große Räume**: Die Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – bei 5 pro Sekunde (*Hoch*) ist das nach 100 s erreicht, eine 4-Minuten-Aufnahme bekommt nur noch 2 pro Sekunde. Bei einer langen Aufnahme beim Start *Video aufteilen* wählen – oder zwei oder drei kürzere Aufnahmen eines großen Raums in einem Durchgang machen und sie als *Ein Raum aus mehreren Aufnahmen* gruppieren.
 - **Gegenstände**: langsam im Kreis darum herumgehen (15–40 s), Motiv in der Bildmitte halten.
 - Nicht lange auf kahle Wände, Decke oder Fliesen halten.
 - Bewegte Personen werden zu Geisterschleiern.
