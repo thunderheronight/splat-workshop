@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 .splat-workshop/
 *.part
+.pytest_cache/

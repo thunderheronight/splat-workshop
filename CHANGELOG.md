@@ -2,6 +2,16 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] – 2026-10-14
+
+### Added
+
+- **Automated tests** (57) that run on every push via GitHub Actions – no GPU, recordings or Frame needed: the server's protection against other websites and malformed requests, scenes, groups, conversions with cancel/start over/resume, tours, the four corrections on synthetic rooms with a known error, borders through doors, and the floor plan's orientation. See *Development* in the README.
+
+### Fixed
+
+- After cancelling, a conversion counted as finished as soon as the sleep inhibitor ended, while `splat.sh` was still putting the previous scene back – now the whole job has to end.
+
 ## [0.2.0] – 2026-10-14
 
 The big one: **put the rooms of your home together into one walkable tour.**
@@ -44,5 +54,6 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.2.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thunderheronight/splat-workshop/releases/tag/v0.1.0

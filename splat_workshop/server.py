@@ -29,7 +29,7 @@ from pathlib import Path
 from . import check, config
 from .i18n import T, detect
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 CFG = config.load()
 ROOT = config.ROOT
 WEB = ROOT / "web"
@@ -134,10 +134,22 @@ def save_state(st: dict) -> None:
 
 
 def pid_alive(pid: int) -> bool:
+    """Is the job started as `pid` still running? The job is its whole process group: the first process
+    (systemd-inhibit, if the PC is kept awake) can end before splat.sh has finished cleaning up."""
+    if proc is not None and proc.pid == pid:
+        proc.poll()                             # reap it, so a finished first process does not count
     try:
         cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
-        return "splat.sh" in cmd or "combine.sh" in cmd
+        if cmd:
+            return "splat.sh" in cmd or "combine.sh" in cmd
     except OSError:
+        pass
+    if not pid:
+        return False
+    try:
+        os.killpg(pid, 0)                       # the first process is gone, are others of the job left?
+        return True
+    except (ProcessLookupError, PermissionError):
         return False
 
 
@@ -503,7 +515,7 @@ def job_status(tail=True) -> dict | None:
         return None
     out = Path(st["out"])
     text = out.read_text(errors="replace") if out.exists() else ""
-    running = (proc is not None and proc.poll() is None) or (proc is None and pid_alive(st["pid"]))
+    running = pid_alive(st["pid"])
     parsed = parse_output(text)
     res = {**st, **parsed, "running": running}
     if tail:

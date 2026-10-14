@@ -2,7 +2,7 @@
 
 **A graphical interface for the Arcturus Vision reconstruction pipeline: pick a recording from the Arcturus Vision Camera on your Steam Frame, check it, run the conversion and get the result straight into the Gaussian XR gallery on the headset. With a web interface, a tray icon and a recording check.**
 
-![No root needed](https://img.shields.io/badge/root-not%20needed-2ea44f) ![No jailbreak](https://img.shields.io/badge/jailbreak-not%20needed-2ea44f) [![Release](https://img.shields.io/github/v/release/thunderheronight/splat-workshop)](https://github.com/thunderheronight/splat-workshop/releases)
+![No root needed](https://img.shields.io/badge/root-not%20needed-2ea44f) ![No jailbreak](https://img.shields.io/badge/jailbreak-not%20needed-2ea44f) [![Release](https://img.shields.io/github/v/release/thunderheronight/splat-workshop)](https://github.com/thunderheronight/splat-workshop/releases) [![Tests](https://github.com/thunderheronight/splat-workshop/actions/workflows/tests.yml/badge.svg)](https://github.com/thunderheronight/splat-workshop/actions/workflows/tests.yml)
 
 > **No root, no jailbreak.** On the Frame, Splat Workshop only uses the official *Developer Mode* from the Steam settings and SSH as the normal user – nothing is installed on the headset and its system stays untouched. On the PC it runs as your user, too (only the prerequisites like ffmpeg come from your package manager).
 
@@ -164,6 +164,16 @@ scenes:            [paths] runs/<name>/  (scene.sog, spirula/scene.ply, gallery 
 tours:             [paths] runs/<group>/ (scene.sog = Frame version, full/ = full version, spirula/scene.ply, combine.json)
 internal state:    next to runs/ in .splat-workshop/ (logs, thumbnails, check results)
 ```
+
+## Development
+
+Automated tests run on every push ([GitHub Actions](https://github.com/thunderheronight/splat-workshop/actions/workflows/tests.yml)). Run them yourself with:
+
+```bash
+uv run --no-project --with pytest --with numpy --with scipy --with pillow pytest
+```
+
+They need no GPU, no recordings and no Steam Frame: the Arcturus pipeline, Spirula, splat-transform and the desktop trash are replaced by small fakes, and putting rooms together is tested on synthetic rooms with a known error (`tests/synth.py`). Covered: who may talk to the server (other websites, LAN mode, malformed requests, paths), renaming, clean-up, deleting, cancelled runs, groups, conversions with cancel/start over/resume (the real `splat.sh`), tours (the real `combine.sh`), the four corrections, borders through doors, and that the floor plan is not mirrored. Not covered: the real pipeline, Spirula and the Frame – those are tested by hand.
 
 ## Uninstall
 

@@ -1,0 +1,14 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Run the tests
+        run: uv run --no-project --python 3.12 --with pytest --with numpy --with scipy --with pillow pytest -v

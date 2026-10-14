@@ -2,7 +2,7 @@
 
 **Eine grafische Oberfläche für die Rekonstruktions-Pipeline von Arcturus Vision: Aufnahme der Arcturus Vision Camera an der Steam Frame auswählen, prüfen, umwandeln lassen und das Ergebnis direkt in die Gaussian-XR-Galerie auf der Brille bringen. Mit Weboberfläche, Tray-Symbol und Aufnahmeprüfung.**
 
-![Kein Root nötig](https://img.shields.io/badge/root-not%20needed-2ea44f) ![Kein Jailbreak](https://img.shields.io/badge/jailbreak-not%20needed-2ea44f) [![Release](https://img.shields.io/github/v/release/thunderheronight/splat-workshop)](https://github.com/thunderheronight/splat-workshop/releases)
+![Kein Root nötig](https://img.shields.io/badge/root-not%20needed-2ea44f) ![Kein Jailbreak](https://img.shields.io/badge/jailbreak-not%20needed-2ea44f) [![Release](https://img.shields.io/github/v/release/thunderheronight/splat-workshop)](https://github.com/thunderheronight/splat-workshop/releases) [![Tests](https://github.com/thunderheronight/splat-workshop/actions/workflows/tests.yml/badge.svg)](https://github.com/thunderheronight/splat-workshop/actions/workflows/tests.yml)
 
 > **Kein Root, kein Jailbreak.** Auf der Frame nutzt die Splat-Werkstatt nur den offiziellen *Entwicklermodus* aus den Steam-Einstellungen und SSH als normaler Benutzer – auf der Brille wird nichts installiert, ihr System bleibt unangetastet. Auch am PC läuft sie als dein Benutzer (nur die Voraussetzungen wie ffmpeg kommen aus der Paketverwaltung).
 
