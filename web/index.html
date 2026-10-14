@@ -318,8 +318,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   <section class="card">
     <div class="row" style="justify-content:space-between;margin-bottom:14px">
       <h2 data-i18n="scenes.title" style="margin:0"></h2>
-      <div class="row"><button class="small" id="groupNewBtn" data-i18n="grp.new" data-i18n-title="grp.new.tip"></button>
-        <button class="small" id="planAllBtn" data-i18n="plan.all" data-i18n-title="plan.all.title"></button></div>
+      <div class="row"><button class="small" id="groupNewBtn" data-i18n="grp.new" data-i18n-title="grp.new.tip"></button></div>
     </div>
     <div id="groupSuggest" class="suggest hidden"></div>
     <div id="groupList"></div>
@@ -402,11 +401,6 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
     <button class="small" id="planMeasure" data-i18n="plan.measure" data-i18n-title="plan.measure.title"></button>
     <a class="btnlink" id="planSave" download data-i18n="plan.save"></a>
     <button class="small" id="planClose" data-i18n="plan.close"></button>
-  </div>
-  <div id="planPick" class="hidden">
-    <p class="muted" style="margin:0;font-size:13.5px" data-i18n="plan.pick.hint"></p>
-    <div class="pick" id="planPickList"></div>
-    <div class="row"><button class="primary" id="planDraw" data-i18n="plan.draw"></button></div>
   </div>
   <div class="measure-bar hidden" id="measureBar">
     <span class="total" id="measureTotal"></span>
@@ -882,7 +876,6 @@ async function loadScenes() {
   S.scenes = arr; S.groups = gr.groups || []; S.memGB = gr.mem_available_gb;
   const bySlug = Object.fromEntries(arr.map(s => [s.slug, s]));
   const inGroup = new Set(S.groups.flatMap(g => g.members));
-  $("#planAllBtn").classList.toggle("hidden", arr.filter(s => s.ply).length < 2);
   $("#groupNewBtn").classList.toggle("hidden", arr.length < 2);
   const sug = gr.suggestion;
   S.suggestion = sug;
@@ -1086,7 +1079,6 @@ function planUrl(download) {
 function openPlan(slugs, name) {
   P.slugs = slugs; P.name = name;
   $("#planTitle").textContent = tr(slugs.length > 1 ? "plan.title.all" : "plan.title", {name});
-  $("#planPick").classList.add("hidden");
   $("#planStyle").classList.remove("hidden"); $("#planSave").classList.remove("hidden"); $("#planMeasure").classList.remove("hidden");
   if (!$("#planDlg").open) $("#planDlg").showModal();
   drawPlan();
@@ -1167,24 +1159,6 @@ $("#planDlg").addEventListener("click", e => {
   const r = $("#planDlg").getBoundingClientRect();
   if (e.target === $("#planDlg") && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) $("#planDlg").close();
 });
-$("#planAllBtn").onclick = () => {
-  const list = (S.scenes || []).filter(s => s.ply);
-  const day = s => (s.recording || "").slice(0, 10);
-  const newest = list.map(day).filter(Boolean).sort().pop();
-  $("#planTitle").textContent = tr("plan.all");
-  $("#planPickList").innerHTML = list.map(s => `<label><input type="checkbox" value="${esc(s.slug)}" ${day(s) === newest ? "checked" : ""}>
-      ${esc(s.name)}<span>${day(s) ? new Date(day(s)).toLocaleDateString(LANG) : ""}</span></label>`).join("");
-  $("#planPick").classList.remove("hidden"); $("#planBox").classList.add("hidden");
-  $("#planStyle").classList.add("hidden"); $("#planSave").classList.add("hidden"); $("#planMeasure").classList.add("hidden");
-  $("#planNote").textContent = ""; M.on = false; renderMeasure();
-  $("#planDlg").showModal();
-};
-$("#planDraw").onclick = () => {
-  const slugs = [...document.querySelectorAll("#planPickList input:checked")].map(i => i.value);
-  if (!slugs.length) return;
-  openPlan(slugs, slugs.length > 1 ? tr("plan.default.name") : S.scenes.find(s => s.slug === slugs[0]).name);
-};
-
 /* ---------- polling ---------- */
 let wasRunning = null;
 async function poll() {
