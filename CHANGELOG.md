@@ -13,7 +13,7 @@ The big one: **put the rooms of your home together into one walkable tour.**
 - **Corrections to choose** when putting a tour together, so the rooms meet without visible steps: *A* as delivered by the pipeline, *B* every room fitted over all its images (default), *C* plus a joint shift over the overlaps, *D* plus shift and slight turn. Borders between recordings run through doors (walking in and out of a room is ignored) or by nearest camera. Afterwards the group shows how well the overlaps match, so variants can be compared.
 - **Memory estimate** before putting a tour together, with the free memory; the full version (the step that needs the most memory) can be left out.
 - **Cancelled runs** are listed with how far they got and their size: resume where the pipeline can continue, start over otherwise, or delete.
-- **Delete scenes** (to the desktop trash, with confirmation) and **clean up** intermediate data or training images per scene, with the disk usage of every scene.
+- **Delete scenes** (to the desktop trash, with confirmation) and **clean up** intermediate data or training images per scene, with the disk usage of every scene – or for all scenes of a group at once.
 - **Rename recordings and scenes**; a renamed scene's folder, files and log follow, and its name plate in the gallery is redrawn.
 - **Keeps the PC awake** while converting, copying or downloading (systemd sleep inhibitor).
 - **Offline notice** when Splat Workshop stops responding; the page reconnects by itself.
@@ -44,5 +44,5 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
-[0.2.0]: https://github.com/thunderheronight/splat-workshop/compare/29b3acf...HEAD
-[0.1.0]: https://github.com/thunderheronight/splat-workshop/commit/29b3acf
+[0.2.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/thunderheronight/splat-workshop/releases/tag/v0.1.0

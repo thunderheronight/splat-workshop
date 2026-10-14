@@ -384,7 +384,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 </dialog>
 <dialog id="cleanDlg">
   <h2 style="margin-top:0" id="cleanTitle"></h2>
-  <p class="muted" style="font-size:13px" data-i18n="clean.intro"></p>
+  <p class="muted" style="font-size:13px" id="cleanIntro"></p>
   <div id="cleanList"></div>
   <div class="row" style="justify-content:space-between;align-items:center;margin-top:16px">
     <span class="faint" id="cleanTotal" style="font-size:13px"></span>
@@ -863,6 +863,7 @@ function groupBlock(g, bySlug) {
           ${r && r.ply ? `<button class="small pc-only" data-spirula="${esc(g.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
           ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}
           <button class="small" data-gedit="${esc(g.slug)}">${tr("grp.edit")}</button>
+          <button class="small" data-clean="${esc(g.slug)}" title="${tr("grp.clean.title")}" aria-label="${tr("grp.clean.title")}" ${g.busy ? "disabled" : ""}>${tr("sc.clean")}</button>
           <button class="small" data-gdelete="${esc(g.slug)}" title="${tr("grp.delete.title")}" aria-label="${tr("grp.delete.title")}">${tr("sc.delete")}</button>
         </div>
       </div>
@@ -1047,10 +1048,18 @@ async function renameScene(sc) {
 
 /* ---------- cleaning up ---------- */
 function openClean(slug) {
-  const sc = S.scenes.find(x => x.slug === slug);
+  // a scene, or a group: then the same kind of data of all its scenes together
+  const g = (S.groups || []).find(x => x.slug === slug);
+  let sc = S.scenes.find(x => x.slug === slug);
+  if (g) {
+    const rooms = g.members.map(m => S.scenes.find(x => x.slug === m)).filter(x => x && x.disk);
+    const sum = k => rooms.reduce((a, x) => a + (x.disk[k] || 0), 0);
+    sc = {name: g.name, disk: {temp: sum("temp"), images: sum("images"), total: sum("total")}, n: rooms.length};
+  }
   if (!sc || !sc.disk) return;
   $("#cleanTitle").textContent = tr("clean.title", {name: sc.name});
-  $("#cleanTotal").textContent = tr("clean.total", {size: mb(sc.disk.total)});
+  $("#cleanIntro").textContent = g ? tr("clean.intro.group", {n: sc.n}) : tr("clean.intro");
+  $("#cleanTotal").textContent = tr(g ? "clean.total.group" : "clean.total", {size: mb(sc.disk.total)});
   $("#cleanList").innerHTML = ["temp", "images"].map(k => {
     const size = sc.disk[k] || 0, empty = size < 1e6;
     return `<div class="finding" style="display:flex;gap:12px;align-items:center;margin-top:10px">
@@ -1059,7 +1068,7 @@ function openClean(slug) {
   }).join("");
   $("#cleanList").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
     const k = b.dataset.del, size = mb(sc.disk[k]);
-    if (!confirm(tr("clean.confirm", {what: tr("clean." + k), name: sc.name, size}))) return;
+    if (!confirm(tr(g ? "clean.confirm.group" : "clean.confirm", {what: tr("clean." + k), name: sc.name, size, n: sc.n}))) return;
     b.disabled = true;
     const r = await api("/api/clean", {slug, what: k});
     if (!r.ok) { toast(trErr(r.error)); b.disabled = false; return; }

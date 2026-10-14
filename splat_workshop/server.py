@@ -985,6 +985,22 @@ def delete_scene(slug: str):
     return None
 
 
+def clean_group(slug: str, what: str):
+    """Clean up the same kind of data in every scene of a group (the tour itself needs none of it)."""
+    meta = read_meta(slug) if slug and Path(slug).name == slug else {}
+    if not is_group(meta):
+        return err("err.no_scene")
+    if what not in CLEANUP:
+        return err("err.bad_request")
+    members = [m for m in meta.get("members", []) if scene_dir(m)]
+    if scene_busy(slug) or any(scene_busy(m) for m in members):
+        return err("err.scene_busy")
+    for m in members:
+        if e := clean_scene(m, what):
+            return e
+    return None
+
+
 def clean_name(name: str, file: bool = True) -> str:
     """A name from user input without control characters; as a file name also without path separators."""
     name = re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f]", "", name or "")).strip()
@@ -1521,7 +1537,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not e:
                     return self.send(200, {"ok": True, "name": clean_name(p.get("new", "")).removesuffix(".mp4") + ".mp4"})
         elif path == "/api/clean":
-            e = clean_scene(p.get("slug", ""), p.get("what", ""))
+            slug = p.get("slug", "")
+            e = (clean_group if slug and is_group(read_meta(slug)) else clean_scene)(slug, p.get("what", ""))
         elif path == "/api/delete":
             e = delete_scene(p.get("slug", ""))
         elif path == "/api/group":
