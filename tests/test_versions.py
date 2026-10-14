@@ -177,3 +177,44 @@ def test_taking_off_a_frame_that_is_off(api, frame):
     assert status == 400 and r["error"]["code"] == "err.frame_offline"
     os.environ.pop("FAKE_FRAME_OFF")
     assert (frame / server.FRAME_SCENES / "20_Room-0.01m").exists()
+
+
+def test_versions_sh_refuses_odd_version_names():
+    import subprocess
+    from conftest import ROOT
+    run, _ = room()
+    for spec in ("../x|10000|1|x", ".hidden|10000|1|x", "a/b|10000|1|x"):
+        r = subprocess.run([str(ROOT / "scripts" / "versions.sh"), str(run), spec], capture_output=True, text=True)
+        assert r.returncode == 1 and "Unusable version name" in r.stderr, spec
+    assert not (run / "x").exists() and not (run / "versions").exists()
+
+
+def test_an_old_copy_of_a_version_is_recognised_by_its_folder(api, frame):
+    room()
+    make("Room", "10000")                                       # not copied by this version: no version_folders
+    d = frame / server.FRAME_STEAM / "21_Room-0.01m"
+    d.mkdir()
+    (d / "room-0.01m.gallery.png").write_bytes(b"preview")
+    server.frame_cache["t"] = 0
+    assert server.versions_of("Room")[0]["on_frame"] is True
+    g = {x["folder"]: x for x in api.get("/api/frame/gallery?refresh=1")[1]["scenes"]}["21_Room-0.01m"]
+    assert (g["kind"], g["slug"], g["version"], g["place"]) == ("version", "Room", "0.01m", "steam")
+
+
+def test_nothing_is_moved_or_removed_on_the_frame_while_copying(api, frame):
+    room()
+    make("Room", "10000")
+    d = frame / server.FRAME_STEAM / "20_Room-0.01m"            # an old copy, being copied again right now
+    d.mkdir()
+    (d / "room-0.01m.gallery.png").write_bytes(b"preview")
+    os.environ["FAKE_SCP_SLOW"] = "1"
+    assert api.post("/api/upload", {"slug": "Room", "version": "0.01m"})[0] == 200
+    time.sleep(0.5)
+    for path, body in (("/api/frame/move", {}), ("/api/frame/remove", {"folder": "20_Room-0.01m"}),
+                       ("/api/version/delete", {"slug": "Room", "version": "0.01m"})):
+        status, r = api.post(path, body)
+        assert status == 400 and r["error"]["code"] in ("err.upload_busy", "err.scene_busy"), path
+    end = time.time() + 30
+    while (u := server.upload_status("Room#0.01m")) and u["running"] and time.time() < end:
+        time.sleep(0.2)
+    assert server.upload_status("Room#0.01m")["ok"]

@@ -126,11 +126,15 @@ def test_from_this_pc_means_loopback():
 
 
 ENDPOINTS = ["/api/start", "/api/rename", "/api/clean", "/api/delete", "/api/upload", "/api/download", "/api/check",
-             "/api/group", "/api/group/dismiss", "/api/combine", "/api/resume"]
+             "/api/group", "/api/group/dismiss", "/api/combine", "/api/resume", "/api/versions", "/api/scale",
+             "/api/frame/remove", "/api/frame/move", "/api/recording/delete", "/api/version/delete",
+             "/api/download/cancel"]
 
 
 @pytest.mark.parametrize("path", ENDPOINTS)
-@pytest.mark.parametrize("field", ["name", "new", "slug", "path", "what", "members", "key", "align", "quality"])
+@pytest.mark.parametrize("field", ["name", "new", "slug", "path", "what", "members", "key", "align", "quality",
+                                   "existing", "partition", "version", "sizes", "scales", "folder", "names", "place",
+                                   "where"])
 def test_wrongly_typed_fields_get_400_everywhere(api, path, field):
     for bad in (5, ["a"], True):
         assert api.post(path, {field: bad})[0] == 400, (path, field, bad)

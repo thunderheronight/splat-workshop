@@ -1034,7 +1034,7 @@ async function loadScenes() {
   document.querySelectorAll("[data-combine]").forEach(b => b.onclick = () => openCombine(S.groups.find(g => g.slug === b.dataset.combine)));
   document.querySelectorAll("[data-gplan]").forEach(b => b.onclick = () => {
     const g = S.groups.find(x => x.slug === b.dataset.gplan);
-    openPlan(g.members.filter(m => bySlug[m] && bySlug[m].ply), g.name);
+    openPlan(g.members.filter(m => bySlug[m] && bySlug[m].ply), g.name, g.slug);
   });
   document.querySelectorAll("[data-upload]").forEach(b => b.onclick = async () => {
     const r = await api("/api/upload", {slug: b.dataset.upload});
@@ -1371,11 +1371,12 @@ const P = {slugs: [], name: "", style: "pretty"};
 function planUrl(download) {
   const q = new URLSearchParams({slugs: P.slugs.join(","), style: P.style, lang: LANG,
                                   title: P.slugs.length > 1 ? P.name : ""});
+  if (P.group) q.set("group", P.group);
   if (download) { q.set("download", "1"); q.set("name", `${P.name}-${tr("plan.file")}`); }
   return "/api/floorplan?" + q;
 }
-function openPlan(slugs, name) {
-  P.slugs = slugs; P.name = name;
+function openPlan(slugs, name, group) {
+  P.slugs = slugs; P.name = name; P.group = group || "";
   $("#planTitle").textContent = tr(slugs.length > 1 ? "plan.title.all" : "plan.title", {name});
   $("#planStyle").classList.remove("hidden"); $("#planSave").classList.remove("hidden"); $("#planMeasure").classList.remove("hidden");
   if (!$("#planDlg").open) $("#planDlg").showModal();

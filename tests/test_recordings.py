@@ -299,3 +299,23 @@ def test_deleting_on_a_frame_that_is_off(api, frame):
     os.environ["FAKE_FRAME_OFF"] = "1"
     status, r = api.post("/api/recording/delete", {"name": name, "where": "frame"})
     assert status == 400 and r["error"]["code"] == "err.frame_offline"
+
+
+def test_a_recording_being_checked_is_not_deleted(api, frame):
+    rec = recording()
+    put_on_frame(frame, rec.name)
+    server.checks[rec.name] = {"state": "running"}
+    for where in ("pc", "frame"):
+        status, r = api.post("/api/recording/delete", {"name": rec.name, "where": where})
+        assert status == 400 and r["error"]["code"] == "err.recording_busy", where
+    assert rec.exists() and (frame / VIDEOS / rec.name).exists()
+
+
+def test_a_download_that_ends_too_early_leaves_nothing_behind(api, frame):
+    name, _ = put_on_frame(frame)
+    server.frame_listing(force=True)
+    os.environ["FAKE_FRAME_SHORT"] = "1"                 # half the file, but no error from ssh
+    assert api.post("/api/download", {"name": name})[0] == 200
+    st = wait_fetched()
+    assert st["error"] and st["batch"]["failed"] == [name]
+    assert not (REC / name).exists() and not (REC / (name + ".part")).exists()

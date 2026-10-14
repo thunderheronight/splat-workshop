@@ -135,6 +135,10 @@ if os.environ.get("FAKE_FRAME_CUT") and cmd.startswith("cat "):   # the connecti
     out = subprocess.run(["bash", "-c", cmd], cwd="{FRAME_HOME}", env=env, capture_output=True).stdout
     sys.stdout.buffer.write(out[:len(out) // 2])
     sys.exit(255)
+if os.environ.get("FAKE_FRAME_SHORT") and cmd.startswith("cat "):  # ends early, but without an error
+    out = subprocess.run(["bash", "-c", cmd], cwd="{FRAME_HOME}", env=env, capture_output=True).stdout
+    sys.stdout.buffer.write(out[:len(out) // 2])
+    sys.exit(0)
 if os.environ.get("FAKE_FRAME_SLOW") and cmd.startswith("cat "):  # a slow connection: 1 kB every 0.1 s
     import time
     out = subprocess.run(["bash", "-c", cmd], cwd="{FRAME_HOME}", env=env, capture_output=True).stdout
@@ -154,6 +158,9 @@ def local(a):
         return Path("{FRAME_HOME}") / a.split(":", 1)[1]
     return Path(a)
 *src, dst = map(local, args)
+if os.environ.get("FAKE_SCP_SLOW"):                       # a slow connection: copying takes 3 s
+    import time
+    time.sleep(3)
 for s in src:
     shutil.copy(s, dst / s.name if dst.is_dir() else dst)
 ''')
@@ -197,7 +204,8 @@ def clean():
         while server.download_busy() and time.time() < end:
             time.sleep(0.05)
     server.download, server.download_queue[:], server.download_batch = None, [], {}
-    for k in ("FAKE_PIPELINE", "FAKE_FRAME_OFF", "FAKE_FRAME_CUT", "FAKE_FRAME_SLOW", "FRAME_HOST"):
+    for k in ("FAKE_PIPELINE", "FAKE_FRAME_OFF", "FAKE_FRAME_CUT", "FAKE_FRAME_SLOW", "FAKE_FRAME_SHORT", "FAKE_SCP_SLOW",
+              "FRAME_HOST"):
         os.environ.pop(k, None)
     os.environ["FRAME_HOST"] = ""
     TOOL_LOG.unlink(missing_ok=True)

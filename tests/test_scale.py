@@ -123,3 +123,29 @@ def test_a_tour_of_a_model_is_walkable_in_both_versions():
     tour = RUNS / "Layout"
     assert json.loads((tour / "layout.xrSceneTransform.json").read_text())["worldScale"] == H0
     assert json.loads((tour / "full" / "layout-full.xrSceneTransform.json").read_text())["worldScale"] == H0
+
+
+def test_the_floor_plan_of_a_group_in_the_groups_scale(api):
+    synth.make_room(RUNS, "Station", "A", error=(0.0, (0, 0, 0)), scale=1 / H0)
+    server.save_group("", "Layout", "Station")
+    api.post("/api/scale", {"slug": "Layout", "scale": str(H0)})         # only on the group, not passed on
+    assert {x["slug"]: x["scale"] for x in api.get("/api/scenes")[1]}["Station"] == 1
+    full = plan(synth.make_room(BASE / "full", "Room", "A", error=(0.0, (0, 0, 0))))
+    info = server.floorplan(["Station"], "classic", "en", "", "Layout")[1]
+    assert info["ratio"] == H0
+    assert info["scenes"][0]["size"] == pytest.approx(full["scenes"][0]["size"], abs=0.05)       # 4 x 3 m
+    status, png = api.get("/api/floorplan?slugs=Station&style=classic&group=Layout")
+    assert status == 200 and png[:4] == b"\x89PNG"
+    assert server.floorplan(["Station"], "classic", "en", "", "Station")["code"] == "err.bad_request"   # not a group
+
+
+def test_a_floor_plan_of_scenes_in_different_scales_is_refused(api):
+    synth.make_room(RUNS, "Station", "A", recording="2026-10-12_16-40-00_stereo.mp4")
+    synth.make_room(RUNS, "Yard", "B", recording="2026-10-12_16-43-00_stereo.mp4")
+    server.save_group("", "Layout", "Station,Yard")
+    api.post("/api/scale", {"slug": "Station", "scale": "87"})
+    api.post("/api/scale", {"slug": "Yard", "scale": "160"})
+    status, r = api.get("/api/floorplan?slugs=Station,Yard&group=Layout")
+    assert status == 400 and r["error"]["code"] == "err.mixed_scale"
+    api.post("/api/scale", {"slug": "Layout", "scale": "87"})            # one scale for the group decides
+    assert api.get("/api/floorplan?slugs=Station,Yard&style=classic&group=Layout")[0] == 200

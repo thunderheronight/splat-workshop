@@ -21,9 +21,13 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 - **1 M splats is the recommended size for the Frame** (preselected for versions and tours, also the default of `combine.sh`, was 3.5 M). Measured on a Steam Frame with one tour: 0.75 M 36 fps, 1 M 35 fps, 1.5 M 29 fps, 2 M 24 fps, 5 M 14 fps – 1 M looked clearly sharper than 0.75 M, 1.5 M a little sharper but already slightly unsteady. All sizes stay selectable.
 - Putting a tour together offers 0.75 to 2 M splats or an own size for its Frame version (was 2 / 3.5 / 5 M).
 
+- Tests extended after an independent review with mutation testing (499 including the type checks of every request field): scale, versions, fetching several recordings, deleting recordings, the *On the Frame* tab and the new folder, and what is locked while a scene is computed, checked, fetched or copied.
+
 ### Fixed
 
 - The floor plan no longer fails for scenes in which it finds no walls (e.g. a model without its scale).
+- The floor plan of a group uses the group's scale, also when it was not passed on to its scenes. Scenes in different scales without one for the group give a clear message instead of a plan in the wrong size.
+- *Move to own scenes* waits until no scene is being copied to the Frame.
 
 ## [0.2.2] – 2026-10-14
 

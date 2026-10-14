@@ -1027,10 +1027,9 @@ def move_to_own_folder():
     gallery = frame_gallery(force=True)
     if gallery is None:
         return err("err.frame_offline")
-    moving = [g for g in gallery if g["place"] == "steam" and g["kind"] != "other"]
-    if any((u := uploads.get(f"{g['slug']}#{g['version']}" if g["version"] else g["slug"])) and u["proc"].poll() is None
-           for g in moving):
+    if any(u["proc"].poll() is None for u in uploads.values()):    # to-frame.sh may be choosing or moving a folder
         return err("err.upload_busy")
+    moving = [g for g in gallery if g["place"] == "steam" and g["kind"] != "other"]
     if not moving:
         return None
     # A folder of the same name in the personal folder is the newer copy: the old one goes
@@ -1230,8 +1229,9 @@ def scenes():
 plan_locks = {}                    # cache key -> Lock, so one plan is drawn only once at a time
 
 
-def floorplan(slugs: list[str], style: str, lang: str, title: str):
-    """(PNG bytes, info dict with pixels_per_metre) of one or more scenes (cached), or an error dict."""
+def floorplan(slugs: list[str], style: str, lang: str, title: str, group: str = ""):
+    """(PNG bytes, info dict with pixels_per_metre) of one or more scenes (cached), or an error dict.
+    The plan of a group is drawn in the group's scale, if it has one; otherwise all scenes need the same."""
     if style not in ("pretty", "classic"):
         style = "pretty"
     runs = []
@@ -1243,8 +1243,16 @@ def floorplan(slugs: list[str], style: str, lang: str, title: str):
         runs.append((d, read_meta(slug).get("name") or slug, ply.stat().st_mtime))
     if not runs or len(runs) > 12:
         return err("err.bad_request")
-    scales = {read_meta(slug).get("scale") or 1 for slug in dict.fromkeys(slugs)}
-    ratio = scales.pop() if len(scales) == 1 else 1
+    gmeta = read_meta(group) if group and Path(group).name == group and not group.startswith(".") else {}
+    if gmeta and not is_group(gmeta):
+        return err("err.bad_request")
+    if (gmeta.get("scale") or 1) != 1:
+        ratio = gmeta["scale"]
+    else:
+        scales = {read_meta(slug).get("scale") or 1 for slug in dict.fromkeys(slugs)}
+        if len(scales) > 1:
+            return err("err.mixed_scale")
+        ratio = scales.pop()
     title = title.strip()[:60]
     script = (SCRIPTS / "floorplan.py").stat().st_mtime        # a new version of the script draws anew
     key = hashlib.sha1(json.dumps([[str(r[0]), r[1], r[2]] for r in runs] + [style, lang, title, script, ratio]).encode()).hexdigest()[:16]
@@ -1981,7 +1989,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"versions": versions_of(q.get("slug", ""))})
         if u.path == "/api/floorplan":
             data = floorplan([x for x in q.get("slugs", "").split(",") if x], q.get("style", "pretty"),
-                             q.get("lang", "en"), q.get("title", ""))
+                             q.get("lang", "en"), q.get("title", ""), q.get("group", ""))
             if isinstance(data, dict):
                 return self.send(400, {"error": data})
             data, info = data

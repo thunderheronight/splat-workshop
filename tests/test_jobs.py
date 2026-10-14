@@ -154,6 +154,21 @@ def test_a_scene_being_computed_cannot_be_changed(api):
                        ("/api/clean", {"slug": "Kitchen", "what": "temp"})):
         status, r = api.post(path, body)
         assert status == 400 and r["error"]["code"] == "err.scene_busy", path
+    # the new actions of 0.2.3 leave it alone, too
+    v = RUNS / "Kitchen" / "versions" / "0.01m"
+    v.mkdir(parents=True)
+    (v / "scene.sog").write_bytes(b"x")
+    (v / "version.json").write_text(json.dumps({"key": "0.01m", "splats": 10000, "scale": 1, "label": "Kitchen · 0.01 M"}))
+    for path, body, code in (("/api/scale", {"slug": "Kitchen", "scale": "87"}, "err.scene_busy"),
+                             ("/api/version/delete", {"slug": "Kitchen", "version": "0.01m"}, "err.scene_busy"),
+                             ("/api/versions", {"slug": "Kitchen", "sizes": "10000"}, "err.job_busy")):
+        status, r = api.post(path, body)
+        assert status == 400 and r["error"]["code"] == code, path
+    assert v.is_dir() and not (server.read_meta("Kitchen").get("scale") or 1) - 1
+    # and its recording stays
+    rec = server.load_state()["job"]["recording"]
+    status, r = api.post("/api/recording/delete", {"name": rec, "where": "pc"})
+    assert status == 400 and r["error"]["code"] == "err.recording_busy" and (server.REC / rec).exists()
     # and no tour is put together meanwhile (one job at a time)
     synth.make_room(RUNS, "Office", "A")
     synth.make_room(RUNS, "Hallway", "B")
