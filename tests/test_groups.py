@@ -13,6 +13,8 @@ def make_flat():
 
 def test_rooms_recorded_one_after_another_are_suggested(api):
     make_flat()
+    # 25 minutes after the hallway: more than the 20 minutes that still count as one session
+    synth.make_room(RUNS, "Garden", "A", name="Garden", recording="2026-10-12_17-08-00_stereo.mp4")
     status, r = api.get("/api/groups")
     assert status == 200 and r["groups"] == []
     assert sorted(r["suggestion"]["members"]) == ["Hallway", "Kitchen"]     # not the statue from another day

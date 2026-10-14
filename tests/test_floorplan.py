@@ -41,6 +41,7 @@ def test_floor_plan_is_not_mirrored():
     assert cross < 0, "the floor plan is mirrored"
 
 
-def test_classic_style_draws():
+def test_classic_style_smoke():
+    """Smoke test: the classic style draws something (its colours are per room, not checkable here)."""
     img = draw("classic")
     assert img.shape[0] > 500 and img.std() > 5    # not an empty picture

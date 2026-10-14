@@ -20,9 +20,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(ROOT), str(Path(__file__).parent)]
 
 BASE = Path(tempfile.mkdtemp(prefix="splat-workshop-tests-"))
-RUNS, REC, STATE, BIN, TRASH, PIPE = (BASE / n for n in ("runs", "recordings", "state", "bin", "trash", "pipeline"))
-for d in (RUNS, REC, STATE, BIN, TRASH, PIPE):
+RUNS, REC, STATE, BIN, TRASH, PIPE, FRAME_HOME = (BASE / n for n in (
+    "runs", "recordings", "state", "bin", "trash", "pipeline", "frame"))
+for d in (RUNS, REC, STATE, BIN, TRASH, PIPE, FRAME_HOME):
     d.mkdir()
+TOOL_LOG = BASE / "tools.log"              # what the fake tools were called with, one JSON line each
 
 
 def script(path: Path, text: str):
@@ -37,6 +39,10 @@ import base64, json, os, sys, time
 from pathlib import Path
 out = Path(sys.argv[2])
 mode = os.environ.get("FAKE_PIPELINE", "ok")
+# like the real pipeline: an unfinished training blocks --resume ("Incomplete training retained")
+run_json = out / "spirula" / "run.json"
+if "--resume" in sys.argv and run_json.exists() and json.loads(run_json.read_text()).get("status") != "complete":
+    sys.exit("error: Incomplete training retained; use a new output directory to restart")
 (out / "dataset").mkdir(parents=True, exist_ok=True)
 print("Extracting 20 images from 2 video streams", flush=True)
 (out / "dataset" / "spirula-dataset.json").write_text(json.dumps({"status": "complete"}))
@@ -50,6 +56,7 @@ for step in (1000, 2000, 3000):
         time.sleep(20)
 (out / "spirula").mkdir(exist_ok=True)
 (out / "spirula" / "scene.ply").write_bytes(b"ply\n")
+run_json.write_text(json.dumps({"status": "complete"}))
 print("spirula: 1,000 Gaussians in " + str(out / "spirula" / "scene.ply"), flush=True)
 (out / "scene.sog").write_bytes(b"fake sog")
 (out / "scene.xrSceneTransform.json").write_text(json.dumps({"transform": [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]}))
@@ -60,7 +67,9 @@ print("Gaussian XR scene transform: " + str(out / "scene.xrSceneTransform.json")
 script(BIN / "spirula", "#!/bin/sh\nexit 0\n")
 # splat-transform: copies the input (a .ply stays a .ply), writes a small file for .sog
 script(BIN / "splat-transform", f'''#!{sys.executable}
-import shutil, sys
+import json, shutil, sys
+with open("{TOOL_LOG}", "a") as log:
+    log.write(json.dumps(["splat-transform", *sys.argv[1:]]) + "\\n")
 args = [a for a in sys.argv[1:] if a not in ("-w", "--overwrite")]
 if "--decimate" in args:
     i = args.index("--decimate"); del args[i:i + 2]
@@ -76,6 +85,51 @@ script(BIN / "gio", f'''#!/bin/sh
 [ "$1" = trash ] || exit 1
 shift; [ "$1" = -- ] && shift
 exec mv --backup=numbered -t "{TRASH}" -- "$@"
+''')
+
+# notify-send: no desktop notifications from the tests, only a note in the tool log
+script(BIN / "notify-send", f'''#!{sys.executable}
+import json, sys
+with open("{TOOL_LOG}", "a") as log:
+    log.write(json.dumps(["notify-send", *sys.argv[1:]]) + "\\n")
+''')
+# ffprobe: a good Arcturus recording (two video streams, gpmd, 60 s) unless the file name says otherwise:
+# "mono" one video stream, "nogpmd" no metadata stream, "short" 5 s, "brief" 15 s
+script(BIN / "ffprobe", f'''#!{sys.executable}
+import json, sys
+name = sys.argv[-1]
+video = {{"codec_type": "video", "codec_tag_string": "hvc1", "width": 2464, "height": 2464, "avg_frame_rate": "30/1"}}
+streams = [video] if "mono" in name else [video, dict(video)]
+if "nogpmd" not in name:
+    streams.append({{"codec_type": "data", "codec_tag_string": "gpmd"}})
+dur = 5 if "short" in name else 15 if "brief" in name else 60
+print(json.dumps({{"streams": streams, "format": {{"duration": str(dur)}}}}))
+''')
+# ssh / scp: the Frame is a folder (its home directory); FAKE_FRAME_OFF=1 makes it unreachable
+script(BIN / "ssh", f'''#!{sys.executable}
+import os, subprocess, sys
+if os.environ.get("FAKE_FRAME_OFF"):
+    sys.exit(255)
+args = sys.argv[1:]
+while args and args[0].startswith("-"):
+    args = args[2:] if args[0] in ("-o", "-p", "-i") else args[1:]
+cmd = " ".join(args[1:])
+env = {{**os.environ, "HOME": "{FRAME_HOME}"}}
+sys.exit(subprocess.run(["bash", "-c", cmd or "true"], cwd="{FRAME_HOME}", env=env).returncode)
+''')
+script(BIN / "scp", f'''#!{sys.executable}
+import os, shutil, sys
+from pathlib import Path
+if os.environ.get("FAKE_FRAME_OFF"):
+    sys.exit(255)
+args = [a for a in sys.argv[1:] if a not in ("-q",)]
+def local(a):
+    if ":" in a.split("/", 1)[0]:
+        return Path("{FRAME_HOME}") / a.split(":", 1)[1]
+    return Path(a)
+*src, dst = map(local, args)
+for s in src:
+    shutil.copy(s, dst / s.name if dst.is_dir() else dst)
 ''')
 
 (BASE / "config.toml").write_text(f'''
@@ -106,18 +160,33 @@ def clean():
     if server.pid_alive(st.get("pid", 0)):
         server.cancel_job()
         wait_job(timeout=20)
-    for d in (RUNS, REC, STATE, TRASH):
+    for d in (RUNS, REC, STATE, TRASH, FRAME_HOME):
         shutil.rmtree(d, ignore_errors=True)
         d.mkdir()
     for cache in (server.usage_cache, server.probe_cache, server.uploads, server.checks):
         cache.clear()
-    os.environ.pop("FAKE_PIPELINE", None)
+    for k in ("FAKE_PIPELINE", "FAKE_FRAME_OFF", "FRAME_HOST"):
+        os.environ.pop(k, None)
+    os.environ["FRAME_HOST"] = ""
+    TOOL_LOG.unlink(missing_ok=True)
+    server.frame_cache.update(t=0, data=None)
 
 
 @pytest.fixture
-def ok_probe(monkeypatch):
-    """Recordings are fake files: let the recording check (ffprobe) accept them."""
-    monkeypatch.setattr(server, "probe", lambda path: {"ok": True, "errors": [], "warnings": [], "duration": 60})
+def frame(monkeypatch):
+    """A Steam Frame (the fake one: a folder) is configured and reachable. Returns its home directory."""
+    host = "steamos@frame.test"
+    monkeypatch.setattr(server, "FRAME", host)
+    monkeypatch.setattr(server, "SSH", [*server.SSH[:-1], host])
+    os.environ["FRAME_HOST"] = host                  # for the scripts (splat.sh, to-frame.sh)
+    for d in (server.FRAME_VIDEOS + "/thumbnails", server.FRAME_SCENES):
+        (FRAME_HOME / d).mkdir(parents=True, exist_ok=True)
+    return FRAME_HOME
+
+
+def tools_called():
+    """Calls of the fake tools so far, e.g. [["splat-transform", "-w", ...], ...]."""
+    return [json.loads(line) for line in TOOL_LOG.read_text().splitlines()] if TOOL_LOG.exists() else []
 
 
 def recording(name="2026-10-12_16-40-00_stereo.mp4"):

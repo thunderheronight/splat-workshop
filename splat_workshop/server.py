@@ -29,7 +29,7 @@ from pathlib import Path
 from . import check, config
 from .i18n import T, detect
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 CFG = config.load()
 ROOT = config.ROOT
 WEB = ROOT / "web"
@@ -1514,7 +1514,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             p = None
         # Only flat objects of simple values; text fields are text
         if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
-                or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing")):
+                or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key",
+                                                           "align", "partition")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
         e = None

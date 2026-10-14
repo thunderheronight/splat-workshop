@@ -8,8 +8,6 @@ import pytest
 from conftest import RUNS, recording, server, wait_job
 import synth
 
-pytestmark = pytest.mark.usefixtures("ok_probe")
-
 
 def convert(name="Kitchen", existing=None, quality="fast", rec=None):
     rec = rec or recording()
@@ -77,7 +75,11 @@ def test_resume_after_an_interrupted_training():
     assert server.resume_run("Kitchen", fresh=False) is None
     js = wait_job()
     assert js["result"] == "ok", js["tail"]
+    # the (fake) pipeline refuses --resume with an unfinished training, like the real one: it only
+    # worked because splat.sh started the training over
     assert "Training was interrupted (last checkpoint: 18000.ckpt)" in js["tail"]
+    assert "Incomplete training retained" not in js["tail"]
+    assert not (RUNS / "Kitchen" / "spirula" / "training").exists()
 
 
 def test_putting_a_tour_together():
@@ -106,3 +108,92 @@ def test_a_tour_needs_two_scenes_and_no_other_job():
     server.save_group("", "Lonely", "Kitchen")
     assert server.start_combine({"slug": "Lonely"})["code"] == "err.combine_too_few"
     assert server.start_combine({"slug": "Lonely", "align": "magic"})["code"] == "err.bad_request"
+
+
+# ---------------------------------------------------------------- checks before a conversion starts
+
+@pytest.mark.parametrize("file,code", [
+    ("2026-10-12_16-40-00_mono.mp4", "probe.not_stereo"),
+    ("2026-10-12_16-40-00_nogpmd.mp4", "probe.no_gpmd"),
+    ("2026-10-12_16-40-00_short.mp4", "probe.too_short"),
+])
+def test_unsuitable_recordings_are_refused(api, file, code):
+    rec = recording(file)
+    status, r = api.post("/api/start", {"path": str(rec), "name": "Kitchen", "quality": "fast", "upload": False})
+    assert status == 400 and r["error"]["code"] == code
+    assert not (RUNS / "Kitchen").exists()
+
+
+def test_a_short_recording_only_warns():
+    p = server.probe(str(recording("2026-10-12_16-40-00_brief.mp4")))
+    assert p["ok"] and p["warnings"][0]["code"] == "probe.short"
+
+
+@pytest.mark.parametrize("body,code", [
+    ({"path": "/etc/passwd"}, "err.unknown_recording"),              # only recordings from the known folders
+    ({"quality": "bogus"}, "err.bad_quality"),
+    ({"frames": "9999"}, "err.range"),
+    ({"scale": "abc"}, "err.bad_value"),
+    ({"name": "///"}, "err.bad_name"),
+])
+def test_invalid_conversions_are_refused(body, code):
+    full = {"path": str(recording()), "name": "Kitchen", "quality": "fast", "upload": False, **body}
+    assert server.start_job(full)["code"] == code
+    assert server.load_state().get("job") is None
+
+
+# ---------------------------------------------------------------- a scene that is being computed is left alone
+
+def test_a_scene_being_computed_cannot_be_changed(api):
+    convert()                                              # a finished scene ...
+    os.environ["FAKE_PIPELINE"] = "slow"                   # ... computed again (resume keeps scene.sog meanwhile)
+    assert server.start_job({"path": str(recording()), "name": "Kitchen", "quality": "fast", "upload": False,
+                             "existing": "resume"}) is None
+    time.sleep(2)
+    for path, body in (("/api/delete", {"slug": "Kitchen"}), ("/api/rename", {"slug": "Kitchen", "new": "Other"}),
+                       ("/api/clean", {"slug": "Kitchen", "what": "temp"})):
+        status, r = api.post(path, body)
+        assert status == 400 and r["error"]["code"] == "err.scene_busy", path
+    # and no tour is put together meanwhile (one job at a time)
+    synth.make_room(RUNS, "Office", "A")
+    synth.make_room(RUNS, "Hallway", "B")
+    assert server.save_group("", "Home", "Office,Hallway") == "Home"
+    assert server.start_combine({"slug": "Home"})["code"] == "err.job_busy"
+    assert (RUNS / "Kitchen" / "scene.sog").exists() and (RUNS / "Kitchen.log").exists()
+    server.cancel_job()
+    wait_job(timeout=30)
+
+
+# ---------------------------------------------------------------- after a power cut
+
+def leftover_from_a_power_cut():
+    """A start over that never finished: the old scene sits in .previous, a half new run in its place."""
+    convert(quality="fast")
+    old = (RUNS / "Kitchen" / "scene.sog").read_bytes()
+    prev = RUNS / ".previous" / "Kitchen"
+    prev.mkdir(parents=True)
+    (RUNS / "Kitchen").rename(prev / "run")
+    (RUNS / "Kitchen.log").rename(prev / "log")
+    (RUNS / "Kitchen").mkdir()
+    (RUNS / "Kitchen" / "half.txt").write_text("half")
+    meta = json.loads((RUNS / "Kitchen.ui.json").read_text())
+    (RUNS / "Kitchen.ui.json").write_text(json.dumps({**meta, "quality": "high", "previous": meta}))
+    return old
+
+
+def test_the_server_puts_back_a_scene_left_after_a_power_cut():
+    old = leftover_from_a_power_cut()
+    server.restore_previous()
+    assert (RUNS / "Kitchen" / "scene.sog").read_bytes() == old
+    assert not (RUNS / "Kitchen" / "half.txt").exists()
+    assert (RUNS / "Kitchen.log").exists()
+    assert json.loads((RUNS / "Kitchen.ui.json").read_text())["quality"] == "fast"
+    assert not (RUNS / ".previous").exists()
+
+
+def test_start_over_after_a_power_cut_keeps_the_old_scene_if_it_fails():
+    old = leftover_from_a_power_cut()
+    os.environ["FAKE_PIPELINE"] = "fail"
+    js = convert(existing="fresh")
+    assert js["result"] == "failed"
+    assert (RUNS / "Kitchen" / "scene.sog").read_bytes() == old    # splat.sh first put the left-over back

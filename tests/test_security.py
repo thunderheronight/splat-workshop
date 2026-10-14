@@ -68,17 +68,47 @@ def test_invalid_requests_get_400_not_a_crash(api, body, headers):
     assert api.get("/api/ping")[0] == 200            # still alive
 
 
-@pytest.mark.parametrize("slug", ["../runs", "..", "/etc", ".previous", "a/../../b"])
-def test_no_paths_outside_the_runs_folder(api, slug):
+@pytest.fixture
+def leak():
+    """Something that looks like a scene one level above the runs folder – it must never be reachable."""
+    above = RUNS.parent
+    (above / "spirula").mkdir(exist_ok=True)
+    (above / "spirula" / "scene.ply").write_bytes(b"ply\n")
+    (above / "leak.gallery.png").write_bytes(b"secret")
+    (above / "scene.sog").write_bytes(b"secret")
+    yield
+    for f in ("leak.gallery.png", "scene.sog"):
+        (above / f).unlink(missing_ok=True)
+    (above / "spirula" / "scene.ply").unlink(missing_ok=True)
+    (above / "spirula").rmdir()
+
+
+@pytest.mark.parametrize("slug", ["..", "../runs", "/etc", ".previous", "a/../../b", "."])
+def test_no_paths_outside_the_runs_folder(api, leak, slug):
     synth.make_room(RUNS, "Room", "A")
-    assert api.get(f"/api/preview?slug={slug}")[0] == 404
-    assert api.post("/api/delete", {"slug": slug})[0] == 400
-    assert api.post("/api/clean", {"slug": slug, "what": "temp"})[0] == 400
-    assert (RUNS / "Room" / "scene.sog").exists()
+    assert server.scene_dir(slug) is None
+    status, body = api.get(f"/api/preview?slug={slug}")
+    assert status == 404 and body != b"secret"
+    assert api.get(f"/api/floorplan?slugs={slug}")[0] == 400
+    for path, body in (("/api/delete", {"slug": slug}), ("/api/clean", {"slug": slug, "what": "temp"}),
+                       ("/api/rename", {"slug": slug, "new": "x"}), ("/api/upload", {"slug": slug}),
+                       ("/api/combine", {"slug": slug})):
+        assert api.post(path, body)[0] == 400, path
+    assert (RUNS / "Room" / "scene.sog").exists() and (RUNS.parent / "leak.gallery.png").exists()
 
 
-def test_actions_on_the_screen_only_from_this_pc():
+@pytest.mark.parametrize("path,body", [
+    ("/api/open", {"slug": "Room", "what": "folder"}), ("/api/play", {"name": "x.mp4"}),
+    ("/api/pick", {}), ("/api/shutdown", {}),
+])
+def test_actions_on_the_screen_only_from_this_pc(api, monkeypatch, path, body):
     # video player, file dialog, folder, Spirula and quitting: not from another device in the LAN
+    monkeypatch.setattr(server.Handler, "_from_this_pc", lambda self: False)
+    status, r = api.post(path, body)
+    assert status == 403 and r["error"]["code"] == "err.pc_only"
+
+
+def test_from_this_pc_means_loopback():
     class Remote(server.Handler):
         def __init__(self):
             self.client_address = ("192.168.1.20", 50000)
@@ -87,6 +117,17 @@ def test_actions_on_the_screen_only_from_this_pc():
         def __init__(self):
             self.client_address = ("127.0.0.1", 50000)
     assert not Remote()._from_this_pc() and Local()._from_this_pc()
+
+
+ENDPOINTS = ["/api/start", "/api/rename", "/api/clean", "/api/delete", "/api/upload", "/api/download", "/api/check",
+             "/api/group", "/api/group/dismiss", "/api/combine", "/api/resume"]
+
+
+@pytest.mark.parametrize("path", ENDPOINTS)
+@pytest.mark.parametrize("field", ["name", "new", "slug", "path", "what", "members", "key", "align", "quality"])
+def test_wrongly_typed_fields_get_400_everywhere(api, path, field):
+    for bad in (5, ["a"], True):
+        assert api.post(path, {field: bad})[0] == 400, (path, field, bad)
 
 
 def test_unknown_thumbnail_names_leave_no_cache_files(api):

@@ -2,6 +2,17 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] – 2026-10-14
+
+### Changed
+
+- **Tests hardened after an independent review** (206 instead of 57): every deliberately broken piece of code from the review is now caught (mutation testing). New: the recording check, renaming recordings, the Frame's list, downloads and copying scenes to the Frame (through a fake `ssh`), recovery after a power cut, scenes being left alone while they are computed, checks before a conversion starts (fake `ffprobe` instead of switching the check off), splat orientation and size when putting rooms together, correction D against C on a turned tracking, the reduced Frame version. Synthetic rooms now have tracking noise, scale errors and turned splats.
+- Known limit, now written down as a test: walking into a room is only recognised up to 0.4 m from another recording's path.
+
+### Fixed
+
+- Wrongly typed fields (e.g. `members: 5` when saving a group) were answered with an internal error or stored – now they get a clean 400.
+
 ## [0.2.1] – 2026-10-14
 
 ### Added
@@ -54,6 +65,7 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.2.2]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thunderheronight/splat-workshop/releases/tag/v0.1.0
