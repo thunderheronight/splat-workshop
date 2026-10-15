@@ -2,7 +2,7 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.1] – 2026-10-15
 
 ### Fixed
 
@@ -119,6 +119,7 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.3.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.1...v0.2.2
