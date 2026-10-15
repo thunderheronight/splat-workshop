@@ -6,6 +6,7 @@
 
 Usage: uv run combine.py <out folder> <run folder>=<label> [<run folder>=<label> ...]
                          [--align frame|images|shift|rigid] [--partition view|nearest] [--rooms JSON]
+                       [--colour match|keep]
 
 --rooms: the room of every recording, in the same order, e.g. '["Kitchen", "Kitchen", "Hallway"]' – a room
 can be made of several recordings (default: every recording is a room of its own).
@@ -23,6 +24,12 @@ roughly in place. Steps:
                 does not count, so the borders between rooms run through doors (default). Recordings of
                 the same room simply share it: every part from the recording that saw it best.
        nearest  the recording whose camera was closest
+     Either way a cube only goes to a recording that really has something there: at least a quarter of
+     what the richest one has (splat opacity summed per cube). A camera that "looked at" a place from
+     behind the sofa does not leave a dark hole there.
+  2b. Colour (--colour): every training settles on its own brightness, so the same wall can come out a
+     third darker in one recording than in the next. `match` (default) brings all of them to one
+     brightness per colour channel, from the cubes they share; `keep` leaves them as they are.
   3. Every room is transformed, cut to its own part and appended – one room in memory at a time.
 
 Writes <out>/spirula/scene.ply (all splats), <out>/scene.xrSceneTransform.json (start view of the
@@ -43,6 +50,10 @@ from scipy.spatial import cKDTree
 from scipy.spatial.transform import Rotation
 
 VOXEL, RADIUS, K = 0.10, 1.5, 64           # ownership: cube size, camera reach, cameras looked at
+SHARE = 0.25                               # a cube's owner needs at least this share of the richest one's splats
+SOLID = 3.0                                # summed opacity of a cube something really sits in
+GAIN = (0.7, 1.4)                          # colour matching never changes a recording more than this
+C0 = 0.28209479177387814                   # spherical harmonics, band 0
 BOTH = 1.5                                 # an overlap: places within this distance of both recordings' cameras
 
 
@@ -240,17 +251,105 @@ def joint_rigid(rooms, zones, poses, fixed, centre):
     return poses
 
 
+# ---------------------------------------------------------------- what every recording has where
+
+def cube_codes(points):
+    """10 cm cube of every point as one number (±100 km is plenty)."""
+    k = np.floor(points / VOXEL).astype(np.int64) + (1 << 20)
+    return (k[:, 0] << 42) | (k[:, 1] << 21) | k[:, 2]
+
+
+def contents(clouds):
+    """clouds: per recording (cube codes, opacity, rgb) of its splats. Per cube: summed opacity and
+    opacity-weighted colour of every recording – the cube codes (sorted), cover [cubes, n], colour [cubes, n, 3]."""
+    codes = [c for c, _, _ in clouds]
+    table = np.unique(np.concatenate(codes))
+    cover = np.zeros((len(table), len(clouds)))
+    colour = np.zeros((len(table), len(clouds), 3))
+    for i, (c, (_, a, rgb)) in enumerate(zip(codes, clouds)):
+        j = np.searchsorted(table, c)
+        cover[:, i] = np.bincount(j, a, len(table))
+        for ch in range(3):
+            colour[:, i, ch] = np.bincount(j, a * rgb[:, ch], len(table))
+    colour /= np.maximum(cover, 1e-9)[:, :, None]
+    return table, cover, colour
+
+
+def around(table, cover):
+    """Summed over each cube and its 26 neighbours: two recordings' copies of one wall, a centimetre apart,
+    often fall into neighbouring cubes – compared cube by cube, each would seem to have the wall alone."""
+    out = np.zeros_like(cover)
+    for dx, dy, dz in itertools.product((-1, 0, 1), repeat=3):
+        n = table + ((dx << 42) + (dy << 21) + dz)
+        j = np.clip(np.searchsorted(table, n), 0, len(table) - 1)
+        hit = table[j] == n
+        out[hit] += cover[j[hit]]
+    return out
+
+
+def colour_gains(cover, colour, min_cubes=200):
+    """Per recording and colour channel a factor that brings all recordings to one brightness: from the
+    cubes two of them both cover well, least squares on the log ratios, all factors together neutral."""
+    n = cover.shape[1]
+    gains = np.ones((n, 3))
+    if n < 2:
+        return gains
+    for ch in range(3):
+        rows, rhs = [], []
+        for a, b in itertools.combinations(range(n), 2):
+            m = (cover[:, a] > SOLID) & (cover[:, b] > SOLID) & (colour[:, a, ch] > 0.02) & (colour[:, b, ch] > 0.02)
+            if m.sum() < min_cubes:
+                continue
+            row = np.zeros(n)                    # log g_a - log g_b = log(c_b / c_a)
+            row[a], row[b] = 1, -1
+            w = np.sqrt(m.sum())
+            rows.append(row * w)
+            rhs.append(np.median(np.log(colour[m, b, ch] / colour[m, a, ch])) * w)
+        if not rows:
+            continue
+        rows.append(np.ones(n) * 100)            # together neutral: the room keeps its overall brightness
+        rhs.append(0.0)
+        x, *_ = np.linalg.lstsq(np.array(rows), np.array(rhs), rcond=None)
+        gains[:, ch] = np.clip(np.exp(x), *GAIN)
+    return gains
+
+
+def apply_gain(v, gain):
+    """Colour times `gain` (per channel), the view-dependent part included."""
+    rest = sorted((p for p in v.dtype.names if p.startswith("f_rest_")), key=lambda p: int(p[7:]))
+    per = len(rest) // 3                         # f_rest: all of red, then green, then blue
+    for ch in range(3):
+        g = np.float32(gain[ch])
+        v[f"f_dc_{ch}"] = (g * (0.5 + C0 * v[f"f_dc_{ch}"]) - 0.5) / C0
+        for p in rest[ch * per:(ch + 1) * per]:
+            v[p] *= g
+
+
 # ---------------------------------------------------------------- ownership
 
-def owners(rooms, poses, partition):
+def owners(rooms, poses, partition, have=None):
     """Function: points -> index of the owning recording."""
     labels = list(rooms)
     cams = [poses[l](rooms[l]["cams"]) for l in labels]
     fwd = [(poses[l].R @ rooms[l]["fwd"].T).T for l in labels]
     owner = np.concatenate([np.full(len(c), i) for i, c in enumerate(cams)])
+
+    def richest(lab, codes):
+        """Only a recording with at least SHARE of the richest one's splats in a cube may own it."""
+        if have is None:
+            return lab
+        table, cover = have
+        j = np.clip(np.searchsorted(table, codes), 0, len(table) - 1)
+        c = np.where((table[j] == codes)[:, None], cover[j], 0.0)
+        able = c >= SHARE * c.max(1, keepdims=True)
+        thin = ~able[np.arange(len(lab)), lab]
+        lab = lab.copy()
+        lab[thin] = c[thin].argmax(1)
+        return lab
+
     if partition == "nearest":
         tree = cKDTree(np.vstack(cams))
-        return lambda p: owner[tree.query(p, workers=-1)[1]], {}
+        return lambda p: richest(owner[tree.query(p, workers=-1)[1]], cube_codes(p)), {}
 
     # walking in and out: the first and last stretch of a recording along the path of another room's
     # recording ... (recordings of the same room cover the same place on purpose: that is no walking in)
@@ -296,11 +395,17 @@ def owners(rooms, poses, partition):
             cos = np.einsum("nkd,nkd->nk", to, F[j]) / np.maximum(np.linalg.norm(to, axis=2), 1e-6)
             w = np.where(ok & (cos > 0.3), (RADIUS - np.where(ok, d, RADIUS)) * cos, 0.0)
             score = np.stack([(w * (O[j] == r)).sum(1) for r in range(n)], axis=1)
+            codes = cube_codes(c)
+            if have is not None:                 # among the recordings that really have something there
+                table, cover = have
+                k = np.clip(np.searchsorted(table, codes), 0, len(table) - 1)
+                cv = np.where((table[k] == codes)[:, None], cover[k], 0.0)
+                score = np.where(cv >= SHARE * cv.max(1, keepdims=True), score, -1.0)
             best = score.argmax(1)
-            none = score.max(1) == 0
+            none = score.max(1) <= 0
             if none.any():
                 best[none] = O[tree.query(c[none], workers=-1)[1]]
-            lab[s:s + 200_000] = best
+            lab[s:s + 200_000] = richest(best, codes)
         return lab[inv.ravel()]
     return own, {labels[i]: int(t.sum()) for i, t in enumerate(np.split(transit, np.cumsum([len(c) for c in cams])[:-1]))}
 
@@ -314,6 +419,7 @@ def main():
     ap.add_argument("--align", choices=("frame", "images", "shift", "rigid"), default="images")
     ap.add_argument("--partition", choices=("view", "nearest"), default="view")
     ap.add_argument("--rooms", default="", help="JSON list: the room of every recording (default: one each)")
+    ap.add_argument("--colour", choices=("match", "keep"), default="match")
     args = ap.parse_args()
     room_of = json.loads(args.rooms) if args.rooms else []
     if room_of and (not isinstance(room_of, list) or len(room_of) != len(args.runs)
@@ -387,7 +493,20 @@ def main():
     progress(100)
 
     print("@@ cphase 1", flush=True)
-    own, transit = owners(rooms, poses, args.partition)
+    clouds = []                                 # what every recording has where (one at a time in memory)
+    for l, r in rooms.items():
+        _, v = read_ply(r["run"] / "spirula" / "scene.ply")
+        xyz = final[l](np.stack([v["x"], v["y"], v["z"]], axis=1).astype(np.float64))
+        rgb = 0.5 + C0 * np.stack([v["f_dc_0"], v["f_dc_1"], v["f_dc_2"]], axis=1).astype(np.float64)
+        clouds.append((cube_codes(xyz), 1 / (1 + np.exp(-v["opacity"].astype(np.float64))), rgb.astype(np.float32)))
+        del v, xyz, rgb
+    table, cover, colour = contents(clouds)
+    del clouds
+    gains = colour_gains(cover, colour) if args.colour == "match" else np.ones((len(rooms), 3))
+    for l, g in zip(rooms, gains):
+        if np.abs(g - 1).max() > 0.005:
+            print(f"{l}: colour × {g[0]:.2f} {g[1]:.2f} {g[2]:.2f}", flush=True)
+    own, transit = owners(rooms, poses, args.partition, (table, around(table, cover)))
     body = out / "spirula" / "scene.body.tmp"
     total, kept, header = 0, {}, None
     with open(body, "wb") as fb:
@@ -397,6 +516,7 @@ def main():
             keep = own(xyz) == i
             v, xyz = v[keep], xyz[keep]
             v["x"], v["y"], v["z"] = xyz.T.astype(np.float32)
+            apply_gain(v, gains[i])
             q = Rotation.from_matrix(final[l].R).as_quat()           # (x, y, z, w)
             rot = quat_mul(np.array([q[3], q[0], q[1], q[2]]),
                            np.stack([v["rot_0"], v["rot_1"], v["rot_2"], v["rot_3"]], axis=1).astype(np.float64))
@@ -419,9 +539,9 @@ def main():
 
     # start view: the one of the room in the middle
     shutil.copy(rooms[hub]["run"] / "scene.xrSceneTransform.json", out / "scene.xrSceneTransform.json")
-    for l in rooms:
-        room_info[l].update(kept[l], walk_in_out_cameras=transit.get(l, 0))
-    result = {"align": args.align, "partition": args.partition, "hub": hub, "splats": total,
+    for l, g in zip(rooms, gains):
+        room_info[l].update(kept[l], walk_in_out_cameras=transit.get(l, 0), colour=[round(float(x), 3) for x in g])
+    result = {"align": args.align, "partition": args.partition, "colour": args.colour, "hub": hub, "splats": total,
               "rooms": room_info, "seams_before": before, "seams": after,
               "seconds": round(time.time() - started)}
     (out / "combine.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))

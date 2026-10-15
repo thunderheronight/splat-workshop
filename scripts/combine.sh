@@ -7,6 +7,7 @@
 # Environment:
 #   ALIGN=frame|images|shift|rigid  how the rooms are fitted together (default: images, see combine.py)
 #   PARTITION=view|nearest          where the borders between the recordings run (default: view)
+#   COLOUR=match|keep               bring all recordings to one brightness (default: match)
 #   ROOMS='["Kitchen","Kitchen","Hallway"]'  the room of every recording, in order: a room can be made of
 #                                   several recordings (default: every recording is a room of its own)
 #   FRAME_SPLATS=1000000            splats in the Frame version (the full version keeps all)
@@ -61,7 +62,7 @@ main() {
     trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
 
     echo "Putting $# scenes together as \"$name\" (alignment ${ALIGN:-images}, borders ${PARTITION:-view})"
-    uv run -q "$HERE/combine.py" "$tmp" "$@" --align "${ALIGN:-images}" --partition "${PARTITION:-view}" \
+    uv run -q "$HERE/combine.py" "$tmp" "$@" --align "${ALIGN:-images}" --partition "${PARTITION:-view}" --colour "${COLOUR:-match}" \
         ${ROOMS:+--rooms "$ROOMS"}
     total=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["splats"])' "$tmp/combine.json")
 

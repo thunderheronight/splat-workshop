@@ -28,10 +28,11 @@ def two_rooms(drift_b=DRIFT_B, turn_b=0.0, b_far=False, walk_in_offset=0.3, scal
     return a, b
 
 
-def combine(*runs, align="images", partition="view"):
+def combine(*runs, align="images", partition="view", colour="keep"):
+    """Colour matching is off by default here: the rooms' and markers' own colours show where a splat came from."""
     out = BASE / f"out-{align}-{partition}"
     r = subprocess.run([sys.executable, str(COMBINE), str(out), *[f"{p}={p.name}" for p in runs],
-                        "--align", align, "--partition", partition], capture_output=True, text=True)
+                        "--align", align, "--partition", partition, "--colour", colour], capture_output=True, text=True)
     assert r.returncode == 0 or "@@ error" in r.stdout, r.stderr
     return out, r
 
@@ -131,7 +132,8 @@ def test_every_splat_is_written_once():
 @pytest.mark.parametrize("offset", [0.1, 0.3])
 def test_borders_run_through_the_door(offset):
     """Room B starts its recording in room A (walking in). With borders 'through doors' that stretch
-    claims nothing, so room A comes from room A's own recording; 'nearest camera' cuts into room A."""
+    claims nothing, so room A comes from room A's own recording; 'nearest camera' cuts into room A (less
+    since 0.3: a cube only goes to a recording that really has something there)."""
     def from_b_in_room_a(partition):
         out, r = combine(*two_rooms(drift_b=0.0, walk_in_offset=offset), partition=partition)
         v = read_ply(out / "spirula" / "scene.ply")
@@ -142,9 +144,8 @@ def test_borders_run_through_the_door(offset):
     view, walk_in = from_b_in_room_a("view")
     assert walk_in > 10                                    # recognised as walking in
     assert view < 50                                       # practically nothing of room B inside room A
-    if offset >= 0.3:                                      # close to the round, room A's cameras win anyway
-        nearest, _ = from_b_in_room_a("nearest")
-        assert nearest > 10 * max(view, 5)
+    nearest, _ = from_b_in_room_a("nearest")
+    assert nearest > 2 * max(view, 5)
 
 
 @pytest.mark.xfail(strict=True, reason="known limit: walking in is only recognised up to 0.4 m from the other "

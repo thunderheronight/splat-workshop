@@ -10,8 +10,11 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 - **Split a long video**: for a recording longer than its quality preset can use (500 image pairs – 100 s at *High*), Splat Workshop offers *Split the video* or *Convert in one piece*, each with its pros and cons. Split, it suggests as few parts as give the full rate of image pairs, all equally long (a 4-minute recording at *High*: 3 parts of 1:24 with 420 pairs each instead of 2 pairs per second), converts them one after the other and puts them together into one room. The parts are cut losslessly with the original time stamps (the pipeline matches images and poses by time); the original recording is never changed and is needed to cut again, so deleting it asks once more.
 - **A home made of rooms**: a group may hold such rooms next to single scenes. Putting it together always starts from the original recordings in one go, each in its room: within a room every part from the best recording, between rooms the borders run through the doors as before. Nothing is reduced twice. The floor plan names and measures rooms instead of recordings, and the scale of a home reaches its rooms and their recordings.
 
+- **One brightness for all recordings**: every training settles on its own brightness, so the same wall could come out a third darker in one recording than in the next. Putting them together now brings all recordings to one brightness per colour channel, from the places they share (`COLOUR=keep` for combine.sh leaves them as they are). The factors are in combine.json.
+
 ### Fixed
 
+- **Dark holes where a recording had nothing**: a place went to the recording whose cameras looked at it from close by, even when its training had left next to nothing there (seen from behind furniture, too dark …). Now a place only goes to a recording that has at least a quarter of what the richest one has there (compared over the place and its neighbours). In a real living room of three parts, the places left thin dropped from 8.5 % to 1.9 %.
 - Recordings of the same room no longer count as "walking in" to each other. Before, two overlapping recordings could hide the real walk-in of another room, which then claimed part of the room.
 
 ## [0.2.3] – 2026-10-14
