@@ -23,13 +23,13 @@ def test_renaming_moves_folder_files_and_log(api):
     (run / "aufnahme-12.10.-16-40.gallery.png").write_bytes(b"x")
     status, r = api.post("/api/rename", {"slug": "Aufnahme-12.10.-16-40", "new": "Büro 12.10."})
     assert status == 200, r
-    new = RUNS / "Buero-12.10."
+    new = RUNS / "Buero-12.10"
     assert new.is_dir() and not run.exists()
-    assert (new / "buero-12.10..sog").exists() and (new / "buero-12.10..gallery.png").exists()
-    assert (RUNS / "Buero-12.10..log").exists() and not (RUNS / "Aufnahme-12.10.-16-40.log").exists()
-    meta = json.loads((RUNS / "Buero-12.10..ui.json").read_text())
+    assert (new / "buero-12.10.sog").exists() and (new / "buero-12.10.gallery.png").exists()
+    assert (RUNS / "Buero-12.10.log").exists() and not (RUNS / "Aufnahme-12.10.-16-40.log").exists()
+    meta = json.loads((RUNS / "Buero-12.10.ui.json").read_text())
     assert meta["name"] == "Büro 12.10." and meta["folder_renamed"] is True
-    assert server.no_resume("Buero-12.10.") == "renamed"        # the pipeline remembers the old path
+    assert server.no_resume("Buero-12.10") == "renamed"        # the pipeline remembers the old path
 
 
 def test_renaming_to_a_taken_name_is_refused(api):

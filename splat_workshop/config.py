@@ -76,7 +76,8 @@ class Config:
 
 
 def slugify(name: str) -> str:
-    """Folder/file name from a display name: ä→ae etc., accents dropped, only [A-Za-z0-9._-]."""
+    """Folder/file name from a display name: ä→ae etc., accents dropped, only [A-Za-z0-9._-]; no dot or
+    dash at the ends ("Tour 12.10." → Tour-12.10: Windows file systems such as NTFS refuse a trailing dot)."""
     for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("Ä", "Ae"), ("Ö", "Oe"), ("Ü", "Ue"), ("ß", "ss")):
         name = name.replace(a, b)
     name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
@@ -88,7 +89,7 @@ def slugify(name: str) -> str:
         elif not dash:
             out.append("-")
             dash = True
-    return "".join(out).strip("-")
+    return "".join(out).strip("-.")
 
 
 def _merge(base: dict, over: dict) -> dict:

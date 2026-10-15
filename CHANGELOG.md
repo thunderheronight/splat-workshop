@@ -2,6 +2,12 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Folder names without a dot at the end**: a name like "Tour 12.10." gave the folder `Tour-12.10.`, which Windows file systems (NTFS, e.g. a second disk the runs are moved to) refuse – the copy silently lacked that tour. Now it is `Tour-12.10`. Existing folders keep their names.
+
 ## [0.3.0] – 2026-10-15
 
 ### Added

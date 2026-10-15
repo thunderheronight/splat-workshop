@@ -1,5 +1,6 @@
 """Groups of scenes: one group per scene, suggestions, renaming, cleaning up together."""
 import json
+import pytest
 
 from conftest import RUNS, server
 import synth
@@ -78,3 +79,18 @@ def test_dissolving_a_group_keeps_its_scenes(api):
     assert api.post("/api/delete", {"slug": "Home"})[0] == 200
     assert api.get("/api/groups")[1]["groups"] == []
     assert {"Kitchen", "Hallway", "Statue"} <= {s["slug"] for s in server.scenes()}
+
+
+@pytest.mark.parametrize("name,slug", [("Rundgang 12.10.", "Rundgang-12.10"), ("Küche", "Kueche"),
+                                       ("...", ""), (".hidden", "hidden"), ("Flur 2", "Flur-2")])
+def test_folder_names_suit_every_file_system(name, slug):
+    """No dot at the end: NTFS (e.g. runs on a Windows disk) refuses it, and the copy loses the tour."""
+    from splat_workshop import config
+    assert config.slugify(name) == slug
+
+
+def test_a_tour_named_with_a_date_gets_a_folder_ntfs_accepts(api):
+    synth.make_room(RUNS, "Kitchen", "A", name="Kitchen")
+    synth.make_room(RUNS, "Hall", "B", name="Hall")
+    status, r = api.post("/api/group", {"name": "Tour 12.10.", "members": "Kitchen,Hall"})
+    assert status == 200 and r["slug"] == "Tour-12.10"
