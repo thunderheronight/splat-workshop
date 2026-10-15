@@ -96,6 +96,14 @@ def test_recordings_of_one_room_are_brought_to_one_brightness():
     grey = (0.6, 0.6, 0.6)
     left = synth.make_room(RUNS, "Left", "A", loop=(1.1, 1.5, 0.6, 0.8), colour=grey)
     right = synth.make_room(RUNS, "Right", "A", loop=(2.9, 1.5, 0.6, 0.8), colour=grey)
+    for run in (left, right):                                            # some view-dependent colour, too
+        thin_out(run, lambda v: v["x"] > -1)
+        raw = (run / "spirula" / "scene.ply").read_bytes()
+        end = raw.index(b"end_header\n") + len(b"end_header\n")
+        props = [l.split()[-1].decode() for l in raw[:end].splitlines() if l.startswith(b"property")]
+        v = np.frombuffer(raw[end:], dtype=np.dtype([(p, "<f4") for p in props])).copy()
+        v["f_rest_0"] = 0.1                                              # red, first band
+        (run / "spirula" / "scene.ply").write_bytes(raw[:end] + v.tobytes())
     thin_out(right, lambda v: v["x"] > -1, gain=0.7)                     # its training came out darker
     out, r = combine([left, right], rooms=["Kitchen", "Kitchen"], colour="match")
     assert r.returncode == 0, r.stderr
@@ -105,6 +113,10 @@ def test_recordings_of_one_room_are_brought_to_one_brightness():
     assert abs(np.median(lw) - np.sqrt(0.6 * 0.42)) < 0.01               # in between: the room keeps its brightness
     info = json.loads((out / "combine.json").read_text())
     assert info["colour"] == "match" and info["rooms"]["Right"]["colour"][0] > 1.1
+    # the view-dependent part is scaled alike: seen from the side the two halves match, too
+    rest = lambda m: float(np.median(v["f_rest_0"][m]))
+    gl, gr = info["rooms"]["Left"]["colour"][0], info["rooms"]["Right"]["colour"][0]
+    assert abs(rest(v["x"] < 0.3) - 0.1 * gl) < 0.002 and abs(rest((v["x"] > 3.7) & (v["x"] < 4.3)) - 0.1 * gr) < 0.002
     out, r = combine([left, right], rooms=["Kitchen", "Kitchen"], name="kept", colour="keep")
     v, colour = splats(out)
     assert abs(np.median(colour[v["x"] < 0.3, 0]) - 0.6) < 0.01
@@ -290,3 +302,23 @@ def test_a_renamed_room_gets_a_floor_plan_with_its_new_name(api, monkeypatch):
     plan = RUNS / r["slug"] / "plan.png"
     assert plan.read_bytes() != before and not (plan.parent / "plan.new.png").exists()
     assert (plan.parent / f"{r['slug'].lower()}.gallery.png").exists()
+
+
+def test_two_rooms_of_the_same_name_stay_two_rooms(api):
+    make_home()
+    api.post("/api/group", {"name": "Kitchen", "members": "Left,Right", "room": True})
+    server.write_meta("Hall", name="Kitchen")                     # e.g. renamed by mistake
+    api.post("/api/group", {"name": "Home", "members": "Kitchen,Hall"})
+    assert sorted(server.group_scenes("Home")) == [("Hall", "Kitchen (2)"), ("Left", "Kitchen"), ("Right", "Kitchen")]
+
+
+def test_the_preview_plan_of_a_home_names_its_rooms(api, monkeypatch):
+    """combine.sh gets the rooms (ROOMS) and labels the floor plan of the preview by them."""
+    monkeypatch.setenv("COLOUR", "keep")
+    make_home()
+    api.post("/api/group", {"name": "Kitchen", "members": "Left,Right", "room": True})
+    api.post("/api/group", {"name": "Home", "members": "Kitchen,Hall"})
+    assert server.start_combine({"slug": "Home", "full": False}) is None
+    assert wait_job()["result"] == "ok"
+    plan = json.loads((RUNS / "Home" / "plan.json").read_text())
+    assert sorted(s["label"] for s in plan["scenes"]) == ["Hallway", "Kitchen"]

@@ -8,8 +8,6 @@
 
 [English](README.md)
 
-> ⚠️ **Das ist der Branch `experimental` – eine Vorschau auf 0.3.0.** Räume aus mehreren Aufnahmen und das Aufteilen langer Videos sind neu; bisher an einer echten Aufnahme ausprobiert (ein Wohnzimmer in drei Teilen). Die stabile Version ist [0.2.3](https://github.com/thunderheronight/splat-workshop/releases/latest) auf `main`.
-
 ![Splat-Werkstatt (Beispiel-Screenshot, Vorschaubilder durch Platzhalter ersetzt)](docs/screenshot.png)
 
 Räume, eine Statue, dein Auto, ein Garten – alles, um das du mit der Kamera herumgehen kannst, wird zu einer Szene, in die du hineinsteigen kannst.
@@ -24,7 +22,7 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den Ordner für eigene Szenen von Gaussian XR auf der Frame (`Documents/GaussianXR`).
 5. **Die Wohnung zusammensetzen**: Räume gruppieren – ein Raum darf aus mehreren Aufnahmen bestehen – und zu einem Rundgang machen, durch den du gehst, voll für den PC, kleiner für die Frame.
 
-## Neu in 0.3 *(experimentell)*
+## Neu in 0.3
 
 - 🚪 **Räume aus mehreren Aufnahmen** – eine Gruppe als *Ein Raum aus mehreren Aufnahmen* markieren, z. B. zwei kurze Runden durchs Wohnzimmer. Beim Zusammensetzen kommt jeder Teil des Raums aus der Aufnahme, die ihn am besten gesehen hat. Die Arcturus-Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – mehrere kurze Aufnahmen geben einem Raum also deutlich mehr Detail als eine lange.
 - ✂️ **Lange Videos aufteilen** – bei langen Aufnahmen bietet die Werkstatt *Video aufteilen* (volle Detailtiefe, dauert länger) oder *Video nicht aufteilen* (schneller, weniger Bildpaare pro Sekunde) an. Aufgeteilt werden die Teile nacheinander umgewandelt und von selbst zu einem Raum. Die Original-Aufnahme bleibt unverändert.
@@ -57,7 +55,7 @@ Alle Änderungen: [CHANGELOG.md](CHANGELOG.md) (englisch)
 - **Umwandlungen laufen unabhängig weiter** – Browser zu, Tray beendet, Neustart: Werkstatt wieder öffnen, Fortschritt ist wieder da.
 - **Abbrechen & Fortsetzen** ab dem letzten Zwischenstand.
 - **Aufnahmeprüfung ohne KI**: reine Messwerte je Sekunde, farbige Zeitleiste und konkrete Hinweise („0:45–0:59 wenig Struktur“).
-- **Räume aus mehreren Aufnahmen** *(0.3, experimentell)*: Ein Raum kann aus mehreren kurzen Aufnahmen bestehen (jede bis zu 500 Bildpaare) und eine Wohnung aus solchen Räumen – jeder Teil kommt aus der Aufnahme, die ihn am besten gesehen hat, die Grenzen zwischen den Räumen laufen durch die Türen. Räume erscheinen in der Liste innerhalb ihrer Wohnung und lassen sich auch einzeln zusammensetzen, ansehen und auf die Frame bringen.
+- **Räume aus mehreren Aufnahmen** *(0.3)*: Ein Raum kann aus mehreren kurzen Aufnahmen bestehen (jede bis zu 500 Bildpaare) und eine Wohnung aus solchen Räumen – jeder Teil kommt aus der Aufnahme, die ihn am besten gesehen hat, die Grenzen zwischen den Räumen laufen durch die Türen. Räume erscheinen in der Liste innerhalb ihrer Wohnung und lassen sich auch einzeln zusammensetzen, ansehen und auf die Frame bringen.
 - **Gruppen und Rundgänge**: Szenen gruppieren (z. B. alle Räume der Wohnung) und zu einer Szene zusammensetzen – eine volle Fassung für Gaussian XR am PC und eine kleinere für die Frame. Aufnahmen aus einem Durchgang teilen das Tracking-Koordinatensystem der Frame; die Werkstatt richtet die Räume aneinander aus (Korrekturen A–D zur Wahl), legt die Grenzen zwischen den Aufnahmen in die Türen und zeigt, wie gut die Räume aneinanderpassen. Vor dem Start schätzt sie den Speicherbedarf.
   <br><img src="docs/combine.png" width="360" alt="Dialog „Zusammensetzen“: Korrekturen A bis D, Grenzen zwischen den Aufnahmen, Größe der Frame-Fassung, volle Fassung, Speicherschätzung">
   <br><sub>Beispieldaten (englische Oberfläche) – Raumnamen und Vorschaubilder sind Platzhalter.</sub>

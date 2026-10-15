@@ -226,6 +226,8 @@ from splat_workshop import server  # noqa: E402  (after the environment is set u
 def clean():
     """Every test starts with empty runs, recordings, state and trash."""
     yield
+    for p in server.notes:                     # notifications still on their way belong to this test
+        p.wait(10)
     st = server.load_state().get("job") or {}
     if server.pid_alive(st.get("pid", 0)):
         server.cancel_job()

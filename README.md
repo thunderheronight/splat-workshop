@@ -8,8 +8,6 @@
 
 [Deutsch](README.de.md)
 
-> ⚠️ **This is the `experimental` branch – a preview of 0.3.0.** Rooms made of several recordings and splitting long videos are new; so far they have been tried on one real recording (a living room in three parts). The stable release is [0.2.3](https://github.com/thunderheronight/splat-workshop/releases/latest) on `main`.
-
 ![Splat Workshop: conversion in progress, recordings with check badges, check result and finished scenes](docs/screenshot.png)
 
 <sub>Example screenshot – the recording thumbnails are replaced by placeholder art.</sub>
@@ -26,7 +24,7 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's folder for personal scenes on the Frame (`Documents/GaussianXR`).
 5. **Put your home together**: group the rooms – a room may be several recordings – and turn them into one tour you walk through, full size for the PC, smaller for the Frame.
 
-## New in 0.3 *(experimental)*
+## New in 0.3
 
 - 🚪 **Rooms made of several recordings** – mark a group as *one room made of several recordings*, e.g. two short rounds through the living room. When put together, every part of the room comes from the recording that saw it best. The Arcturus pipeline uses at most 500 image pairs per recording, so several short recordings give a room far more detail than one long one.
 - ✂️ **Split a long video** – for long recordings Splat Workshop offers *Split the video* (full detail, takes longer) or *Convert in one piece* (sooner, fewer image pairs per second). Split, the parts are converted one after the other and become one room by themselves. The original recording stays untouched.
@@ -55,7 +53,7 @@ All changes: [CHANGELOG.md](CHANGELOG.md)
 - **Conversions survive everything**: they run as their own process; close the browser, quit the tray, restart – reopen Splat Workshop and you see the progress again.
 - **Cancel & resume**: a cancelled conversion continues from its last saved state.
 - **Recording check** without AI: plain per-second measurements with a colour-coded timeline and concrete hints (“0:45–0:59 little structure”). See [What the check measures](#what-the-check-measures).
-- **Rooms from several recordings** *(0.3, experimental)*: a room can be made of several short recordings (each up to 500 image pairs), and a home of such rooms – every part comes from the recording that saw it best, the borders between rooms run through the doors. Rooms appear inside their home in the list and can also be put together, viewed and copied to the Frame on their own.
+- **Rooms from several recordings** *(0.3)*: a room can be made of several short recordings (each up to 500 image pairs), and a home of such rooms – every part comes from the recording that saw it best, the borders between rooms run through the doors. Rooms appear inside their home in the list and can also be put together, viewed and copied to the Frame on their own.
 - **Groups and tours**: group scenes (e.g. all rooms of your home) and put them together into one scene – a full version for Gaussian XR on the PC and a smaller one for the Frame. Recordings from one session share the Frame's tracking frame; Splat Workshop fits the rooms to each other (corrections A–D to choose), lets the borders between recordings run through doors and shows how well the rooms meet. Before starting it estimates the memory needed.
   <br><img src="docs/combine.png" width="360" alt="Dialog “Put together”: corrections A to D, borders between the recordings, size of the Frame version, full version, memory estimate">
   <br><sub>Example data – room names and preview images are placeholders.</sub>

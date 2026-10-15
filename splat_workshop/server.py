@@ -29,7 +29,7 @@ from pathlib import Path
 from . import check, config
 from .i18n import T, detect
 
-VERSION = "0.3.0-experimental"
+VERSION = "0.3.0"
 CFG = config.load()
 ROOT = config.ROOT
 WEB = ROOT / "web"
@@ -97,10 +97,14 @@ def pretty_date(stem: str) -> str:
     return f"{m[1]}-{m[2]}-{m[3]}T{m[4]}:{m[5]}" if m else ""
 
 
+notes = []                         # notify-send processes still running (the tests wait for them)
+
+
 def notify(title: str, body: str) -> None:
     if shutil.which("notify-send"):
-        subprocess.Popen(["notify-send", "-a", t("app"), "-i", "applications-graphics", title, body],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        notes[:] = [p for p in notes if p.poll() is None]
+        notes.append(subprocess.Popen(["notify-send", "-a", t("app"), "-i", "applications-graphics", title, body],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
 
 
 @functools.cache
@@ -900,6 +904,8 @@ def watch_once(was_running):
     if not running:
         restore_previous()
         advance_parts()
+        js = job_status(tail=False)             # the next part (or putting them together) may run now
+        running = bool(js and js["running"])
     for slug in list(uploads):
         upload_status(slug)                     # notify even without an open page
     return running
@@ -1603,6 +1609,14 @@ def delete_scene(slug: str):
         return err("err.trash_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
     usage_cache.pop(d, None)
     uploads.pop(slug, None)
+    # a part's piece cut out of its recording (kept for resuming): not needed any more, and cut again
+    # from the recording any time – deleted, not into the trash (it is as big as that stretch of video)
+    for cut in (RUNS / ".parts" / f"{slug}.mp4", RUNS / ".parts" / f"{slug}.mp4.tmp.mp4"):
+        cut.unlink(missing_ok=True)
+    try:
+        (RUNS / ".parts").rmdir()
+    except OSError:
+        pass
     for g, gm in all_groups().items():
         if slug in gm.get("members", []):
             write_meta(g, members=[m for m in gm["members"] if m != slug])

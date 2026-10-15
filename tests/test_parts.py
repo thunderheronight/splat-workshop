@@ -20,14 +20,25 @@ def cuts():
 
 
 def run_chain(timeout=120):
-    """Let the chain run on (the server's watcher does this every few seconds)."""
+    """Let the chain run on as the server's watcher does: a tick after every job – and one more, which
+    must not do anything again."""
+    was = True
     for _ in range(10):
         js = wait_job(timeout)
-        server.advance_parts()
+        running = server.watch_once(was)
+        server.watch_once(running)
         nxt = server.job_status(tail=False)
-        if nxt["out"] == js["out"]:
+        if not running and nxt["out"] == js["out"]:
             return js
+        assert running and nxt["running"], "the watcher reports the next job as running"
+        was = running
     raise AssertionError("the chain did not end")
+
+
+def notes():
+    for p in server.notes:                     # notifications are sent in the background
+        p.wait(10)
+    return [c for c in tools_called() if c[0] == "notify-send"]
 
 
 def test_parts_are_equally_long_and_overlap_a_little():
@@ -61,8 +72,7 @@ def test_a_recording_in_parts_becomes_one_room(api):
     assert room["room"] and room["members"] == list(parts) and room["result"] and not room["result"]["stale"]
     info = json.loads((RUNS / "Living-room" / "combine.json").read_text())
     assert {x["room"] for x in info["rooms"].values()} == {"Living room"}
-    notes = [c for c in tools_called() if c[0] == "notify-send"]
-    assert [n[-1] for n in notes if "part" in n[-1]] == [
+    assert [n[-1] for n in notes() if "part" in n[-1]] == [
         "“Living room”: 2 parts are one room now – it is being put together"]
 
 
@@ -85,7 +95,7 @@ def test_a_cancelled_part_stops_the_chain_quietly():
     server.cancel_job()
     js = run_chain(timeout=30)
     assert js["result"] == "cancelled" and len(cuts()) == 1
-    assert not [c for c in tools_called() if c[0] == "notify-send" and "part" in c[-1]]
+    assert not [n for n in notes() if "part" in n[-1]]
 
 
 @pytest.mark.parametrize("body,code", [
@@ -135,3 +145,17 @@ def test_splat_sh_refuses_odd_stretches():
         assert r.returncode == 1 and "PART must be" in r.stderr, part
     assert not cuts() and not (RUNS / "Odd").exists()
     assert list(REC.iterdir()) == [rec]
+
+
+def test_deleting_a_part_that_did_not_finish_removes_its_cut():
+    """A failed or cancelled part keeps its piece of video (for resuming); deleting the run deletes it too
+    – it is as big as that stretch of the recording, hidden and in no list."""
+    os.environ["FAKE_PIPELINE"] = "fail"
+    rec = recording(NAME)
+    server.start_parts({"path": str(rec), "name": "Living room", "quality": "high", "parts": 2})
+    run_chain()
+    cut = RUNS / ".parts" / "Living-room-part-1-of-2.mp4"
+    assert cut.exists()
+    assert server.delete_scene("Living-room-part-1-of-2") is None
+    assert not cut.exists() and not (RUNS / ".parts").exists() and not (TRASH / cut.name).exists()
+    assert rec.exists()

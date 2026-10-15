@@ -93,7 +93,7 @@ import json, sys
 for arg, room in zip(sys.argv[2:], json.loads(sys.argv[1])):
     print(arg.partition("=")[0] + "=" + room)' "$ROOMS" "$@")
     fi
-    uv run -q "$HERE/floorplan.py" "$tmp/plan.png" "${plan_args[@]}" ${PLAN_COMMA:+--comma} >/dev/null
+    uv run -q "$HERE/floorplan.py" "$tmp/plan.png" "${plan_args[@]}" ${PLAN_COMMA:+--comma} > "$tmp/plan.json"
     uv run -q "$HERE/make_gallery.py" --plan "$tmp/plan.png" "$tmp" "$name" "$stem"
     if [ -d "$tmp/full" ]; then
         uv run -q "$HERE/make_gallery.py" --plan "$tmp/plan.png" "$tmp/full" "${FULL_NAME:-$name (full)}" "$stem-full"

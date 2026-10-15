@@ -92,3 +92,47 @@ def test_kept_awake_between_jobs_and_let_go_after(monkeypatch):
     time.sleep(0.6)
     server.hold_awake(False)
     assert p.poll() is not None and server.awake["proc"] is None
+
+
+def test_one_notice_after_a_whole_chain_of_parts():
+    """Between two parts, and between the last part and putting them together, nothing announces the
+    standby: the watcher's tick that starts the next part reports it as running."""
+    os.environ["FAKE_PIPELINE"] = "room"
+    assert server.start_parts({"path": str(recording("2026-10-14_16-57-54_stereo.mp4")), "name": "Living room",
+                               "quality": "high", "parts": 2, "upload": False}) is None
+    server.set_standby(True)
+    was, ticks = True, 0
+    while ticks < 10:
+        wait_job()
+        running = server.watch_once(was)
+        server.standby_tick(running)
+        ticks += 1
+        if not running:
+            break
+        assert server.standby_status()["at"] is None
+        was = running
+    assert server.job_status(tail=False)["kind"] == "combine"
+    server.standby_tick(False)
+    for p in server.notes:
+        p.wait(10)
+    notices = [c for c in tools_called() if c[0] == "notify-send" and "standby" in c[-1].lower()]
+    assert len(notices) == 1 and suspends() == [["systemctl", "suspend"]]
+
+
+def test_the_own_lock_goes_before_the_standby(monkeypatch):
+    monkeypatch.setattr(server, "can_inhibit", lambda: True)
+    monkeypatch.setattr(server, "keep_awake", lambda cmd, why: cmd)
+    server.hold_awake(True)
+    lock = server.awake["proc"]
+    held = []
+    real = server.subprocess.run
+
+    def run(cmd, *a, **kw):
+        if cmd[:2] == ["systemctl", "suspend"]:
+            held.append(lock.poll() is None)
+        return real(cmd, *a, **kw)
+    monkeypatch.setattr(server.subprocess, "run", run)
+    server.set_standby(True)
+    server.standby_tick(False)
+    server.standby_tick(False)
+    assert held == [False] and server.awake["proc"] is None

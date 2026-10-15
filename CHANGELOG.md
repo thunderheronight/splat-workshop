@@ -2,7 +2,7 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] – 0.3 (experimental, branch `experimental`)
+## [0.3.0] – 2026-10-15
 
 ### Added
 
@@ -20,6 +20,7 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 - **A renamed room** gets its floor plan and preview images drawn again with the new name (before: the old name until it was put together again).
 - Two rooms of the same name in a home are told apart as "Kitchen" and "Kitchen (2)" (was "Kitchen ·").
 - The dialog for putting a room together explains rooms, not tours.
+- A part of a long recording that failed or was cancelled keeps its piece of video for resuming; deleting the unfinished run now deletes that piece too (it is as big as that stretch of the recording and was in no list).
 - Recordings of the same room no longer count as "walking in" to each other. Before, two overlapping recordings could hide the real walk-in of another room, which then claimed part of the room.
 
 ## [0.2.3] – 2026-10-14
@@ -112,6 +113,7 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.3.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.0...v0.2.1
