@@ -30,6 +30,9 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 - 🎚️ **Versions by purpose** – *for the Frame* (one size, with the frame rate measured on a Steam Frame) or *for the PC* (all splats); optionally the same without cleaning up next to it; a preview of what will be made. Versions are named by their clean-up strengths, *As template* takes a version's settings for the next try, a PC version opens in **Spirula Studio** with one click, and versions **unfold under their scene or tour**.
 - 🧭 **Tidier action bars** – what you do, what you look at, what you change; the unfolding lists on a line of their own.
 
+<img src="docs/versions.png" width="420" alt="The new version dialog: for the Frame or the PC, sizes with measured frame rates, four clean-up sliders, also without cleaning up to compare, and a preview of the two versions it will make"> <img src="docs/versions-list.png" width="520" alt="A scene with its versions unfolded: 1 M for the Frame with and without cleaning up, all splats for the PC with Spirula and As template">
+<br><sub>Example data – the scene and its preview are placeholders.</sub>
+
 ## New in 0.3
 
 - 🚪 **Rooms made of several recordings** – mark a group as *one room made of several recordings*, e.g. two short rounds through the living room. When put together, every part of the room comes from the recording that saw it best. The Arcturus pipeline uses at most 500 image pairs per recording, so several short recordings give a room far more detail than one long one.

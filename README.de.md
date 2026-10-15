@@ -28,6 +28,9 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 - 🎚️ **Fassungen nach Zweck** – *für die Frame* (eine Größe, mit den auf einer Steam Frame gemessenen fps) oder *für den PC* (alle Splats); auf Wunsch dieselbe ohne Bereinigung daneben; vorher eine Vorschau, was entsteht. Fassungen heißen nach ihren Bereinigungsstärken, *Als Vorlage* übernimmt die Einstellungen für den nächsten Versuch, eine PC-Fassung öffnet sich mit einem Klick in **Spirula Studio**, und Fassungen **klappen unter ihrer Szene oder ihrem Rundgang auf**.
 - 🧭 **Aufgeräumte Knopfleisten** – was du tust, was du anschaust, was du änderst; das Aufklappen in einer eigenen Zeile.
 
+<img src="docs/versions.png" width="420" alt="Der neue Fassungen-Dialog: für die Frame oder den PC, Größen mit gemessenen fps, vier Bereinigungs-Regler, zusätzlich ohne Bereinigung zum Vergleichen und eine Vorschau der zwei Fassungen"> <img src="docs/versions-list.png" width="520" alt="Eine Szene mit aufgeklappten Fassungen: 1 Mio. für die Frame mit und ohne Bereinigung, alle Splats für den PC mit Spirula und Als Vorlage">
+<br><sub>Beispieldaten – Szene und Vorschaubild sind Platzhalter (englische Oberfläche).</sub>
+
 ## Neu in 0.3
 
 - 🚪 **Räume aus mehreren Aufnahmen** – eine Gruppe als *Ein Raum aus mehreren Aufnahmen* markieren, z. B. zwei kurze Runden durchs Wohnzimmer. Beim Zusammensetzen kommt jeder Teil des Raums aus der Aufnahme, die ihn am besten gesehen hat. Die Arcturus-Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – mehrere kurze Aufnahmen geben einem Raum also deutlich mehr Detail als eine lange.
