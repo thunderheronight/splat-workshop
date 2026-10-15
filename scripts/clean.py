@@ -122,7 +122,9 @@ def ceiling(room, v, rgb, lum, alpha, s):
         print("Ceiling: not found, left as it is")
         return np.zeros(len(v), bool), v[:0]
     h, edges = np.histogram(room.up[corner], bins=np.arange(2.0, 3.5, 0.02))
-    H = float(edges[np.argmax(np.convolve(h, [1, 2, 1], "same"))] + 0.01)
+    h = np.convolve(h, [1, 2, 1], "same")
+    # the highest strong line: a cupboard or shelf top by the wall can be strong, too, but lies lower
+    H = float(edges[np.flatnonzero(h >= 0.5 * h.max())[-1]] + 0.01)
     bright = inside & (lum > 0.3) & (room.up > 2.0)
     depth = 0.1 + 0.5 * s
     under = (room.up > H - depth) & (room.up < H - 0.03)

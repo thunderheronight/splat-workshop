@@ -172,6 +172,8 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .suggest .row { margin-top: 8px; }
 dialog.wide { max-width: 560px; }
 .vgrid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; font-size: 13.5px; }
+.cleanup .slide { display: grid; grid-template-columns: 7.5em 1fr 4.5em; gap: 10px; align-items: center; margin: 2px 0; }
+.cleanup .slide output { text-align: right; color: var(--muted, #9aa3b2); font-variant-numeric: tabular-nums; }
 .vgrid label.chk { display: inline-flex; gap: 5px; align-items: center; padding: 4px 9px; border: 1px solid var(--line); border-radius: 8px; }
 dialog select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; }
 dialog h3 { font-size: 13.5px; margin: 16px 0 8px; }
@@ -423,6 +425,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
     <b data-i18n="ver.pc"></b><div class="row" id="verPc"></div>
     <b data-i18n="ver.custom"></b><label class="row" style="gap:6px"><input id="verCustom" type="number" min="0.1" max="50" step="0.05" style="width:90px"> <span data-i18n="ver.million"></span></label>
     <b class="hidden" id="verScaleHead" data-i18n="ver.scales"></b><div class="row hidden" id="verScales"></div>
+    <b data-i18n="ver.clean"></b><div id="verClean" class="cleanup"></div>
   </div>
   <p class="faint" style="font-size:12px;margin:12px 0 0" data-i18n="ver.measured"></p>
   <div class="row" style="justify-content:flex-end;margin-top:16px">
@@ -1293,7 +1296,8 @@ async function loadFrameGallery(refresh) {
 
 /* ---------- versions ---------- */
 const FRAME_SIZES = [0.75, 1, 1.5, 2], PC_SIZES = ["all", 3, 5, 8];          // million splats
-const FRAME_RECOMMENDED = 1;   // measured on the Frame: as fast as 0.75 M nearly, clearly sharper; 1.5 M already a little unsteady
+const FRAME_RECOMMENDED = 1;
+const CLEANUPS = ["ceiling", "floor", "haze", "outside"];                  // scripts/clean.py   // measured on the Frame: as fast as 0.75 M nearly, clearly sharper; 1.5 M already a little unsteady
 function sizeText(m) { return m === "all" ? tr("ver.all") : tr("million", {n: num(m, Math.round(m * 100) % 10 ? 2 : m % 1 ? 1 : 0)}); }
 async function openVersions(slug) {
   const g = (S.groups || []).find(x => x.slug === slug), x = g || S.scenes.find(y => y.slug === slug);
@@ -1304,6 +1308,11 @@ async function openVersions(slug) {
   $("#verFrame").innerHTML = FRAME_SIZES.map(m => chk(m, sizeText(m) + (m === FRAME_RECOMMENDED ? " " + tr("ver.recommended") : ""), m === FRAME_RECOMMENDED)).join("");
   $("#verPc").innerHTML = PC_SIZES.filter(m => m === "all" || m * 1e6 < total).map(m => chk(m, sizeText(m))).join("");
   $("#verCustom").value = "";
+  $("#verClean").innerHTML = `<p class="faint" style="font-size:12px;margin:0 0 6px">${tr("ver.clean.hint")}</p>` + CLEANUPS.map(k => `
+    <label class="slide" title="${esc(tr("ver.clean." + k + ".title"))}"><span>${tr("ver.clean." + k)}</span>
+      <input type="range" min="0" max="100" step="10" value="0" data-clean="${k}"><output>${tr("ver.clean.off")}</output></label>`).join("");
+  $("#verClean").querySelectorAll("input").forEach(i => i.oninput = () =>
+    i.nextElementSibling.textContent = +i.value ? i.value + " %" : tr("ver.clean.off"));
   $("#verScaleHead").classList.toggle("hidden", scale === 1);
   $("#verScales").classList.toggle("hidden", scale === 1);
   $("#verScales").innerHTML = scale === 1 ? "" : `<label class="chk"><input type="checkbox" value="1" checked> ${tr("scale.original")}</label>`
@@ -1318,7 +1327,8 @@ async function openVersions(slug) {
     if (custom > 0) sizes.push(String(Math.round(custom * 1e6)));
     const scales = scale === 1 ? ["1"] : [...document.querySelectorAll("#verScales input:checked")].map(i => i.value);
     if (!sizes.length || !scales.length) { toast(tr("ver.pick")); return; }
-    const r = await api("/api/versions", {slug, sizes: sizes.join(","), scales: scales.join(",")});
+    const clean = [...document.querySelectorAll("#verClean input")].filter(i => +i.value).map(i => `${i.dataset.clean}=${i.value / 100}`).join(",");
+    const r = await api("/api/versions", {slug, sizes: sizes.join(","), scales: scales.join(","), clean});
     if (!r.ok) { toast(trErr(r.error)); return; }
     $("#verDlg").close(); toast(tr("ver.started")); await poll();
     $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});

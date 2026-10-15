@@ -984,17 +984,20 @@ def version_key(splats, scale: float, clean: dict = None) -> str:
     return key + ("-" + "".join(f"{k[0]}{round(v * 100)}" for k, v in clean.items()) if clean else "")
 
 
-def parse_cleanup(raw):
-    """{"ceiling": 0.5, ...} -> the ones switched on, each 0 < S <= 1; or an error."""
-    if raw in (None, "", {}):
+def parse_cleanup(raw: str):
+    """"ceiling=0.5,haze=0.3" -> {"ceiling": 0.5, "haze": 0.3}, the ones switched on (0 < S <= 1); or an error."""
+    if not raw:
         return {}
-    if not isinstance(raw, dict) or set(raw) - set(CLEANUPS):
+    pairs = dict(kv.partition("=")[::2] for kv in raw.split(","))
+    if set(pairs) - set(CLEANUPS):
         return err("err.bad_value", key="clean")
     out = {}
     for k in CLEANUPS:
         try:
-            v = float(raw.get(k) or 0)
-        except (TypeError, ValueError):
+            v = float(pairs.get(k) or 0)
+        except ValueError:
+            return err("err.bad_value", key=k)
+        if v != v:
             return err("err.bad_value", key=k)
         if not 0 <= v <= 1:
             return err("err.range", key=k, lo=0, hi=1)
@@ -2317,7 +2320,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
                 or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key", "version", "sizes", "scales", "folder",
                                                            "names", "place", "where",
-                                                           "align", "partition")):
+                                                           "align", "partition", "clean")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
         e = None
