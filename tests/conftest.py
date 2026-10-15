@@ -117,6 +117,14 @@ import json, sys
 with open("{TOOL_LOG}", "a") as log:
     log.write(json.dumps(["{tool}", *sys.argv[1:]]) + "\\n")
 ''')
+# systemctl: the tests must never suspend this PC – a note in the tool log; FAKE_SUSPEND_FAIL=1: refused
+script(BIN / "systemctl", f'''#!{sys.executable}
+import json, os, sys
+with open("{TOOL_LOG}", "a") as log:
+    log.write(json.dumps(["systemctl", *sys.argv[1:]]) + "\\n")
+if os.environ.get("FAKE_SUSPEND_FAIL"):
+    sys.exit("Operation inhibited by \\"Steam\\" (Steam is downloading)")
+''')
 # notify-send: no desktop notifications from the tests, only a note in the tool log
 script(BIN / "notify-send", f'''#!{sys.executable}
 import json, sys
@@ -233,7 +241,7 @@ def clean():
         while server.download_busy() and time.time() < end:
             time.sleep(0.05)
     server.download, server.download_queue[:], server.download_batch = None, [], {}
-    for k in ("FAKE_PIPELINE", "FAKE_FRAME_OFF", "FAKE_FRAME_CUT", "FAKE_FRAME_SLOW", "FAKE_FRAME_SHORT", "FAKE_SCP_SLOW",
+    for k in ("FAKE_PIPELINE", "FAKE_SUSPEND_FAIL", "FAKE_FRAME_OFF", "FAKE_FRAME_CUT", "FAKE_FRAME_SLOW", "FAKE_FRAME_SHORT", "FAKE_SCP_SLOW",
               "FRAME_HOST"):
         os.environ.pop(k, None)
     os.environ["FRAME_HOST"] = ""

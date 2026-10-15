@@ -240,6 +240,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
       <span class="title" id="jobName"></span>
       <span class="muted" id="jobSub"></span>
       <span class="spacer" style="flex:1"></span>
+      <label class="chk" id="standbyBox" data-i18n-title="job.standby.title"><input type="checkbox" id="standbyChk"> <span id="standbyText" data-i18n="job.standby"></span></label>
       <button class="danger small" id="cancelBtn" data-i18n="job.cancel"></button>
       <button class="small hidden" id="dismissBtn" data-i18n="job.dismiss"></button>
     </div>
@@ -393,7 +394,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 
 <dialog id="combineDlg" class="wide">
   <h2 style="margin-top:0" id="cmbTitle"></h2>
-  <p class="muted" style="font-size:13px;margin-top:0" data-i18n="cmb.hint"></p>
+  <p class="muted" style="font-size:13px;margin-top:0" id="cmbHint"></p>
   <h3 data-i18n="cmb.align"></h3>
   <div class="opts" id="cmbAlign"></div>
   <h3 data-i18n="cmb.part"></h3>
@@ -928,18 +929,27 @@ $("#cancelBtn").onclick = async () => {
   const r = await api("/api/cancel", {}); if (!r.ok) toast(trErr(r.error));
 };
 $("#dismissBtn").onclick = () => { S.dismissed = S.job?.out; renderJob(); };
+$("#standbyChk").onchange = async e => { S.standby = await api("/api/standby", {on: e.target.checked}); renderJob(); };
+function renderStandby() {
+  const sb = S.standby || {}, j = S.job;
+  $("#standbyChk").checked = !!sb.on;
+  $("#standbyBox").classList.toggle("hidden", !(j && j.running) && !sb.on);
+  $("#standbyText").textContent = sb.on && sb.at ? tr("job.standby.in", {s: Math.max(0, Math.round(sb.at - Date.now() / 1000))}) : tr("job.standby");
+}
 
 /* ---------- current conversion ---------- */
 function renderJob() {
   const j = S.job, card = $("#jobCard");
   if (!j || (!j.running && S.dismissed === j.out)) { card.classList.add("hidden"); return; }
   card.classList.remove("hidden");
+  renderStandby();
   $("#jobName").textContent = j.name;
   const qk = QUALITY_ALIAS[j.quality] || j.quality, combine = j.kind === "combine";
   const target = tr(j.upload ? "job.toFrame" : "job.pcOnly"), time = mins(Date.now() / 1000 - j.started);
   const versions = j.kind === "versions";
   $("#jobSub").textContent = versions ? tr("job.sub.versions", {n: (j.steps || []).length, time})
-                           : combine ? tr("job.sub.combine", {n: j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
+                           : combine ? tr(j.rooms === 1 && j.recordings > 1 ? "job.sub.combine.room" : "job.sub.combine",
+                                          {n: j.rooms === 1 && j.recordings > 1 ? j.recordings : j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
                                      : j.chain ? tr("job.sub.part", {i: j.chain.i + 1, n: j.chain.n, room: j.chain.room, q: tr("q." + qk), time})
                                      : tr("job.sub", {rec: j.recording, q: tr("q." + qk), target, time});
   $("#cancelBtn").classList.toggle("hidden", !j.running);
@@ -1207,6 +1217,7 @@ function openCombine(g) {
   radios("#cmbAlign", "cmb.align", ["frame", "images", "shift", "rigid"], o.align || "images");
   radios("#cmbPart", "cmb.part", ["view", "nearest"], o.partition || "view");
   $("#cmbTitle").textContent = tr("cmb.title", {name: g.name});
+  $("#cmbHint").textContent = tr(g.room ? "cmb.hint.room" : "cmb.hint");
   const last = o.frame_splats || 1000000, known = FRAME_SIZES.some(m => m * 1e6 === last);
   $("#cmbSize").innerHTML = FRAME_SIZES.map(m => `<option value="${m * 1e6}">${sizeText(m)}${m === FRAME_RECOMMENDED ? " " + tr("ver.recommended") : ""}</option>`).join("")
     + `<option value="custom">${tr("ver.custom")}</option>`;
@@ -1554,7 +1565,7 @@ async function poll() {
   document.body.classList.toggle("offline", offline);
   if (offline) return;
   const wasFetching = !!(S.dl && S.dl.busy), doneFiles = S.dl && S.dl.batch ? S.dl.batch.done_files : 0;
-  S.job = r.job; S.dl = r.download;
+  S.job = r.job; S.dl = r.download; S.standby = r.standby;
   renderDlBar();
   const nowFetching = !!(S.dl && S.dl.busy);
   if (wasFetching && (!nowFetching || (S.dl.batch && S.dl.batch.done_files !== doneFiles))) {

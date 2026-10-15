@@ -8,7 +8,7 @@
 
 [Deutsch](README.de.md)
 
-> ⚠️ **This is the `experimental` branch – a preview of 0.3.0.** Rooms made of several recordings are new and not yet tested with real recordings. The stable release is [0.2.3](https://github.com/thunderheronight/splat-workshop/releases/latest) on `main`.
+> ⚠️ **This is the `experimental` branch – a preview of 0.3.0.** Rooms made of several recordings and splitting long videos are new; so far they have been tried on one real recording (a living room in three parts). The stable release is [0.2.3](https://github.com/thunderheronight/splat-workshop/releases/latest) on `main`.
 
 ![Splat Workshop: conversion in progress, recordings with check badges, check result and finished scenes](docs/screenshot.png)
 
@@ -31,6 +31,8 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 - 🚪 **Rooms made of several recordings** – mark a group as *one room made of several recordings*, e.g. two short rounds through the living room. When put together, every part of the room comes from the recording that saw it best. The Arcturus pipeline uses at most 500 image pairs per recording, so several short recordings give a room far more detail than one long one.
 - ✂️ **Split a long video** – for long recordings Splat Workshop offers *Split the video* (full detail, takes longer) or *Convert in one piece* (sooner, fewer image pairs per second). Split, the parts are converted one after the other and become one room by themselves. The original recording stays untouched.
 - 🏠 **A home made of rooms** – a group may hold such rooms next to single scenes. It is put together from the original recordings in one go: within a room every part from the best recording, between rooms the borders run through the doors. Nothing is reduced twice; the floor plan names and measures rooms instead of recordings.
+- 🧩 **Better seams between recordings** – a place only comes from a recording that really has something there (no more dark holes where a camera “looked at” a spot from behind the sofa), and all recordings are brought to one brightness: every training settles on its own, up to a third apart in the same room.
+- 💤 **Standby when done** – tick it on the running job: when everything is finished (all parts, putting them together, copying to the Frame), the PC goes to standby after a minute's notice. In between, the PC is kept awake, also in the seconds between two jobs.
 - 🐛 **Fixed**: recordings of the same room no longer count as “walking in” to each other – before, they could hide the real walk-in of another room, which then claimed part of the room.
 
 ## New in 0.2
@@ -142,7 +144,8 @@ Set `lan = true` in `[server]`. The page is then reachable at `http://<pc addres
 - **Rooms**: 30–90 s each, walk slowly, turn slowly, look at things from several sides.
 - **Large rooms**: the pipeline uses at most 500 image pairs per recording – at 5 per second (*High*) that is reached after 100 s, a 4-minute recording only gets 2 per second. For a long recording, choose *Split the video* when starting – or make two or three shorter recordings of a large room in one session and group them as *one room made of several recordings*.
 - **Objects**: walk around them in a slow circle (15–40 s) and keep them in the middle of the picture.
-- Avoid pointing at **bare walls, ceilings or tiles** for long – there is nothing for the software to hold on to.
+- Avoid pointing at **bare walls, ceilings or tiles** for long – there is nothing for the software to hold on to. But do include the **ceiling** now and then, together with the top of the walls or a lamp: a white ceiling that was hardly filmed turns into a dark veil hanging over the room.
+- **Same light** throughout: daylight changes noticeably within minutes towards the evening, and recordings of one room taken at different light do not match well.
 - Moving people or pets become ghostly smears.
 
 ## What the check measures

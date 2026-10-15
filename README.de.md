@@ -8,7 +8,7 @@
 
 [English](README.md)
 
-> ⚠️ **Das ist der Branch `experimental` – eine Vorschau auf 0.3.0.** Räume aus mehreren Aufnahmen sind neu und noch nicht mit echten Aufnahmen getestet. Die stabile Version ist [0.2.3](https://github.com/thunderheronight/splat-workshop/releases/latest) auf `main`.
+> ⚠️ **Das ist der Branch `experimental` – eine Vorschau auf 0.3.0.** Räume aus mehreren Aufnahmen und das Aufteilen langer Videos sind neu; bisher an einer echten Aufnahme ausprobiert (ein Wohnzimmer in drei Teilen). Die stabile Version ist [0.2.3](https://github.com/thunderheronight/splat-workshop/releases/latest) auf `main`.
 
 ![Splat-Werkstatt (Beispiel-Screenshot, Vorschaubilder durch Platzhalter ersetzt)](docs/screenshot.png)
 
@@ -29,6 +29,8 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 - 🚪 **Räume aus mehreren Aufnahmen** – eine Gruppe als *Ein Raum aus mehreren Aufnahmen* markieren, z. B. zwei kurze Runden durchs Wohnzimmer. Beim Zusammensetzen kommt jeder Teil des Raums aus der Aufnahme, die ihn am besten gesehen hat. Die Arcturus-Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – mehrere kurze Aufnahmen geben einem Raum also deutlich mehr Detail als eine lange.
 - ✂️ **Lange Videos aufteilen** – bei langen Aufnahmen bietet die Werkstatt *Video aufteilen* (volle Detailtiefe, dauert länger) oder *Video nicht aufteilen* (schneller, weniger Bildpaare pro Sekunde) an. Aufgeteilt werden die Teile nacheinander umgewandelt und von selbst zu einem Raum. Die Original-Aufnahme bleibt unverändert.
 - 🏠 **Eine Wohnung aus Räumen** – eine Gruppe darf solche Räume neben einzelnen Szenen enthalten. Zusammengesetzt wird in einem Durchgang aus den Original-Aufnahmen: innerhalb eines Raums jeder Teil aus der besten Aufnahme, zwischen den Räumen laufen die Grenzen durch die Türen. Nichts wird doppelt ausgedünnt; der Grundriss benennt und misst Räume statt Aufnahmen.
+- 🧩 **Bessere Übergänge zwischen Aufnahmen** – eine Stelle kommt nur noch von einer Aufnahme, die dort wirklich etwas hat (keine dunklen Löcher mehr, wo eine Kamera „von hinter dem Sofa“ hingeschaut hat), und alle Aufnahmen werden auf eine Helligkeit gebracht: Jedes Training landet bei seiner eigenen, im selben Raum bis zu einem Drittel auseinander.
+- 💤 **Danach in den Standby** – am laufenden Job anhaken: Wenn alles fertig ist (alle Teile, das Zusammensetzen, das Kopieren auf die Frame), geht der PC nach einer Minute Vorwarnung in den Standby. Bis dahin bleibt er wach, auch in den Sekunden zwischen zwei Jobs.
 - 🐛 **Behoben**: Aufnahmen desselben Raums gelten nicht mehr gegenseitig als „Weg hinein“ – vorher konnten sie den echten Weg aus einem anderen Raum verdecken, der sich dann einen Teil des Raums nahm.
 
 ## Neu in 0.2.3
@@ -101,7 +103,8 @@ Nach dem Übertragen **Gaussian XR auf der Frame neu starten**, damit die Szene 
 - **Räume**: 30–90 s pro Raum, langsam gehen und langsam drehen, Dinge von mehreren Seiten zeigen.
 - **Große Räume**: Die Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – bei 5 pro Sekunde (*Hoch*) ist das nach 100 s erreicht, eine 4-Minuten-Aufnahme bekommt nur noch 2 pro Sekunde. Bei einer langen Aufnahme beim Start *Video aufteilen* wählen – oder zwei oder drei kürzere Aufnahmen eines großen Raums in einem Durchgang machen und sie als *Ein Raum aus mehreren Aufnahmen* gruppieren.
 - **Gegenstände**: langsam im Kreis darum herumgehen (15–40 s), Motiv in der Bildmitte halten.
-- Nicht lange auf kahle Wände, Decke oder Fliesen halten.
+- Nicht lange auf kahle Wände, Decke oder Fliesen halten. Die **Decke** aber ab und zu mitnehmen, zusammen mit der Wandoberkante oder einer Lampe: Eine weiße Decke, die kaum gefilmt wurde, wird zu einem dunklen Schleier über dem Raum.
+- **Gleiches Licht**: Gegen Abend ändert sich das Tageslicht schon innerhalb von Minuten merklich, und Aufnahmen eines Raums bei verschiedenem Licht passen schlecht zusammen.
 - Bewegte Personen werden zu Geisterschleiern.
 
 ## Transparenzhinweis

@@ -274,3 +274,19 @@ def test_a_homes_scale_reaches_the_rooms_and_their_recordings(api):
     scales = {x["slug"]: x["scale"] for x in api.get("/api/scenes")[1]}
     assert scales == {"Left": 87, "Right": 87, "Hall": 87}
     assert {g["slug"]: g["scale"] for g in api.get("/api/groups")[1]["groups"]} == {"Home": 87, "Kitchen": 87}
+
+
+def test_a_renamed_room_gets_a_floor_plan_with_its_new_name(api, monkeypatch):
+    """The floor plan (and the preview images made from it) carries the room's name: drawn again."""
+    monkeypatch.setenv("COLOUR", "keep")
+    make_home()
+    api.post("/api/group", {"name": "Kitchen", "members": "Left,Right", "room": True})
+    assert server.start_combine({"slug": "Kitchen", "full": False}) is None
+    assert wait_job()["result"] == "ok"
+    plan = RUNS / "Kitchen" / "plan.png"
+    before = plan.read_bytes()
+    status, r = api.post("/api/group", {"slug": "Kitchen", "name": "Big kitchen", "members": "Left,Right", "room": True})
+    assert status == 200, r
+    plan = RUNS / r["slug"] / "plan.png"
+    assert plan.read_bytes() != before and not (plan.parent / "plan.new.png").exists()
+    assert (plan.parent / f"{r['slug'].lower()}.gallery.png").exists()

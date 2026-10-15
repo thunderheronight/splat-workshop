@@ -769,6 +769,7 @@ def cancel_job():
     if not job or not pid_alive(job["pid"]):
         return err("err.no_job")
     job["cancelled"] = True
+    st["standby"] = {}                          # someone is there: no standby afterwards
     save_state(st)
     try:
         os.killpg(job["pid"], signal.SIGTERM)
@@ -796,6 +797,83 @@ def activity() -> dict:
                  / max(b["bytes"], 1)) if download_busy() else None)
     return {"job": job, "download": {"pct": pct} if pct is not None else None,
             "checking": check_busy(), "uploading": any(u["proc"].poll() is None for u in uploads.values())}
+
+
+# ---------------------------------------------------------------- standby when everything is done
+
+STANDBY_GRACE = 60                 # seconds between "all done" and the standby (time to change one's mind)
+AWAKE_AFTER = 15                   # seconds the PC is still kept awake after the last work (gaps between jobs)
+awake = {"proc": None, "idle_since": None}
+
+
+def hold_awake(busy: bool) -> None:
+    """While anything runs, and a little longer: one sleep inhibitor of this server for all of it. The
+    jobs have their own, but between two of them (the parts of a long recording, then putting them
+    together) there are a few seconds without – enough for the desktop to suspend a PC idle for hours."""
+    p = awake["proc"]
+    if busy:
+        awake["idle_since"] = None
+        if (p is None or p.poll() is not None) and can_inhibit():
+            awake["proc"] = subprocess.Popen(keep_awake(["sleep", "infinity"], t("inhibit.busy")),
+                                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return
+    awake["idle_since"] = awake["idle_since"] or time.time()
+    if p is not None and time.time() - awake["idle_since"] > AWAKE_AFTER:
+        release_awake()
+
+
+def release_awake() -> None:
+    p, awake["proc"] = awake["proc"], None
+    if p is not None and p.poll() is None:
+        try:
+            os.killpg(p.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        p.wait()
+
+
+def standby_status() -> dict:
+    sb = load_state().get("standby") or {}
+    return {"on": bool(sb.get("on")), "at": sb.get("at"), "error": sb.get("error")}
+
+
+def set_standby(on: bool) -> dict:
+    """Switch "standby when everything is done" on or off (also stops a countdown)."""
+    with lock:
+        st = load_state()
+        st["standby"] = {"on": True, "since": time.time()} if on else {}
+        save_state(st)
+    return standby_status()
+
+
+def standby_tick(busy: bool) -> None:
+    """Once nothing runs any more: a minute's notice, then standby. (Cancelling a job switches it off:
+    someone is there.)"""
+    st = load_state()
+    sb = st.get("standby") or {}
+    if not sb.get("on"):
+        return
+    if busy:
+        if sb.get("at"):
+            sb.pop("at")
+            save_state(st)
+        return
+    if not sb.get("at"):
+        sb["at"] = time.time() + STANDBY_GRACE
+        save_state(st)
+        notify(t("notify.standby.title"), t("notify.standby", s=STANDBY_GRACE))
+        return
+    if time.time() < sb["at"]:
+        return
+    st["standby"] = {}
+    save_state(st)
+    release_awake()                             # our own lock must not keep the PC up
+    r = subprocess.run(["systemctl", "suspend"], capture_output=True, text=True)
+    if r.returncode:
+        st = load_state()
+        st["standby"] = {"error": (r.stderr or r.stdout).strip()[-300:]}
+        save_state(st)
+        notify(t("notify.standby_failed.title"), t("notify.standby_failed", why=(r.stderr or r.stdout).strip()[-200:]))
 
 
 def watch_once(was_running):
@@ -835,6 +913,8 @@ def watcher():
         was_running = running = watch_once(was_running)
         busy = (running or download_busy() or check_busy()
                 or any(u["proc"].poll() is None for u in uploads.values()))
+        hold_awake(busy)
+        standby_tick(busy)
         if idle_exit and not busy and time.time() - last_request > CFG.idle_minutes * 60:
             os._exit(0)
 
@@ -1786,9 +1866,11 @@ def group_scenes(slug: str, meta: dict = None) -> list:
             found = [m]
         else:
             continue
-        room = mm.get("name") or m
+        room = base = mm.get("name") or m
+        k = 1
         while room in names and names[room] != m:          # two rooms of the same name stay two rooms
-            room += " ·"
+            k += 1
+            room = f"{base} ({k})"
         names[room] = m
         out += [(s_, room) for s_ in found]
     return out
@@ -1934,7 +2016,17 @@ def save_group(slug: str, name: str, members: str, room: bool = False):
     d = RUNS / slug
     if renamed and (d / "scene.sog").exists():                  # new name plates on the tour
         stem = slug.lower()
-        cmds = [([str(SCRIPTS / "to-frame.sh"), str(d), name], {"GALLERY_ONLY": "1", "LOG": str(RUNS / f"{slug}.log")})]
+        cmds = []
+        runs = [m for m in members if (RUNS / m / "spirula" / "scene.ply").exists()]
+        if room and (d / "plan.png").exists() and runs:
+            # a room's floor plan carries its name: drawn again, and the preview images from it
+            plan = d / "plan.new.png"
+            cmds.append((["uv", "run", "-q", str(SCRIPTS / "floorplan.py"), str(plan),
+                          *[f"{RUNS / m}={name}" for m in runs], *(["--comma"] if t.lang == "de" else [])], {}))
+            cmds.append((["mv", str(plan), str(d / "plan.png")], {}))
+            cmds.append((["uv", "run", "-q", str(SCRIPTS / "make_gallery.py"), "--plan", str(d / "plan.png"),
+                          str(d), name, stem], {}))
+        cmds.append(([str(SCRIPTS / "to-frame.sh"), str(d), name], {"GALLERY_ONLY": "1", "LOG": str(RUNS / f"{slug}.log")}))
         if (d / "full" / "scene.sog").exists() and (d / "plan.png").exists():
             cmds.append((["uv", "run", "-q", str(SCRIPTS / "make_gallery.py"), "--plan", str(d / "plan.png"),
                           str(d / "full"), t("tour.full_name", name=name), f"{stem}-full"], {}))
@@ -1996,7 +2088,7 @@ def start_combine(p: dict):
                                     stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
         st = load_state()
         st["job"] = {"kind": "combine", "pid": proc.pid, "out": str(out), "name": name, "slug": slug,
-                     "recording": "", "rooms": len({r for _, r in inner}), "quality": align, "partition": partition,
+                     "recording": "", "rooms": len({r for _, r in inner}), "recordings": len(inner), "quality": align, "partition": partition,
                      "upload": upload, "full": full, "started": time.time(), "overrides": {}}
         save_state(st)
         write_meta(slug, align=align, partition=partition, frame_splats=frame_splats, full=full)
@@ -2124,7 +2216,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, check_status(Path(q.get("name", "")).name))
         if u.path == "/api/status":
             ups = {s: upload_status(s) for s in list(uploads)}
-            return self.send(200, {"job": job_status(), "download": download_status(), "uploads": ups})
+            return self.send(200, {"job": job_status(), "download": download_status(), "uploads": ups,
+                                   "standby": standby_status()})
         if u.path == "/api/scenes":
             return self.send(200, scenes())
         if u.path == "/api/unfinished":
@@ -2251,6 +2344,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             st = load_state()
             st["dismissed_groups"] = sorted(set(st.get("dismissed_groups", [])) | {p.get("key", "")})[-50:]
             save_state(st)
+        elif path == "/api/standby":
+            return self.send(200, set_standby(bool(p.get("on"))))
         elif path == "/api/combine":
             e = start_combine(p)
         elif path == "/api/resume":
