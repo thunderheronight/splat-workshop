@@ -22,9 +22,11 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den Ordner für eigene Szenen von Gaussian XR auf der Frame (`Documents/GaussianXR`).
 5. **Die Wohnung zusammensetzen**: Räume gruppieren – ein Raum darf aus mehreren Aufnahmen bestehen – und zu einem Rundgang machen, durch den du gehst, voll für den PC, kleiner für die Frame.
 
-## Neu in 0.4 *(in Arbeit)*
+## Neu in 0.4
 
 - 🧽 **Fassungen bereinigen** *(experimentell)* – vier Schieberegler im Fassungen-Dialog: **Decke** (eine weiße Decke wird zum dunklen Schleier – der Schleier kommt weg, die Decke wird in ihrer eigenen Farbe geschlossen), **Boden** (Löcher gefüllt), **Dunst** (große durchsichtige Wolken; dünne Gitter und Kabel bleiben), **Rand** (was außerhalb des Raums liegt). Die Szene selbst bleibt; die bereinigte Fassung neben einer ohne vergleichen.
+- 🎚️ **Fassungen nach Zweck** – *für die Frame* (eine Größe, mit den auf einer Steam Frame gemessenen fps) oder *für den PC* (alle Splats); auf Wunsch dieselbe ohne Bereinigung daneben; vorher eine Vorschau, was entsteht. Fassungen heißen nach ihren Bereinigungsstärken, *Als Vorlage* übernimmt die Einstellungen für den nächsten Versuch, eine PC-Fassung öffnet sich mit einem Klick in **Spirula Studio**, und Fassungen **klappen unter ihrer Szene oder ihrem Rundgang auf**.
+- 🧭 **Aufgeräumte Knopfleisten** – was du tust, was du anschaust, was du änderst; das Aufklappen in einer eigenen Zeile.
 
 ## Neu in 0.3
 

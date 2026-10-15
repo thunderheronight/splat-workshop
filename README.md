@@ -24,9 +24,11 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's folder for personal scenes on the Frame (`Documents/GaussianXR`).
 5. **Put your home together**: group the rooms – a room may be several recordings – and turn them into one tour you walk through, full size for the PC, smaller for the Frame.
 
-## New in 0.4 *(in progress)*
+## New in 0.4
 
 - 🧽 **Clean up a version** *(experimental)* – four sliders in the versions dialog: **Ceiling** (a white ceiling turns into a dark veil – the veil goes, the ceiling is closed in its own colour), **Floor** (holes filled), **Haze** (big transparent blobs; thin bars and cables stay), **Edges** (what lies outside the room). The scene itself stays; compare the cleaned version with one without.
+- 🎚️ **Versions by purpose** – *for the Frame* (one size, with the frame rate measured on a Steam Frame) or *for the PC* (all splats); optionally the same without cleaning up next to it; a preview of what will be made. Versions are named by their clean-up strengths, *As template* takes a version's settings for the next try, a PC version opens in **Spirula Studio** with one click, and versions **unfold under their scene or tour**.
+- 🧭 **Tidier action bars** – what you do, what you look at, what you change; the unfolding lists on a line of their own.
 
 ## New in 0.3
 
