@@ -130,3 +130,18 @@ def test_the_same_folder_in_both_places(api, frame):
     assert api.post("/api/frame/remove", {"folder": "20_Kitchen", "place": "steam"})[0] == 200
     assert d.exists() and not (frame / server.FRAME_STEAM / "20_Kitchen").exists()
     assert api.post("/api/frame/remove", {"folder": "20_Kitchen", "place": "nowhere"})[0] == 400
+
+
+def test_an_old_frame_listing_is_answered_at_once_and_renewed_behind(frame):
+    """Asking a Frame that is switched off takes seconds; the scene list must not wait for it every time."""
+    import time as _t
+    first = server.frame_listing()
+    assert first is not None
+    server.frame_cache.update(t=_t.time() - 60, data={"files": [], "thumbs": [], "scenes": ["old"]})
+    start = _t.time()
+    assert server.frame_listing()["scenes"] == ["old"]                 # the last one, without waiting
+    assert _t.time() - start < 0.5
+    end = _t.time() + 10
+    while server.frame_cache.get("renewing") and _t.time() < end:
+        _t.sleep(0.05)
+    assert server.frame_listing()["scenes"] != ["old"]                 # renewed in the background

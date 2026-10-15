@@ -2,6 +2,13 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Unfolding recordings or versions sometimes did nothing**: every click loaded the whole scene list again, which took about 3 seconds while the Frame was switched off – clicking again in that time folded it back. Now it opens and closes at once, and an expired listing of the Frame is renewed in the background instead of holding up the scene list.
+- **"To the Frame" on a version** could be clicked while the Frame was not reachable; now it is greyed out like the one on the scene.
+
 ## [0.4.1] – 2026-10-15
 
 Setup made clearer – thanks to the first two issues from outside (#1, #2).

@@ -176,11 +176,29 @@ def err(code: str, **params) -> dict:
 # ---------------------------------------------------------------- recordings
 
 def frame_listing(force=False):
-    """Recordings on the Frame (cached). None = no Frame configured or not reachable."""
+    """Recordings on the Frame (cached). None = no Frame configured or not reachable.
+    An expired listing is renewed in the background and the last one answered meanwhile: asking a Frame
+    that is switched off takes seconds, and the scene list (which asks too) would hang that long."""
     if not FRAME:
         return None
     if not force and time.time() - frame_cache["t"] < 20:
         return frame_cache["data"]
+    if not force and frame_cache["t"]:
+        if not frame_cache.get("renewing"):
+            frame_cache["renewing"] = True
+            threading.Thread(target=renew_frame_listing, daemon=True).start()
+        return frame_cache["data"]
+    return read_frame_listing()
+
+
+def renew_frame_listing():
+    try:
+        read_frame_listing()
+    finally:
+        frame_cache["renewing"] = False
+
+
+def read_frame_listing():
     cmd = (f'(cd {FRAME_VIDEOS} 2>/dev/null && stat -c "%n|%s|%Y" *_stereo.mp4 2>/dev/null); echo ---; '
            f'ls {FRAME_VIDEOS}/thumbnails 2>/dev/null; echo ---; (ls {FRAME_SCENES}; ls {FRAME_STEAM}) 2>/dev/null')
     try:

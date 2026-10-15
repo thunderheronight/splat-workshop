@@ -1115,9 +1115,18 @@ function groupBlock(g, bySlug, byGroup) {
   </div>`;
 }
 async function loadScenes() {
+  const seq = S.sceneSeq = (S.sceneSeq || 0) + 1;
   const [list, gr] = await Promise.all([api("/api/scenes"), api("/api/groups")]);
-  const arr = Array.isArray(list) ? list : Object.values(list).filter(x => x && typeof x === "object" && x.slug);
-  S.scenes = arr; S.groups = gr.groups || []; S.memGB = gr.mem_available_gb;
+  if (seq !== S.sceneSeq) return;                // a newer load is on its way: its answer counts
+  S.scenes = Array.isArray(list) ? list : Object.values(list).filter(x => x && typeof x === "object" && x.slug);
+  S.sceneData = gr;
+  renderScenes();
+}
+// Draws the list from what was loaded last – opening or closing a group or the versions needs no new
+// load (the scene list can take seconds on a slow disk; clicks during it used to toggle back and forth)
+function renderScenes() {
+  const gr = S.sceneData || {}, arr = S.scenes || [];
+  S.groups = gr.groups || []; S.memGB = gr.mem_available_gb;
   const bySlug = Object.fromEntries(arr.map(s => [s.slug, s]));
   const inGroup = new Set(S.groups.flatMap(g => g.members));
   $("#groupNewBtn").classList.toggle("hidden", !arr.some(s => !inGroup.has(s.slug)));
@@ -1137,8 +1146,8 @@ async function loadScenes() {
   const loose = arr.filter(s => !inGroup.has(s.slug));
   $("#sceneGrid").innerHTML = loose.length ? loose.map(sceneCard).join("")
     : S.groups.length ? "" : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
-  document.querySelectorAll("[data-gtoggle]").forEach(b => b.onclick = () => { groupOpen(b.dataset.gtoggle, !groupOpen(b.dataset.gtoggle)); loadScenes(); });
-  document.querySelectorAll("[data-vtoggle]").forEach(b => b.onclick = () => { versionsOpen(b.dataset.vtoggle, !versionsOpen(b.dataset.vtoggle)); loadScenes(); });
+  document.querySelectorAll("[data-gtoggle]").forEach(b => b.onclick = () => { groupOpen(b.dataset.gtoggle, !groupOpen(b.dataset.gtoggle)); renderScenes(); });
+  document.querySelectorAll("[data-vtoggle]").forEach(b => b.onclick = () => { versionsOpen(b.dataset.vtoggle, !versionsOpen(b.dataset.vtoggle)); renderScenes(); });
   fillVersionLists();
   document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => openScale(b.dataset.scale));
   document.querySelectorAll("[data-versions]").forEach(b => b.onclick = () => openVersions(b.dataset.versions));
@@ -1348,7 +1357,7 @@ function versionRow(v) {
       <span class="faint">${tr("million", {n: num(v.splats / 1e6, 2)})} · ${mb(v.size)}${v.stale ? " · " + tr("ver.stale") : ""}</span></div>
     <div class="vacts">${v.on_frame === null && !(v.upload && (v.upload.running || v.upload.error)) ? "" : frameState({upload: v.upload, on_frame: v.on_frame})}
       ${v.ply ? `<button class="small pc-only" data-vspirula="${esc(v.key)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
-      ${S.frameConfigured ? `<button class="small" data-vup="${esc(v.key)}" ${v.upload && v.upload.running ? "disabled" : ""} ${slow ? `title="${tr("ver.slow", {n: num(v.splats / 1e6, 1)})}"` : ""}>${tr(v.on_frame ? "sc.reupload" : "sc.toFrame")}${slow ? " ⚠️" : ""}</button>` : ""}
+      ${S.frameConfigured ? `<button class="small" data-vup="${esc(v.key)}" ${(v.upload && v.upload.running) || v.on_frame === null ? "disabled" : ""} ${slow ? `title="${tr("ver.slow", {n: num(v.splats / 1e6, 1)})}"` : ""}>${tr(v.on_frame ? "sc.reupload" : "sc.toFrame")}${slow ? " ⚠️" : ""}</button>` : ""}
       ${v.on_frame ? `<button class="small" data-vunframe="${esc(v.key)}" title="${tr("ver.unframe.title")}">${tr("ver.unframe")}</button>` : ""}
       <button class="small" data-vtemplate="${esc(v.key)}" title="${tr("ver.template.title")}">${tr("ver.template")}</button>
       <button class="small" data-vdel="${esc(v.key)}" title="${tr("ver.delete")}" aria-label="${tr("ver.delete")}">${tr("sc.delete")}</button></div>
