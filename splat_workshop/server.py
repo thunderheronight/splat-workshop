@@ -1026,8 +1026,12 @@ def versions_of(slug: str) -> list:
             folder = folders.get(key)
             on_frame = (folder in fr["scenes"]) if folder else any(
                 re.fullmatch(r"\d\d_" + re.escape(f"{slug}-{key}"), x) for x in fr["scenes"])
+        clean = info.get("clean") or {}
+        target = info.get("target", "")
         out.append({"key": key, "label": info.get("label"), "splats": info.get("splats"), "scale": info.get("scale", 1),
-                    "clean": info.get("clean") or {},
+                    "clean": clean, "purpose": "pc" if target == "all" else "frame",
+                    # Spirula opens a ply: a cleaned PC version keeps its own, a plain one is the scene's own
+                    "ply": (vdir / "spirula" / "scene.ply").exists() or (target == "all" and not clean and source.exists()),
                     "size": (vdir / "scene.sog").stat().st_size, "created": int(info.get("created", 0)),
                     "stale": info.get("created", 0) < built, "on_frame": on_frame,
                     "upload": upload_status(f"{slug}#{key}")})
@@ -1072,13 +1076,16 @@ def start_versions(p: dict):
     meta = read_meta(slug)
     name = meta.get("name") or slug
     specs = []
-    cleaned = " · " + "+".join(t(f"ver.clean.{k}") for k in clean) if clean else ""
+    # with a clean-up, optionally the same without, to compare side by side
+    variants = [clean, {}] if clean and p.get("also_plain") else [clean]
     for sc in dict.fromkeys(scales):
         for n in dict.fromkeys(sizes):
-            size = t("ver.all") if n == "all" else t("ver.size", n=f"{n / 1e6:g}".replace(".", "," if t.lang == "de" else "."))
-            plate = f"{name} · {size}" + (f" · 1:{sc:g}" if sc != 1 else "") + cleaned
-            specs.append(f"{version_key(n, sc, clean)}|{n}|{sc:g}|{plate}"
-                         + ("|" + ",".join(f"{k}={v:g}" for k, v in clean.items()) if clean else ""))
+            for cl in variants:
+                size = t("ver.all") if n == "all" else t("ver.size", n=f"{n / 1e6:g}".replace(".", "," if t.lang == "de" else "."))
+                plate = (f"{name} · {size}" + (f" · 1:{sc:g}" if sc != 1 else "")
+                         + "".join(f" · {t('ver.clean.' + k)} {round(v * 100)} %" for k, v in cl.items()))
+                specs.append(f"{version_key(n, sc, cl)}|{n}|{sc:g}|{plate}"
+                             + ("|" + ",".join(f"{k}={v:g}" for k, v in cl.items()) if cl else ""))
     with lock:
         if (cur := load_state().get("job")) and pid_alive(cur["pid"]):
             return err("err.job_busy")
@@ -2410,8 +2417,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not d:
                 e = err("err.no_scene")
             elif p.get("what") == "spirula":
-                subprocess.Popen([str(CFG.spirula), str(d / "spirula" / "scene.ply")], cwd=d,
-                                 start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                ply = d / "spirula" / "scene.ply"
+                if p.get("version"):                    # a version: its own ply, or the scene's for a plain "all"
+                    v = {x["key"]: x for x in versions_of(p.get("slug", ""))}.get(p["version"])
+                    own = d / "versions" / p["version"] / "spirula" / "scene.ply"
+                    ply = own if v and own.exists() else ply if v and v["ply"] else None
+                if ply is None:
+                    e = err("err.no_version")
+                else:
+                    subprocess.Popen([str(CFG.spirula), str(ply)], cwd=ply.parent.parent,
+                                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
                 subprocess.Popen(["xdg-open", str(d)], start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

@@ -78,6 +78,10 @@ with open(sys.argv[1], "rb") as f:
         rm -f "$tmp/reduced.ply"
         made=$splats
     fi
+    if [ -f "$tmp/clean.ply" ] && [ "$splats" = all ]; then
+        mkdir -p "$tmp/spirula"                 # for the PC: Spirula Studio opens the ply
+        mv "$tmp/clean.ply" "$tmp/spirula/scene.ply"
+    fi
     rm -f "$tmp/clean.ply"
     stem=$(printf '%s-%s' "$slug" "$key" | tr 'A-Z' 'a-z')
     python3 - "$out/scene.xrSceneTransform.json" "$tmp/scene.xrSceneTransform.json" "$scale" <<'PY'

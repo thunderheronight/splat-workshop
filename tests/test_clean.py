@@ -181,10 +181,12 @@ def test_a_cleaned_version(api):
     v = {x["key"]: x for x in server.versions_of("Living")}
     assert list(v) == ["all-c50h30"]
     x = v["all-c50h30"]
-    assert x["clean"] == {"ceiling": 0.5, "haze": 0.3} and x["label"] == "Living room · all splats · ceiling+haze"
+    assert x["clean"] == {"ceiling": 0.5, "haze": 0.3} and x["label"] == "Living room · all splats · ceiling 50 % · haze 30 %"
+    assert x["purpose"] == "pc" and x["ply"]                                 # Spirula Studio can open it
     info = json.loads((run / "versions" / "all-c50h30" / "version.json").read_text())
     assert info["splats"] != total                                       # counted after cleaning
     assert not (run / "versions" / "all-c50h30" / "clean.ply").exists()
+    assert len(read(run / "versions" / "all-c50h30" / "spirula" / "scene.ply")) == info["splats"]
     assert len(read(run / "spirula" / "scene.ply")) == total               # the scene itself is untouched
 
 
@@ -203,3 +205,32 @@ def test_odd_clean_ups_are_refused(api, clean, code):
     scene()
     status, r = api.post("/api/versions", {"slug": "Living", "sizes": "all", "clean": clean})
     assert status == 400 and r["error"]["code"] == code
+
+
+def test_cleaned_and_plain_in_one_go(api):
+    """For the Frame, with and without cleaning up, to compare: two versions, named by their strengths."""
+    run = scene()
+    status, r = api.post("/api/versions", {"slug": "Living", "sizes": "20000", "clean": "haze=0.4", "also_plain": True})
+    assert status == 200, r
+    assert wait_job()["result"] == "ok"
+    v = {x["key"]: x for x in server.versions_of("Living")}
+    assert set(v) == {"0.02m", "0.02m-h40"}
+    assert v["0.02m-h40"]["label"] == "Living room · 0.02 M · haze 40 %" and v["0.02m"]["label"] == "Living room · 0.02 M"
+    assert all(x["purpose"] == "frame" and not x["ply"] for x in v.values())   # Frame versions keep no ply
+    assert not (run / "versions" / "0.02m-h40" / "spirula").exists()
+
+
+def test_a_version_opens_in_spirula(api, monkeypatch):
+    run = scene()
+    api.post("/api/versions", {"slug": "Living", "sizes": "all", "clean": "ceiling=0.5"})
+    wait_job()
+    api.post("/api/versions", {"slug": "Living", "sizes": "20000"})
+    wait_job()
+    opened = []
+    monkeypatch.setattr(server.subprocess, "Popen", lambda cmd, **kw: opened.append(cmd))
+    assert api.post("/api/open", {"slug": "Living", "version": "all-c50", "what": "spirula"})[0] == 200
+    assert opened[-1][1] == str(run / "versions" / "all-c50" / "spirula" / "scene.ply")
+    status, r = api.post("/api/open", {"slug": "Living", "version": "0.02m", "what": "spirula"})   # no ply
+    assert status == 400 and r["error"]["code"] == "err.no_version"
+    status, r = api.post("/api/open", {"slug": "Living", "version": "../x", "what": "spirula"})
+    assert status == 400 and len(opened) == 1

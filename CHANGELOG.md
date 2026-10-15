@@ -12,6 +12,12 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
   - **Haze**: takes out big, nearly transparent blobs floating in the room – measured by their *smallest* axis, so long thin things (the bars of a bird cage, cables) are no haze and stay.
   - **Edges**: takes out what lies well outside the room – beyond the walls, above the ceiling, under the floor.
   - Also on the command line: `scripts/clean.py`.
+- **The versions dialog, reworked** – by purpose instead of by size: *for the Frame* (one size, each with its frame rate as measured: 0.75 M ≈ 36 fps, 1 M ≈ 35 fps and clearly sharper, 1.5 M ≈ 29 fps, 2 M ≈ 24 fps) or *for the PC* (all splats). One version per click, optionally the same *without cleaning up* next to it to compare. Before making, the dialog shows what it will make – and when that replaces an existing version.
+  - Versions are named by what was cleaned up and how strongly (*all splats · ceiling 50 % · haze 30 %*), so two tries never look alike.
+  - **As template** takes a version's settings into the form: change one slider and make the next.
+  - A cleaned version for the PC keeps its own file for **Spirula Studio** and opens there with one click.
+  - **Versions unfold under their scene or tour** (*▸ 3 versions*), with Spirula, copying to the Frame (with a warning above 2.5 M splats), template and delete.
+  - The PC sizes 3, 5 and 8 M are gone – on the PC all splats is what counts; any other size goes through *own size*.
 - `scripts/freespace.py` (experimental, command line only): takes out splats in space the cameras looked through, from the recordings' sparse models. On a real living room it found only 0.4 % – white walls and ceilings have too few points to tell – but looked a little better; kept for trying.
 
 ## [0.3.1] – 2026-10-15

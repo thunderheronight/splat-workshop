@@ -172,6 +172,13 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .suggest .row { margin-top: 8px; }
 dialog.wide { max-width: 560px; }
 .vgrid { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; font-size: 13.5px; }
+.vlist .vrow { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.vlist .vwhat { display: flex; flex-direction: column; gap: 2px; font-size: 13px; min-width: 0; }
+.vlist .vacts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vinline { grid-column: 1 / -1; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.vinline .vhead { font-size: 13px; }
+.vsizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.vpreview { font-size: 13px; margin: 14px 0 0; min-height: 1.4em; }
 .cleanup .slide { display: grid; grid-template-columns: 7.5em 1fr 4.5em; gap: 10px; align-items: center; margin: 2px 0; }
 .cleanup .slide output { text-align: right; color: var(--muted, #9aa3b2); font-variant-numeric: tabular-nums; }
 .vgrid label.chk { display: inline-flex; gap: 5px; align-items: center; padding: 4px 9px; border: 1px solid var(--line); border-radius: 8px; }
@@ -418,19 +425,24 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 <dialog id="verDlg" class="wide">
   <h2 style="margin-top:0" id="verTitle"></h2>
   <p class="muted" style="font-size:13px;margin-top:0" data-i18n="ver.hint"></p>
-  <div id="verList" class="unfin"></div>
+  <div id="verList" class="vlist"></div>
   <h3 data-i18n="ver.new"></h3>
   <div class="vgrid">
-    <b data-i18n="ver.frame"></b><div class="row" id="verFrame"></div>
-    <b data-i18n="ver.pc"></b><div class="row" id="verPc"></div>
-    <b data-i18n="ver.custom"></b><label class="row" style="gap:6px"><input id="verCustom" type="number" min="0.1" max="50" step="0.05" style="width:90px"> <span data-i18n="ver.million"></span></label>
+    <b data-i18n="ver.for"></b>
+    <div class="row" id="verFor">
+      <label class="chk"><input type="radio" name="verFor" value="frame" checked> <span data-i18n="ver.for.frame"></span></label>
+      <label class="chk"><input type="radio" name="verFor" value="pc"> <span data-i18n="ver.for.pc"></span></label>
+    </div>
+    <b id="verSizeHead" data-i18n="ver.size.head"></b><div id="verSizes" class="vsizes"></div>
     <b class="hidden" id="verScaleHead" data-i18n="ver.scales"></b><div class="row hidden" id="verScales"></div>
-    <b data-i18n="ver.clean"></b><div id="verClean" class="cleanup"></div>
+    <b data-i18n="ver.clean"></b>
+    <div><div id="verClean" class="cleanup"></div>
+      <label class="chk hidden" id="verPlainBox" style="margin-top:6px"><input type="checkbox" id="verPlain"> <span data-i18n="ver.plain"></span></label></div>
   </div>
-  <p class="faint" style="font-size:12px;margin:12px 0 0" data-i18n="ver.measured"></p>
-  <div class="row" style="justify-content:flex-end;margin-top:16px">
+  <p id="verPreview" class="vpreview"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:12px">
     <button id="verClose" data-i18n="clean.close"></button>
-    <button class="primary" id="verMake" data-i18n="ver.make"></button>
+    <button class="primary" id="verMake"></button>
   </div>
 </dialog>
 
@@ -1027,8 +1039,10 @@ function sceneCard(s) {
         ${s.disk ? `<span class="faint">${tr("sc.disk", {size: mb(s.disk.total)})}</span>` : ""}
         ${scaleLine(s)}
         ${s.replacing ? `<div class="fstate faint">${tr("sc.replacing")}</div>` : frameState(s)}
-        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small" data-versions="${esc(s.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: s.versions || 0})}</button><button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
-      </div></div>`;
+        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small" data-versions="${esc(s.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: s.versions || 0})}</button>${versionsToggle(s.slug, s.versions)}<button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
+      </div></div>
+    ${s.versions && versionsOpen(s.slug) ? `<div class="vinline"><b class="vhead">${tr("ver.of", {name: esc(s.name)})}</b>
+      <div class="vlist" data-vlist="${esc(s.slug)}"></div></div>` : ""}`;
 }
 const ALIGN_LETTER = {frame: "A", images: "B", shift: "C", rigid: "D"};
 function groupOpen(slug, set) {
@@ -1076,12 +1090,14 @@ function groupBlock(g, bySlug, byGroup) {
           ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}
           <button class="small" data-gedit="${esc(g.slug)}">${tr("grp.edit")}</button>
           <button class="small" data-scale="${esc(g.slug)}" title="${tr("scale.button.title")}" ${g.busy ? "disabled" : ""}>📏${g.scale !== 1 ? " " + ratioText(g.scale) : ""}</button>
-          ${r && r.ply ? `<button class="small" data-versions="${esc(g.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: g.versions || 0})}</button>` : ""}
+          ${r && r.ply ? `<button class="small" data-versions="${esc(g.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: g.versions || 0})}</button>${versionsToggle(g.slug, g.versions)}` : ""}
           <button class="small" data-clean="${esc(g.slug)}" title="${tr("grp.clean.title")}" aria-label="${tr("grp.clean.title")}" ${g.busy ? "disabled" : ""}>${tr("sc.clean")}</button>
           <button class="small" data-gdelete="${esc(g.slug)}" title="${tr("grp.delete.title")}" aria-label="${tr("grp.delete.title")}">${tr("sc.delete")}</button>
         </div>
       </div>
     </div>
+    ${g.versions && versionsOpen(g.slug) ? `<div class="vinline"><b class="vhead">${tr("ver.of", {name: esc(g.name)})}</b>
+      <div class="vlist" data-vlist="${esc(g.slug)}"></div></div>` : ""}
     ${open ? `<div class="grid ginner">${inner.map(x => groupBlock(x, bySlug, byGroup)).join("")}${own.map(sceneCard).join("")}</div>` : ""}
   </div>`;
 }
@@ -1109,6 +1125,8 @@ async function loadScenes() {
   $("#sceneGrid").innerHTML = loose.length ? loose.map(sceneCard).join("")
     : S.groups.length ? "" : `<div class="empty" style="grid-column:1/-1">${tr("scenes.none")}</div>`;
   document.querySelectorAll("[data-gtoggle]").forEach(b => b.onclick = () => { groupOpen(b.dataset.gtoggle, !groupOpen(b.dataset.gtoggle)); loadScenes(); });
+  document.querySelectorAll("[data-vtoggle]").forEach(b => b.onclick = () => { versionsOpen(b.dataset.vtoggle, !versionsOpen(b.dataset.vtoggle)); loadScenes(); });
+  fillVersionLists();
   document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => openScale(b.dataset.scale));
   document.querySelectorAll("[data-versions]").forEach(b => b.onclick = () => openVersions(b.dataset.versions));
   document.querySelectorAll("[data-gedit]").forEach(b => b.onclick = () => openGroupDlg(S.groups.find(g => g.slug === b.dataset.gedit)));
@@ -1295,40 +1313,139 @@ async function loadFrameGallery(refresh) {
 }
 
 /* ---------- versions ---------- */
-const FRAME_SIZES = [0.75, 1, 1.5, 2], PC_SIZES = ["all", 3, 5, 8];          // million splats
-const FRAME_RECOMMENDED = 1;
-const CLEANUPS = ["ceiling", "floor", "haze", "outside"];                  // scripts/clean.py   // measured on the Frame: as fast as 0.75 M nearly, clearly sharper; 1.5 M already a little unsteady
+// Frame sizes as measured on a Steam Frame (Gaussian XR, 10/2026): 1 M is nearly as fast as 0.75 M and clearly sharper
+const FRAME_SIZES = [[0.75, 36], [1, 35], [1.5, 29], [2, 24]], FRAME_RECOMMENDED = 1;   // million splats, fps
+const CLEANUPS = ["ceiling", "floor", "haze", "outside"];                                // scripts/clean.py
 function sizeText(m) { return m === "all" ? tr("ver.all") : tr("million", {n: num(m, Math.round(m * 100) % 10 ? 2 : m % 1 ? 1 : 0)}); }
+function versionKey(splats, scale, clean) {                 // as version_key() in server.py
+  let key = splats === "all" ? "all" : `${+(splats / 1e6).toPrecision(6)}m`;
+  if (scale !== 1) key += `-1x${scale}`;
+  const parts = CLEANUPS.filter(k => clean[k]).map(k => k[0] + Math.round(clean[k] * 100));
+  return parts.length ? key + "-" + parts.join("") : key;
+}
+function cleanText(clean) {
+  return CLEANUPS.filter(k => clean && clean[k]).map(k => `${tr("ver.clean." + k)} ${Math.round(clean[k] * 100)} %`).join(" · ");
+}
+function versionRow(v) {
+  const what = (v.purpose === "pc" ? tr("ver.all") : tr("million", {n: num(v.splats / 1e6, 2)})) + (v.scale !== 1 ? " · " + ratioText(v.scale) : "");
+  const slow = v.purpose === "pc" && v.splats > 2.5e6;
+  return `<div class="vrow">
+    <div class="vwhat"><b>${v.purpose === "pc" ? "🖥️" : "🥽"} ${esc(what)}</b>
+      <span class="muted">${cleanText(v.clean) || tr("ver.clean.none")}</span>
+      <span class="faint">${tr("million", {n: num(v.splats / 1e6, 2)})} · ${mb(v.size)}${v.stale ? " · " + tr("ver.stale") : ""}</span></div>
+    <div class="vacts">${frameState({upload: v.upload, on_frame: v.on_frame})}
+      ${v.ply ? `<button class="small pc-only" data-vspirula="${esc(v.key)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
+      ${S.frameConfigured ? `<button class="small" data-vup="${esc(v.key)}" ${v.upload && v.upload.running ? "disabled" : ""} ${slow ? `title="${tr("ver.slow", {n: num(v.splats / 1e6, 1)})}"` : ""}>${tr(v.on_frame ? "sc.reupload" : "sc.toFrame")}${slow ? " ⚠️" : ""}</button>` : ""}
+      ${v.on_frame ? `<button class="small" data-vunframe="${esc(v.key)}" title="${tr("ver.unframe.title")}">${tr("ver.unframe")}</button>` : ""}
+      <button class="small" data-vtemplate="${esc(v.key)}" title="${tr("ver.template.title")}">${tr("ver.template")}</button>
+      <button class="small" data-vdel="${esc(v.key)}" title="${tr("ver.delete")}" aria-label="${tr("ver.delete")}">${tr("sc.delete")}</button></div>
+  </div>`;
+}
+function bindVersionRows(box, slug, list, redraw) {
+  const find = key => list.find(x => x.key === key);
+  box.querySelectorAll("[data-vspirula]").forEach(b => b.onclick = async () => {
+    const res = await api("/api/open", {slug, version: b.dataset.vspirula, what: "spirula"});
+    toast(res.ok === false ? trErr(res.error) : tr("sc.spirula.starting"));
+  });
+  box.querySelectorAll("[data-vup]").forEach(b => b.onclick = async () => {
+    const res = await api("/api/upload", {slug, version: b.dataset.vup});
+    if (!res.ok) { toast(trErr(res.error)); return; }
+    toast(tr("sc.uploadStarted")); setTimeout(redraw, 1500);
+  });
+  box.querySelectorAll("[data-vunframe]").forEach(b => b.onclick = async () => {
+    const v = find(b.dataset.vunframe);
+    if (!confirm(tr("ver.unframe.confirm", {name: v.label}))) return;
+    const res = await api("/api/frame/remove", {slug, version: v.key});
+    if (!res.ok) { toast(trErr(res.error)); return; }
+    toast(tr("ver.unframed", {name: v.label})); redraw();
+  });
+  box.querySelectorAll("[data-vtemplate]").forEach(b => b.onclick = async () => {
+    if (!$("#verDlg").open) await openVersions(slug);
+    useTemplate(find(b.dataset.vtemplate));
+  });
+  box.querySelectorAll("[data-vdel]").forEach(b => b.onclick = async () => {
+    const v = find(b.dataset.vdel);
+    if (!confirm(tr("ver.confirm", {name: v.label, size: mb(v.size)}))) return;
+    const res = await api("/api/version/delete", {slug, version: v.key});
+    if (!res.ok) { toast(trErr(res.error)); return; }
+    redraw(); loadScenes();
+  });
+}
+function verForm() {                                        // what the form would make
+  const pc = document.querySelector('input[name="verFor"]:checked').value === "pc";
+  let size = "all";
+  if (!pc) {
+    const pick = document.querySelector('input[name="verSize"]:checked');
+    size = pick.value === "custom" ? Math.round(parseFloat($("#verCustom").value) * 1e6) || 0 : Math.round(parseFloat(pick.value) * 1e6);
+  }
+  const sc = document.querySelector('input[name="verScale"]:checked');
+  const clean = {};
+  document.querySelectorAll("#verClean input").forEach(i => { if (+i.value) clean[i.dataset.clean] = i.value / 100; });
+  const any = Object.keys(clean).length > 0;
+  return {pc, size, scale: sc ? parseFloat(sc.value) : 1, clean, plain: any && $("#verPlain").checked, any};
+}
+function verPreview() {
+  const f = verForm(), V = S.verList || [], made = [];
+  $("#verPlainBox").classList.toggle("hidden", !f.any);
+  $("#verSizes").classList.toggle("hidden", f.pc); $("#verSizeHead").classList.toggle("hidden", f.pc);
+  $("#verSizes").querySelectorAll("label.opt").forEach(l => l.classList.toggle("active", l.querySelector("input").checked));
+  if (!f.pc && !(f.size >= 10000)) { $("#verPreview").textContent = tr("ver.pick"); $("#verMake").disabled = true; return; }
+  for (const cl of f.plain ? [f.clean, {}] : [f.clean]) {
+    const key = versionKey(f.size, f.scale, cl), old = V.find(v => v.key === key);
+    const text = (f.pc ? tr("ver.all") : sizeText(f.size / 1e6)) + (f.scale !== 1 ? " · " + ratioText(f.scale) : "") + " · " + (cleanText(cl) || tr("ver.clean.none"));
+    made.push(old ? tr("ver.replaces", {what: text}) : text);
+  }
+  const same = !f.any && f.pc && S.verScene.hasAll;           // all splats, not cleaned: the scene itself
+  $("#verPreview").innerHTML = same ? esc(tr("ver.same.all"))
+    : esc(tr(made.length > 1 ? "ver.makes.n" : "ver.makes.1", {n: made.length})) + made.map(x => "<br>• " + esc(x)).join("");
+  $("#verMake").disabled = same;
+  $("#verMake").textContent = tr(made.length > 1 ? "ver.make.n" : "ver.make.1", {n: made.length});
+}
+function useTemplate(v) {
+  if (!v) return;
+  document.querySelector(`input[name="verFor"][value="${v.purpose}"]`).checked = true;
+  if (v.purpose === "frame") {
+    const m = v.splats / 1e6, known = FRAME_SIZES.find(([x]) => Math.abs(x - m) < 0.01);
+    document.querySelector(`input[name="verSize"][value="${known ? known[0] : "custom"}"]`).checked = true;
+    if (!known) $("#verCustom").value = num(m, 2).replace(",", ".");
+  }
+  const sc = document.querySelector(`input[name="verScale"][value="${v.scale}"]`);
+  if (sc) sc.checked = true;
+  document.querySelectorAll("#verClean input").forEach(i => { i.value = Math.round((v.clean[i.dataset.clean] || 0) * 100); i.oninput(); });
+  verPreview();
+  toast(tr("ver.template.done"));
+}
 async function openVersions(slug) {
   const g = (S.groups || []).find(x => x.slug === slug), x = g || S.scenes.find(y => y.slug === slug);
   if (!x) return;
   const total = (g ? g.result && g.result.splats : x.gaussians) || 0, scale = x.scale || 1;
+  S.verScene = {slug, hasAll: true};
   $("#verTitle").textContent = tr("ver.title", {name: x.name, n: tr("million", {n: num(total / 1e6, 2)})});
-  const chk = (val, text, on) => `<label class="chk"><input type="checkbox" value="${val}"${on ? " checked" : ""}> ${text}</label>`;
-  $("#verFrame").innerHTML = FRAME_SIZES.map(m => chk(m, sizeText(m) + (m === FRAME_RECOMMENDED ? " " + tr("ver.recommended") : ""), m === FRAME_RECOMMENDED)).join("");
-  $("#verPc").innerHTML = PC_SIZES.filter(m => m === "all" || m * 1e6 < total).map(m => chk(m, sizeText(m))).join("");
-  $("#verCustom").value = "";
+  $("#verSizes").innerHTML = FRAME_SIZES.map(([m, fps]) => `<label class="opt${m === FRAME_RECOMMENDED ? " active" : ""}">
+      <input type="radio" name="verSize" value="${m}" ${m === FRAME_RECOMMENDED ? "checked" : ""}>
+      <div><b>${sizeText(m)}${m === FRAME_RECOMMENDED ? " " + tr("ver.recommended") : ""}</b><span>${tr("ver.fps." + String(m).replace(".", "_"), {fps})}</span></div></label>`).join("")
+    + `<label class="opt"><input type="radio" name="verSize" value="custom"><div><b>${tr("ver.custom")}</b>
+      <span><input id="verCustom" type="number" min="0.1" max="50" step="0.05" style="width:80px"> ${tr("ver.million")}</span></div></label>`;
   $("#verClean").innerHTML = `<p class="faint" style="font-size:12px;margin:0 0 6px">${tr("ver.clean.hint")}</p>` + CLEANUPS.map(k => `
     <label class="slide" title="${esc(tr("ver.clean." + k + ".title"))}"><span>${tr("ver.clean." + k)}</span>
       <input type="range" min="0" max="100" step="10" value="0" data-clean="${k}"><output>${tr("ver.clean.off")}</output></label>`).join("");
-  $("#verClean").querySelectorAll("input").forEach(i => i.oninput = () =>
-    i.nextElementSibling.textContent = +i.value ? i.value + " %" : tr("ver.clean.off"));
+  $("#verClean").querySelectorAll("input").forEach(i => i.oninput = () => {
+    i.nextElementSibling.textContent = +i.value ? i.value + " %" : tr("ver.clean.off"); verPreview(); });
+  $("#verPlain").checked = false;
   $("#verScaleHead").classList.toggle("hidden", scale === 1);
   $("#verScales").classList.toggle("hidden", scale === 1);
-  $("#verScales").innerHTML = scale === 1 ? "" : `<label class="chk"><input type="checkbox" value="1" checked> ${tr("scale.original")}</label>`
-    + `<label class="chk"><input type="checkbox" value="${scale}"> ${tr("ver.walk", {ratio: ratioText(scale)})}</label>`;
+  $("#verScales").innerHTML = scale === 1 ? "" : `<label class="chk"><input type="radio" name="verScale" value="1" checked> ${tr("scale.original")}</label>`
+    + `<label class="chk"><input type="radio" name="verScale" value="${scale}"> ${tr("ver.walk", {ratio: ratioText(scale)})}</label>`;
+  $("#verDlg").querySelectorAll('input[type="radio"], #verPlain, #verCustom').forEach(i => { i.onchange = verPreview; i.oninput = verPreview; });
+  $("#verCustom").onfocus = () => { document.querySelector('input[name="verSize"][value="custom"]').checked = true; verPreview(); };
   await drawVersions(slug);
-  $("#verDlg").showModal();
+  verPreview();
+  if (!$("#verDlg").open) $("#verDlg").showModal();
   $("#verClose").onclick = () => $("#verDlg").close();
   $("#verMake").onclick = async () => {
-    const sizes = [...document.querySelectorAll("#verFrame input:checked, #verPc input:checked")]
-      .map(i => i.value === "all" ? "all" : String(Math.round(parseFloat(i.value) * 1e6)));
-    const custom = parseFloat($("#verCustom").value);
-    if (custom > 0) sizes.push(String(Math.round(custom * 1e6)));
-    const scales = scale === 1 ? ["1"] : [...document.querySelectorAll("#verScales input:checked")].map(i => i.value);
-    if (!sizes.length || !scales.length) { toast(tr("ver.pick")); return; }
-    const clean = [...document.querySelectorAll("#verClean input")].filter(i => +i.value).map(i => `${i.dataset.clean}=${i.value / 100}`).join(",");
-    const r = await api("/api/versions", {slug, sizes: sizes.join(","), scales: scales.join(","), clean});
+    const f = verForm();
+    const clean = Object.entries(f.clean).map(([k, v]) => `${k}=${v}`).join(",");
+    const r = await api("/api/versions", {slug, sizes: String(f.size), scales: String(f.scale), clean, also_plain: f.plain});
     if (!r.ok) { toast(trErr(r.error)); return; }
     $("#verDlg").close(); toast(tr("ver.started")); await poll();
     $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
@@ -1336,34 +1453,22 @@ async function openVersions(slug) {
 }
 async function drawVersions(slug) {
   const r = await api("/api/versions?slug=" + encodeURIComponent(slug));
-  const list = r.versions || [];
-  $("#verList").innerHTML = list.length ? list.map(v => `<div class="row">
-      <b>${esc(v.label)}</b>
-      <span class="muted" style="font-size:12.5px">${tr("million", {n: num(v.splats / 1e6, 2)})} · ${mb(v.size)}${v.stale ? " · " + tr("ver.stale") : ""}</span>
-      <span class="sp"></span>${frameState({upload: v.upload, on_frame: v.on_frame})}
-      ${S.frameConfigured ? `<button class="small" data-vup="${esc(v.key)}" ${v.upload && v.upload.running ? "disabled" : ""}>${tr(v.on_frame ? "sc.reupload" : "sc.toFrame")}</button>` : ""}
-      ${v.on_frame ? `<button class="small" data-vunframe="${esc(v.key)}" title="${tr("ver.unframe.title")}">${tr("ver.unframe")}</button>` : ""}
-      <button class="small" data-vdel="${esc(v.key)}" title="${tr("ver.delete")}" aria-label="${tr("ver.delete")}">${tr("sc.delete")}</button>
-    </div>`).join("") : `<p class="faint" style="font-size:13px;margin:0">${tr("ver.none")}</p>`;
-  $("#verList").querySelectorAll("[data-vup]").forEach(b => b.onclick = async () => {
-    const res = await api("/api/upload", {slug, version: b.dataset.vup});
-    if (!res.ok) { toast(trErr(res.error)); return; }
-    toast(tr("sc.uploadStarted")); setTimeout(() => drawVersions(slug), 1500);
-  });
-  $("#verList").querySelectorAll("[data-vunframe]").forEach(b => b.onclick = async () => {
-    const v = list.find(x => x.key === b.dataset.vunframe);
-    if (!confirm(tr("ver.unframe.confirm", {name: v.label}))) return;
-    const res = await api("/api/frame/remove", {slug, version: v.key});
-    if (!res.ok) { toast(trErr(res.error)); return; }
-    toast(tr("ver.unframed", {name: v.label})); drawVersions(slug);
-  });
-  $("#verList").querySelectorAll("[data-vdel]").forEach(b => b.onclick = async () => {
-    const v = list.find(x => x.key === b.dataset.vdel);
-    if (!confirm(tr("ver.confirm", {name: v.label, size: mb(v.size)}))) return;
-    const res = await api("/api/version/delete", {slug, version: v.key});
-    if (!res.ok) { toast(trErr(res.error)); return; }
-    drawVersions(slug); loadScenes();
-  });
+  const list = S.verList = r.versions || [];
+  $("#verList").innerHTML = list.length ? list.map(versionRow).join("") : `<p class="faint" style="font-size:13px;margin:0">${tr("ver.none")}</p>`;
+  bindVersionRows($("#verList"), slug, list, () => drawVersions(slug).then(verPreview));
+}
+async function fillVersionLists() {                         // the opened lists under scenes and groups
+  for (const box of document.querySelectorAll("[data-vlist]")) {
+    const slug = box.dataset.vlist, r = await api("/api/versions?slug=" + encodeURIComponent(slug)), list = r.versions || [];
+    box.innerHTML = list.map(versionRow).join("") || `<p class="faint" style="font-size:13px;margin:0">${tr("ver.none")}</p>`;
+    bindVersionRows(box, slug, list, fillVersionLists);
+  }
+}
+function versionsOpen(slug, set) { return groupOpen("ver:" + slug, set); }
+function versionsToggle(slug, n) {
+  if (!n) return "";
+  const open = versionsOpen(slug);
+  return `<button class="small" data-vtoggle="${esc(slug)}" aria-expanded="${open}">${tr(open ? "ver.hide" : "ver.show", {n})}</button>`;
 }
 
 /* ---------- scale (models) ---------- */
