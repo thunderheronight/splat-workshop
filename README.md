@@ -24,6 +24,10 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's folder for personal scenes on the Frame (`Documents/GaussianXR`).
 5. **Put your home together**: group the rooms – a room may be several recordings – and turn them into one tour you walk through, full size for the PC, smaller for the Frame.
 
+## New in 0.4 *(in progress)*
+
+- 🧽 **Clean up a version** *(experimental)* – four sliders in the versions dialog: **Ceiling** (a white ceiling turns into a dark veil – the veil goes, the ceiling is closed in its own colour), **Floor** (holes filled), **Haze** (big transparent blobs; thin bars and cables stay), **Edges** (what lies outside the room). The scene itself stays; compare the cleaned version with one without.
+
 ## New in 0.3
 
 - 🚪 **Rooms made of several recordings** – mark a group as *one room made of several recordings*, e.g. two short rounds through the living room. When put together, every part of the room comes from the recording that saw it best. The Arcturus pipeline uses at most 500 image pairs per recording, so several short recordings give a room far more detail than one long one.
@@ -57,7 +61,7 @@ All changes: [CHANGELOG.md](CHANGELOG.md)
 - **Groups and tours**: group scenes (e.g. all rooms of your home) and put them together into one scene – a full version for Gaussian XR on the PC and a smaller one for the Frame. Recordings from one session share the Frame's tracking frame; Splat Workshop fits the rooms to each other (corrections A–D to choose), lets the borders between recordings run through doors and shows how well the rooms meet. Before starting it estimates the memory needed.
   <br><img src="docs/combine.png" width="360" alt="Dialog “Put together”: corrections A to D, borders between the recordings, size of the Frame version, full version, memory estimate">
   <br><sub>Example data – room names and preview images are placeholders.</sub>
-- **Versions** of a scene or tour side by side: fewer splats for the Frame (0.75–2 M), all or a limit for the PC, or your own size – each with its own place in the Frame's gallery, so you can compare what runs smoothly.
+- **Versions** of a scene or tour side by side: fewer splats for the Frame (0.75–2 M), all or a limit for the PC, or your own size – each with its own place in the Frame's gallery, so you can compare what runs smoothly. A version can also be **cleaned up** *(0.4, experimental)*: ceiling, floor, haze and edges, each with its own strength.
 - **Fetch all** recordings from the Frame, or a selection, one after the other – with a notification when the Frame can be switched off.
 - **Delete a recording**, one at a time: on the Frame (with a clear warning if it is not on the PC yet) or on the PC (to the trash).
 - **On the Frame** tab: everything in Gaussian XR's gallery on the Frame with preview images, and taking things off it.

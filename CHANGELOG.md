@@ -2,6 +2,18 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] – 0.4
+
+### Added
+
+- **Clean up a version** (experimental): in the versions dialog, four sliders from *off* to 100 % – the scene itself stays as it is, only the new version is cleaned up, so it can be compared side by side with one without (e.g. *all splats* for the PC).
+  - **Ceiling**: a white ceiling gives the reconstruction nothing to hold on to – it stays thin, with a dark veil under it. Takes out the veil (deeper with more strength; dark things within 50 cm of a wall, like a cupboard top or a bird cage, stay) and what lies above the ceiling, and puts in a closed ceiling in the colour of what there is of it. The ceiling's height is found where walls and ceiling meet. In a real living room: the veil of about 210,000 splats gone, the ceiling closed with 72,000.
+  - **Floor**: fills holes in the floor in the colour of the floor around them, and takes out what lies under it.
+  - **Haze**: takes out big, nearly transparent blobs floating in the room – measured by their *smallest* axis, so long thin things (the bars of a bird cage, cables) are no haze and stay.
+  - **Edges**: takes out what lies well outside the room – beyond the walls, above the ceiling, under the floor.
+  - Also on the command line: `scripts/clean.py`.
+- `scripts/freespace.py` (experimental, command line only): takes out splats in space the cameras looked through, from the recordings' sparse models. On a real living room it found only 0.4 % – white walls and ceilings have too few points to tell – but looked a little better; kept for trying.
+
 ## [0.3.1] – 2026-10-15
 
 ### Fixed

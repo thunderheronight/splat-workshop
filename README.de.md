@@ -22,6 +22,10 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den Ordner für eigene Szenen von Gaussian XR auf der Frame (`Documents/GaussianXR`).
 5. **Die Wohnung zusammensetzen**: Räume gruppieren – ein Raum darf aus mehreren Aufnahmen bestehen – und zu einem Rundgang machen, durch den du gehst, voll für den PC, kleiner für die Frame.
 
+## Neu in 0.4 *(in Arbeit)*
+
+- 🧽 **Fassungen bereinigen** *(experimentell)* – vier Schieberegler im Fassungen-Dialog: **Decke** (eine weiße Decke wird zum dunklen Schleier – der Schleier kommt weg, die Decke wird in ihrer eigenen Farbe geschlossen), **Boden** (Löcher gefüllt), **Dunst** (große durchsichtige Wolken; dünne Gitter und Kabel bleiben), **Rand** (was außerhalb des Raums liegt). Die Szene selbst bleibt; die bereinigte Fassung neben einer ohne vergleichen.
+
 ## Neu in 0.3
 
 - 🚪 **Räume aus mehreren Aufnahmen** – eine Gruppe als *Ein Raum aus mehreren Aufnahmen* markieren, z. B. zwei kurze Runden durchs Wohnzimmer. Beim Zusammensetzen kommt jeder Teil des Raums aus der Aufnahme, die ihn am besten gesehen hat. Die Arcturus-Pipeline nimmt höchstens 500 Bildpaare pro Aufnahme – mehrere kurze Aufnahmen geben einem Raum also deutlich mehr Detail als eine lange.
@@ -59,7 +63,7 @@ Alle Änderungen: [CHANGELOG.md](CHANGELOG.md) (englisch)
 - **Gruppen und Rundgänge**: Szenen gruppieren (z. B. alle Räume der Wohnung) und zu einer Szene zusammensetzen – eine volle Fassung für Gaussian XR am PC und eine kleinere für die Frame. Aufnahmen aus einem Durchgang teilen das Tracking-Koordinatensystem der Frame; die Werkstatt richtet die Räume aneinander aus (Korrekturen A–D zur Wahl), legt die Grenzen zwischen den Aufnahmen in die Türen und zeigt, wie gut die Räume aneinanderpassen. Vor dem Start schätzt sie den Speicherbedarf.
   <br><img src="docs/combine.png" width="360" alt="Dialog „Zusammensetzen“: Korrekturen A bis D, Grenzen zwischen den Aufnahmen, Größe der Frame-Fassung, volle Fassung, Speicherschätzung">
   <br><sub>Beispieldaten (englische Oberfläche) – Raumnamen und Vorschaubilder sind Platzhalter.</sub>
-- **Fassungen** einer Szene oder eines Rundgangs nebeneinander: weniger Splats für die Frame (0,75–2 Mio.), alle oder eine Obergrenze für den PC oder eine eigene Größe – jede mit eigenem Platz in der Galerie der Frame, zum Vergleichen, was flüssig läuft.
+- **Fassungen** einer Szene oder eines Rundgangs nebeneinander: weniger Splats für die Frame (0,75–2 Mio.), alle oder eine Obergrenze für den PC oder eine eigene Größe – jede mit eigenem Platz in der Galerie der Frame, zum Vergleichen, was flüssig läuft. Eine Fassung lässt sich auch **bereinigen** *(0.4, experimentell)*: Decke, Boden, Dunst und Rand, jeweils mit eigener Stärke.
 - **Alle holen**: Aufnahmen von der Frame alle oder als Auswahl nacheinander holen – mit einer Benachrichtigung, sobald die Frame aus darf.
 - **Aufnahmen löschen**, einzeln: auf der Frame (mit deutlicher Warnung, wenn sie noch nicht auf dem PC liegt) oder auf dem PC (in den Papierkorb).
 - Reiter **Auf der Frame**: alles, was in der Galerie von Gaussian XR auf der Frame liegt, mit Vorschaubildern – und von dort aufräumen.
