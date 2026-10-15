@@ -974,10 +974,33 @@ def read_version(vdir: Path) -> dict:
         return {}
 
 
-def version_key(splats, scale: float) -> str:
-    """Folder name of a version: 1m, 0.75m, all; with a scale e.g. 1m-1x87."""
+CLEANUPS = ("ceiling", "floor", "haze", "outside")        # scripts/clean.py, each 0 (off) to 1
+
+
+def version_key(splats, scale: float, clean: dict = None) -> str:
+    """Folder name of a version: 1m, 0.75m, all; with a scale e.g. 1m-1x87; cleaned up e.g. all-c50h30."""
     key = "all" if splats == "all" else f"{splats / 1e6:g}m"
-    return key + (f"-1x{scale:g}" if scale != 1 else "")
+    key += f"-1x{scale:g}" if scale != 1 else ""
+    return key + ("-" + "".join(f"{k[0]}{round(v * 100)}" for k, v in clean.items()) if clean else "")
+
+
+def parse_cleanup(raw):
+    """{"ceiling": 0.5, ...} -> the ones switched on, each 0 < S <= 1; or an error."""
+    if raw in (None, "", {}):
+        return {}
+    if not isinstance(raw, dict) or set(raw) - set(CLEANUPS):
+        return err("err.bad_value", key="clean")
+    out = {}
+    for k in CLEANUPS:
+        try:
+            v = float(raw.get(k) or 0)
+        except (TypeError, ValueError):
+            return err("err.bad_value", key=k)
+        if not 0 <= v <= 1:
+            return err("err.range", key=k, lo=0, hi=1)
+        if v:
+            out[k] = round(v, 2)
+    return out
 
 
 def versions_of(slug: str) -> list:
@@ -1001,6 +1024,7 @@ def versions_of(slug: str) -> list:
             on_frame = (folder in fr["scenes"]) if folder else any(
                 re.fullmatch(r"\d\d_" + re.escape(f"{slug}-{key}"), x) for x in fr["scenes"])
         out.append({"key": key, "label": info.get("label"), "splats": info.get("splats"), "scale": info.get("scale", 1),
+                    "clean": info.get("clean") or {},
                     "size": (vdir / "scene.sog").stat().st_size, "created": int(info.get("created", 0)),
                     "stale": info.get("created", 0) < built, "on_frame": on_frame,
                     "upload": upload_status(f"{slug}#{key}")})
@@ -1039,14 +1063,19 @@ def start_versions(p: dict):
         scales.append(sc)
     if not sizes:
         return err("err.no_versions")
+    clean = parse_cleanup(p.get("clean"))
+    if "code" in clean:
+        return clean
     meta = read_meta(slug)
     name = meta.get("name") or slug
     specs = []
+    cleaned = " · " + "+".join(t(f"ver.clean.{k}") for k in clean) if clean else ""
     for sc in dict.fromkeys(scales):
         for n in dict.fromkeys(sizes):
             size = t("ver.all") if n == "all" else t("ver.size", n=f"{n / 1e6:g}".replace(".", "," if t.lang == "de" else "."))
-            plate = f"{name} · {size}" + (f" · 1:{sc:g}" if sc != 1 else "")
-            specs.append(f"{version_key(n, sc)}|{n}|{sc:g}|{plate}")
+            plate = f"{name} · {size}" + (f" · 1:{sc:g}" if sc != 1 else "") + cleaned
+            specs.append(f"{version_key(n, sc, clean)}|{n}|{sc:g}|{plate}"
+                         + ("|" + ",".join(f"{k}={v:g}" for k, v in clean.items()) if clean else ""))
     with lock:
         if (cur := load_state().get("job")) and pid_alive(cur["pid"]):
             return err("err.job_busy")
