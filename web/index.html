@@ -176,7 +176,14 @@ dialog.wide { max-width: 560px; }
 .vlist .vwhat { display: flex; flex-direction: column; gap: 2px; font-size: 13px; min-width: 0; }
 .vlist .vacts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .vinline { grid-column: 1 / -1; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
-.vinline .vhead { font-size: 13px; }
+.vinline .vhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; }
+.scene .acts.rows { flex-direction: column; align-items: flex-start; gap: 6px; }
+.acts .arow { display: flex; gap: 6px; flex-wrap: wrap; }
+.acts .sep { width: 1px; align-self: stretch; margin: 2px 3px; background: var(--line); }
+.acts button.icon { min-width: 34px; }
+.toggles { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.toggles button.link { background: none; border-color: transparent; color: var(--muted, #9aa3b2); padding-left: 2px; padding-right: 8px; }
+.toggles button.link:hover { color: inherit; border-color: var(--line); }
 .vsizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
 .vpreview { font-size: 13px; margin: 14px 0 0; min-height: 1.4em; }
 .cleanup .slide { display: grid; grid-template-columns: 7.5em 1fr 4.5em; gap: 10px; align-items: center; margin: 2px 0; }
@@ -1039,9 +1046,13 @@ function sceneCard(s) {
         ${s.disk ? `<span class="faint">${tr("sc.disk", {size: mb(s.disk.total)})}</span>` : ""}
         ${scaleLine(s)}
         ${s.replacing ? `<div class="fstate faint">${tr("sc.replacing")}</div>` : frameState(s)}
-        <div class="acts${s.replacing ? " hidden" : ""}">${uploadBtn(s)}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button>${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}<button class="small" data-rename="${esc(s.slug)}">${tr("ren.button")}</button><button class="small" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small" data-versions="${esc(s.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: s.versions || 0})}</button>${versionsToggle(s.slug, s.versions)}<button class="small" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div>
+        <div class="acts rows${s.replacing ? " hidden" : ""}">
+          ${S.frameConfigured ? `<div class="arow">${uploadBtn(s)}</div>` : ""}
+          <div class="arow">${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button></div>
+          <div class="arow"><button class="small icon" data-rename="${esc(s.slug)}" title="${tr("ren.button")}" aria-label="${tr("ren.button")}">✎</button><button class="small icon" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small icon" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small icon" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div></div>
+        <div class="toggles${s.replacing ? " hidden" : ""}">${versionsToggle(s.slug, s.versions)}</div>
       </div></div>
-    ${s.versions && versionsOpen(s.slug) ? `<div class="vinline"><b class="vhead">${tr("ver.of", {name: esc(s.name)})}</b>
+    ${s.versions && versionsOpen(s.slug) ? `<div class="vinline"><div class="vhead"><b>${tr("ver.of", {name: esc(s.name)})}</b><button class="small" data-versions="${esc(s.slug)}">${tr("ver.new.button")}</button></div>
       <div class="vlist" data-vlist="${esc(s.slug)}"></div></div>` : ""}`;
 }
 const ALIGN_LETTER = {frame: "A", images: "B", shift: "C", rigid: "D"};
@@ -1082,21 +1093,23 @@ function groupBlock(g, bySlug, byGroup) {
         ${scaleLine(g)}
         ${tour}${busy}
         <div class="acts">
-          <button class="small" data-gtoggle="${esc(g.slug)}" aria-expanded="${open}">${tr(open ? "grp.hide" : g.room ? "grp.show.recordings" : inner.length ? "grp.show.rooms" : "grp.show", {n: inner.length + own.length})}</button>
           <button class="small${!r || r.stale ? " primary" : ""}" data-combine="${esc(g.slug)}" ${g.busy || scenes.length < 2 ? "disabled" : ""}>${tr(r ? "grp.recombine" : g.room ? "grp.room.combine" : "grp.combine")}</button>
-          ${r ? uploadBtn({slug: g.slug, on_frame: r.on_frame, upload: r.upload}) : ""}
-          ${scenes.some(s => s.ply) ? `<button class="small" data-gplan="${esc(g.slug)}">${tr("sc.plan")}</button>` : ""}
+          ${r ? uploadBtn({slug: g.slug, on_frame: r.on_frame, upload: r.upload}) : ""}<i class="sep"></i>
           ${r && r.ply ? `<button class="small pc-only" data-spirula="${esc(g.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
-          ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}
-          <button class="small" data-gedit="${esc(g.slug)}">${tr("grp.edit")}</button>
-          <button class="small" data-scale="${esc(g.slug)}" title="${tr("scale.button.title")}" ${g.busy ? "disabled" : ""}>📏${g.scale !== 1 ? " " + ratioText(g.scale) : ""}</button>
-          ${r && r.ply ? `<button class="small" data-versions="${esc(g.slug)}" title="${tr("ver.button.title")}">${tr("ver.button", {n: g.versions || 0})}</button>${versionsToggle(g.slug, g.versions)}` : ""}
-          <button class="small" data-clean="${esc(g.slug)}" title="${tr("grp.clean.title")}" aria-label="${tr("grp.clean.title")}" ${g.busy ? "disabled" : ""}>${tr("sc.clean")}</button>
-          <button class="small" data-gdelete="${esc(g.slug)}" title="${tr("grp.delete.title")}" aria-label="${tr("grp.delete.title")}">${tr("sc.delete")}</button>
+          ${scenes.some(s => s.ply) ? `<button class="small" data-gplan="${esc(g.slug)}">${tr("sc.plan")}</button>` : ""}
+          ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}<i class="sep"></i>
+          <button class="small icon" data-gedit="${esc(g.slug)}" title="${tr("grp.edit")}" aria-label="${tr("grp.edit")}">✎</button>
+          <button class="small icon" data-scale="${esc(g.slug)}" title="${tr("scale.button.title")}" ${g.busy ? "disabled" : ""}>📏${g.scale !== 1 ? " " + ratioText(g.scale) : ""}</button>
+          <button class="small icon" data-clean="${esc(g.slug)}" title="${tr("grp.clean.title")}" aria-label="${tr("grp.clean.title")}" ${g.busy ? "disabled" : ""}>${tr("sc.clean")}</button>
+          <button class="small icon" data-gdelete="${esc(g.slug)}" title="${tr("grp.delete.title")}" aria-label="${tr("grp.delete.title")}">${tr("sc.delete")}</button>
+        </div>
+        <div class="toggles">
+          <button class="small link" data-gtoggle="${esc(g.slug)}" aria-expanded="${open}">${tr(open ? "grp.hide" : g.room ? "grp.show.recordings" : inner.length ? "grp.show.rooms" : "grp.show", {n: inner.length + own.length})}</button>
+          ${r && r.ply ? versionsToggle(g.slug, g.versions) : ""}
         </div>
       </div>
     </div>
-    ${g.versions && versionsOpen(g.slug) ? `<div class="vinline"><b class="vhead">${tr("ver.of", {name: esc(g.name)})}</b>
+    ${g.versions && versionsOpen(g.slug) ? `<div class="vinline"><div class="vhead"><b>${tr("ver.of", {name: esc(g.name)})}</b><button class="small" data-versions="${esc(g.slug)}">${tr("ver.new.button")}</button></div>
       <div class="vlist" data-vlist="${esc(g.slug)}"></div></div>` : ""}
     ${open ? `<div class="grid ginner">${inner.map(x => groupBlock(x, bySlug, byGroup)).join("")}${own.map(sceneCard).join("")}</div>` : ""}
   </div>`;
@@ -1333,7 +1346,7 @@ function versionRow(v) {
     <div class="vwhat"><b>${v.purpose === "pc" ? "🖥️" : "🥽"} ${esc(what)}</b>
       <span class="muted">${cleanText(v.clean) || tr("ver.clean.none")}</span>
       <span class="faint">${tr("million", {n: num(v.splats / 1e6, 2)})} · ${mb(v.size)}${v.stale ? " · " + tr("ver.stale") : ""}</span></div>
-    <div class="vacts">${frameState({upload: v.upload, on_frame: v.on_frame})}
+    <div class="vacts">${v.on_frame === null && !(v.upload && (v.upload.running || v.upload.error)) ? "" : frameState({upload: v.upload, on_frame: v.on_frame})}
       ${v.ply ? `<button class="small pc-only" data-vspirula="${esc(v.key)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
       ${S.frameConfigured ? `<button class="small" data-vup="${esc(v.key)}" ${v.upload && v.upload.running ? "disabled" : ""} ${slow ? `title="${tr("ver.slow", {n: num(v.splats / 1e6, 1)})}"` : ""}>${tr(v.on_frame ? "sc.reupload" : "sc.toFrame")}${slow ? " ⚠️" : ""}</button>` : ""}
       ${v.on_frame ? `<button class="small" data-vunframe="${esc(v.key)}" title="${tr("ver.unframe.title")}">${tr("ver.unframe")}</button>` : ""}
@@ -1466,9 +1479,9 @@ async function fillVersionLists() {                         // the opened lists 
 }
 function versionsOpen(slug, set) { return groupOpen("ver:" + slug, set); }
 function versionsToggle(slug, n) {
-  if (!n) return "";
+  if (!n) return `<button class="small link" data-versions="${esc(slug)}" title="${tr("ver.button.title")}">${tr("ver.first")}</button>`;
   const open = versionsOpen(slug);
-  return `<button class="small" data-vtoggle="${esc(slug)}" aria-expanded="${open}">${tr(open ? "ver.hide" : "ver.show", {n})}</button>`;
+  return `<button class="small link" data-vtoggle="${esc(slug)}" aria-expanded="${open}" title="${tr("ver.button.title")}">${tr(open ? "ver.hide" : n === 1 ? "ver.show.1" : "ver.show", {n})}</button>`;
 }
 
 /* ---------- scale (models) ---------- */

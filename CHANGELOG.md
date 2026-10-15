@@ -17,6 +17,7 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
   - **As template** takes a version's settings into the form: change one slider and make the next.
   - A cleaned version for the PC keeps its own file for **Spirula Studio** and opens there with one click.
   - **Versions unfold under their scene or tour** (*▸ 3 versions*), with Spirula, copying to the Frame (with a warning above 2.5 M splats), template and delete.
+  - **Tidier action bars** on scenes and tours: what you do (put together, copy to the Frame) – what you look at (Spirula, floor plan, folder) – what you change (rename, scale, clean up, delete, as icons with tooltips); the unfolding lists (*▸ 3 recordings*, *▸ 1 version* or *＋ Versions …*) on a line of their own. One versions button instead of two.
   - The PC sizes 3, 5 and 8 M are gone – on the PC all splats is what counts; any other size goes through *own size*.
 - `scripts/freespace.py` (experimental, command line only): takes out splats in space the cameras looked through, from the recordings' sparse models. On a real living room it found only 0.4 % – white walls and ceilings have too few points to tell – but looked a little better; kept for trying.
 
