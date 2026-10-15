@@ -26,18 +26,39 @@ for tool in ffmpeg ffprobe uv ssh curl; do
     command -v "$tool" >/dev/null && echo "  ✓ $tool" || { echo "  ✗ $tool"; missing=1; }
 done
 command -v splat-transform >/dev/null && echo "  ✓ splat-transform" ||
-    echo "  ! splat-transform not on PATH (npm install -g @playcanvas/splat-transform, or set it in the config)"
+    echo "  ! splat-transform not on PATH (npm install -g --prefix ~/.local @playcanvas/splat-transform needs no root; or set its path in the config)"
 python3 -c 'import PySide6' 2>/dev/null && echo "  ✓ PySide6 (tray icon)" ||
     echo "  · PySide6 not installed – uv will fetch it on first start for the tray icon"
 [ $missing = 0 ] || echo "Install the missing tools first (see README)."
 
 mkdir -p "$CONF" "$APPS" "$ICONS"
+created=0
 if [ ! -f "$CONF/config.toml" ]; then
     cp "$ROOT/config.example.toml" "$CONF/config.toml"
-    echo "Created $CONF/config.toml – set the paths to the Arcturus pipeline and Spirula, and your Frame's address."
+    created=1
+    echo "Created $CONF/config.toml from config.example.toml – set the paths to the Arcturus pipeline and Spirula, and your Frame's address."
 else
-    echo "Keeping existing $CONF/config.toml"
+    echo "Keeping existing $CONF/config.toml (all settings with explanations: $ROOT/config.example.toml)"
 fi
+
+# Started from the desktop, Splat Workshop does not see a PATH set in .bashrc/.zshrc: give it the full path
+st=$(command -v splat-transform || true)
+conf_st=$(python3 -c 'import sys, tomllib
+print(tomllib.load(open(sys.argv[1], "rb")).get("paths", {}).get("splat_transform", ""))' "$CONF/config.toml" 2>/dev/null || true)
+if [ -n "$st" ] && [ -z "$conf_st" ]; then
+    if [ $created = 1 ]; then
+        sed -i "s|^splat_transform = \"\"|splat_transform = \"$st\"|" "$CONF/config.toml"
+        echo "  ✓ splat_transform = \"$st\" written to the config"
+    else
+        echo "  ! Add this line under [paths] in $CONF/config.toml – started from the desktop,"
+        echo "    Splat Workshop does not see the PATH of your shell:"
+        echo "      splat_transform = \"$st\""
+    fi
+fi
+# Settings Splat Workshop does not know (typos such as "splat-transform" instead of "splat_transform")
+(cd "$ROOT" && python3 -c 'from splat_workshop import config
+for key, hint in config.load().unknown:
+    print(f"  ! Unknown setting \"{key}\" in the config" + (f" – did you mean \"{hint}\"?" if hint else " – it is ignored"))') || true
 
 cp "$ROOT/web/icon.svg" "$ICONS/splat-workshop.svg"
 entry() {

@@ -88,7 +88,15 @@ Converts the result into the compact SOG format that Gaussian XR loads:
 npm install -g @playcanvas/splat-transform
 ```
 
-If you can't or don't want to install globally: `npm install --prefix ~/arcturus/node @playcanvas/splat-transform` and set `splat_transform = "~/arcturus/node/bin/splat-transform"` in the config.
+If `npm install -g` fails with a permission error, install it into your home instead – no root needed:
+
+```bash
+npm install -g --prefix ~/arcturus/node @playcanvas/splat-transform
+```
+
+and set `splat_transform = "~/arcturus/node/bin/splat-transform"` under `[paths]` in the config (with an underscore – `splat-transform =` is not a setting and is ignored; Splat Workshop points that out).
+
+**Always set the full path in the config** if splat-transform is only on the PATH of your shell (`.bashrc`, `.zshrc`): started from the desktop or the tray, Splat Workshop does not read those files and would not find it. `install.sh` writes or prints the line for you.
 
 ## 5. Tell Splat Workshop where everything is
 
@@ -106,7 +114,7 @@ Restart Splat Workshop (tray → Quit, then start it again). If something is sti
 
 | Symptom | Cause / fix |
 |---|---|
-| `av.open() got an unexpected keyword argument 'metadata_errors'` | PyAV 19 removed that option. Pin the older version: in the `# /// script` header at the top of `av1_to_3dgs.py` and `av1_colmap.py`, change `"av>=18.1"` to `"av>=18.1,<19"`. (Was needed with the pipeline from autumn 2026; newer versions may have fixed it.) |
+| `av.open() got an unexpected keyword argument 'metadata_errors'` | PyAV 19 removed that option. Pin the older version: in the `# /// script` header at the top of `av1_to_3dgs.py` and `av1_colmap.py`, change `"av>=18.1"` to `"av>=18.1,<19"`. (Was needed with the pipeline from autumn 2026; newer versions may have fixed it.) Splat Workshop (0.4.1 and newer) points this out in its setup hints before you start, and names it if a conversion fails because of it. |
 | `Could not select unique evenly spaced capture instants` | Recording too short. The pipeline needs at least 100 capture instants – record at least 10 seconds, better 30+. |
 | Spirula finds no GPU / uses llvmpipe | Vulkan driver missing, see step 1. |
 | The scene does not appear in Gaussian XR | It must be a real folder in Gaussian XR's `Scenes/` (no symlink) with the gallery images – Splat Workshop's *To the Frame* button does this for you. A Steam update or “verify files” of Gaussian XR can reset that folder; just copy the scene again. |

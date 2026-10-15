@@ -2,6 +2,17 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] – 2026-10-15
+
+Setup made clearer – thanks to the first two issues from outside (#1, #2).
+
+### Fixed
+
+- **A typo in the config is pointed out**: a setting Splat Workshop does not know – such as `splat-transform =` instead of `splat_transform =` – used to be ignored silently, so splat-transform stayed "not found" without a reason. Now the setup hints name it, with the right spelling. `install.sh` does too.
+- **splat-transform on the shell's PATH only**: `install.sh` checked the PATH of the shell it runs in, but Splat Workshop, started from the desktop or the tray, does not read `.bashrc`/`.zshrc` – the installer said ✓, the app said "not found". Now `install.sh` writes the full path into a new config, or prints the line to add to an existing one; the hint in the app explains why and how.
+- **The npm instructions** in the setup guide installed into a folder whose path did not match the one given for the config. Now: `npm install -g --prefix ~/arcturus/node @playcanvas/splat-transform` (no root needed) and `~/arcturus/node/bin/splat-transform`.
+- **The Arcturus pipeline and PyAV 19** ("unexpected keyword argument 'metadata_errors'"): Splat Workshop now spots a pipeline that is not pinned to PyAV below 19 before you start, and names the cause and the fix when a conversion fails because of it – instead of only a traceback. It does not change the pipeline itself.
+
 ## [0.4.0] – 2026-10-15
 
 ### Added
@@ -138,6 +149,7 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.4.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.2.3...v0.3.0

@@ -5,7 +5,9 @@ Order: built-in defaults < ~/.config/splat-workshop/config.toml (or $SPLAT_WORKS
 
 `python3 -m splat_workshop.config --shell` prints the values as shell assignments for scripts/.
 """
+import difflib
 import os
+import re
 import shlex
 import shutil
 import sys
@@ -32,9 +34,47 @@ DEFAULTS = {
 }
 
 
+def unknown_keys(data: dict) -> list[tuple[str, str]]:
+    """Settings in the config file that Splat Workshop does not know (e.g. a typo: "splat-transform"),
+    as ("section.key", suggestion or "")."""
+    out = []
+    for section, values in data.items():
+        if section not in DEFAULTS:
+            close = difflib.get_close_matches(section, DEFAULTS, n=1, cutoff=0.6)
+            out.append((section, close[0] if close else ""))
+            continue
+        if not isinstance(values, dict):
+            continue
+        for key in values:
+            if key not in DEFAULTS[section]:
+                close = difflib.get_close_matches(key.replace("-", "_"), DEFAULTS[section], n=1, cutoff=0.6)
+                out.append((f"{section}.{key}", f"{section}.{close[0]}" if close else ""))
+    return out
+
+
+# PyAV 19 removed av.open(metadata_errors=...), which the Arcturus pipeline (autumn 2026) uses
+PYAV_FILES = ("av1_to_3dgs.py", "av1_colmap.py")
+RX_AV_DEP = re.compile(r'^#\s*"av(?P<spec>[^"]*)"', re.M)
+
+
+def pyav_unpinned(pipeline: Path) -> list[str]:
+    """Pipeline scripts that use metadata_errors but allow PyAV 19 or newer."""
+    out = []
+    for name in PYAV_FILES:
+        try:
+            text = (pipeline / name).read_text(errors="replace")
+        except OSError:
+            continue
+        m = RX_AV_DEP.search(text)
+        if "metadata_errors" in text and m and "<19" not in m["spec"].replace(" ", ""):
+            out.append(name)
+    return out
+
+
 class Config:
-    def __init__(self, data: dict, source: Path | None):
+    def __init__(self, data: dict, source: Path | None, unknown=()):
         self.source = source
+        self.unknown = list(unknown)
         base = source.parent if source else Path.home()
 
         def path(v: str) -> Path:
@@ -63,12 +103,17 @@ class Config:
     def problems(self) -> list[tuple[str, dict]]:
         """Missing prerequisites as (message key, params) for the setup hints in the UI."""
         out = []
+        for key, suggestion in self.unknown:
+            out.append(("setup.unknown_key" if suggestion else "setup.unknown_key.plain",
+                        {"key": key, "suggestion": suggestion, "file": str(self.source)}))
         if not (self.pipeline / "av1_to_3dgs.py").is_file():
             out.append(("setup.pipeline", {"path": str(self.pipeline)}))
+        elif bad := pyav_unpinned(self.pipeline):
+            out.append(("setup.pyav", {"files": ", ".join(bad), "path": str(self.pipeline)}))
         if not os.access(self.spirula, os.X_OK):
             out.append(("setup.spirula", {"path": str(self.spirula)}))
         if not self.splat_transform:
-            out.append(("setup.splat_transform", {}))
+            out.append(("setup.splat_transform", {"file": str(self.source or CONFIG_FILE)}))
         for tool in ("ffmpeg", "ffprobe", "uv"):
             if not shutil.which(tool):
                 out.append(("setup.tool", {"tool": tool}))
@@ -103,12 +148,12 @@ def _merge(base: dict, over: dict) -> dict:
 
 
 def load() -> Config:
-    data, source = DEFAULTS, None
+    data, source, unknown = DEFAULTS, None, []
     if CONFIG_FILE.is_file():
         with open(CONFIG_FILE, "rb") as fh:
-            data = _merge(DEFAULTS, tomllib.load(fh))
-        source = CONFIG_FILE
-    return Config(data, source)
+            own = tomllib.load(fh)
+        data, source, unknown = _merge(DEFAULTS, own), CONFIG_FILE, unknown_keys(own)
+    return Config(data, source, unknown)
 
 
 def shell(cfg: Config) -> str:

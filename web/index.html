@@ -1016,7 +1016,7 @@ function renderJob() {
                                  : tr("res.ok.local", {name: j.name, path: "runs/" + j.slug}); }
     else if (j.result === "cancelled") { res.className = "result warn"; res.textContent = tr("res.cancelled"); }
     else if (j.phase === 4) { res.className = "result warn"; res.textContent = tr("res.upload_failed"); }
-    else { res.className = "result bad"; res.textContent = tr("res.failed"); }
+    else { res.className = "result bad"; res.textContent = i.hint ? tr(i.hint) : tr("res.failed"); }
   }
   const log = $("#log"), atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
   log.textContent = j.tail || ""; if (atBottom) log.scrollTop = log.scrollHeight;

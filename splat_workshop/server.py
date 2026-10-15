@@ -29,7 +29,7 @@ from pathlib import Path
 from . import check, config
 from .i18n import T, detect
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 CFG = config.load()
 ROOT = config.ROOT
 WEB = ROOT / "web"
@@ -594,7 +594,14 @@ def parse_output(text: str) -> dict:
         info["done"] = True
         if d[1] == "frame" and d[2]:
             info["folder"] = d[2]
+    for needle, hint in KNOWN_FAILURES:
+        if needle in text:
+            info["hint"] = hint
     return {"phase": phase, "pct": pct, "eta": eta, "info": info}
+
+
+# Failures with a known cause: a line of the pipeline's output -> a hint in the interface (web/i18n.js)
+KNOWN_FAILURES = (("unexpected keyword argument 'metadata_errors'", "hint.pyav"),)
 
 
 def job_status(tail=True) -> dict | None:
