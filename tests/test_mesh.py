@@ -23,12 +23,12 @@ def test_upright_puts_the_floor_at_the_bottom(tmp_path, fmt, colour):
     r = subprocess.run([sys.executable, str(UPRIGHT), "--floor", str(fake_mesh.FLOOR_Y), str(f)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     p = fake_mesh.read_points(f)
-    up = 1 if fmt == "glb" else 2                        # glTF: Y up; the others: Z up
+    up = 1 if fmt in ("glb", "obj") else 2               # glTF and OBJ: Y up; PLY and STL: Z up (as Blender imports them)
     k = 6 if fmt == "stl" else 4                         # STL lists the corners of each triangle: 2 floor triangles
     floor, ceiling = p[:k, up], p[k:, up]
     assert np.allclose(floor, 0, atol=1e-5)              # the floor at height 0 ...
     assert np.allclose(ceiling, fake_mesh.FLOOR_Y - fake_mesh.CEILING_Y, atol=1e-5)   # ... the ceiling 2.5 m above
-    if fmt in ("obj", "ply"):                            # a proper turn, not a mirror: x stays, the other two swap
+    if fmt in ("obj", "ply"):                            # a proper turn, not a mirror: x stays
         assert np.allclose(p[:, 0], fake_mesh.V[:, 0])
     if fmt == "ply":                                     # normals turn along: the floor faces up
         raw = f.read_bytes()

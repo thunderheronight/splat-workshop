@@ -1,10 +1,12 @@
-"""Stand a mesh upright: our scenes have Y pointing down (like the Steam Frame's tracking); 3D programs
-expect Z up (OBJ, PLY, STL – e.g. Blender, slicers for 3D printing) or Y up (glTF/GLB, by its standard;
-Blender turns that into Z up itself on import). Without this a room lies on its side or upside down.
+"""Stand a mesh upright: our scenes have Y pointing down (like the Steam Frame's tracking). 3D programs
+expect Z up for PLY and STL (Blender, slicers for 3D printing) and Y up for glTF/GLB (by its standard) and
+OBJ (by custom) – Blender turns those two into Z up itself on import. Without this a room lies on its side
+or upside down. (Checked by importing each format in Blender 5.2.)
 
 Usage: python3 upright.py [--floor Y] <file> [<file> ...]   (.ply .obj .stl .glb .gltf; changed in place)
 
-  OBJ, PLY, STL: positions and normals turned so that up (-Y) becomes +Z: (x, y, z) -> (x, z, -y)
+  PLY, STL:      positions and normals turned so that up (-Y) becomes +Z: (x, y, z) -> (x, z, -y)
+  OBJ:           turned 180° about X, up (-Y) becomes +Y: (x, y, z) -> (x, -y, -z)
   GLB/glTF:      the scene's root nodes go under one new node turned 180° about X: (x, y, z) -> (x, -y, -z)
                  – nothing else in the file is touched (textures, materials, accessors stay as they are)
   --floor Y      where the floor is in the scene (Y down): it is moved to height 0, so the room stands on
@@ -67,8 +69,8 @@ def obj(path: Path):
                 tag, rest = line.split(None, 1)
                 nums = rest.split()
                 x, y, z = (float(n) for n in nums[:3])
-                x, y, z = Z_UP @ (x, y, z)
-                z += LIFT if tag == b"v" else 0.0
+                x, y, z = x, -y, -z                        # Y up (180° about X)
+                y += LIFT if tag == b"v" else 0.0
                 line = b"%s %.7g %.7g %.7g%s\n" % (tag, x, y, z, (b" " + b" ".join(nums[3:])) if nums[3:] else b"")
             out.append(line)
     _replace(path, b"".join(out))

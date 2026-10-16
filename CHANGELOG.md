@@ -7,7 +7,7 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 ### Added
 
 - **Mesh export**: *Mesh …* on every scene and tour turns the splats into a surface with Spirula Studio (`spirula mesh`) – for Blender and other 3D programs, or for 3D printing. Formats: **GLB** (recommended: colours or texture in one file), **STL** (no colours, for slicers), **OBJ** (with a texture if possible, otherwise without colours) and **PLY** (colours per corner).
-  - **Stands upright, floor at height 0**: our scenes have Y pointing down like the Steam Frame's tracking, so a mesh used to lie on its side in Blender. Now OBJ, PLY and STL get Z up and GLB gets Y up, as the glTF standard wants (Blender turns that into Z up itself); the floor – found as for the floor plan – is moved to height 0. In metres.
+  - **Stands upright, floor at height 0**: our scenes have Y pointing down like the Steam Frame's tracking, so a mesh used to lie on its side in Blender. Now PLY and STL get Z up, GLB and OBJ Y up as their standard and custom want (Blender turns those into Z up itself on import – checked in Blender 5.2 for every format); the floor – found as for the floor plan – is moved to height 0. In metres.
   - What lies well outside the room is left out before meshing (as the *Edges* clean-up does) – otherwise big blobs beyond the walls become lumps floating around the room.
   - A **texture** from the training images when they are still there; after *clean up → training images*, colours per corner from the splats.
   - The mesh lives in the scene's folder (`mesh/`); a new one replaces the old one. *Mesh ✓* shows which scenes have one.

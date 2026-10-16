@@ -7,7 +7,7 @@
 #   <formats>   comma-separated: glb, ply, obj, stl
 #                 glb  colours (texture or per corner); Y up as glTF wants it – Blender, Windows 3D viewer, web
 #                 ply  colours per corner; Z up – MeshLab, CloudCompare, Blender
-#                 obj  with a texture, or without colours; Z up – nearly every 3D program
+#                 obj  with a texture, or without colours; Y up as is custom for OBJ – nearly every 3D program
 #                 stl  no colours; Z up – slicers for 3D printing
 #   texture     1: a texture from the training images (only if they are still there, see "clean up"),
 #               otherwise colours per corner from the splats
