@@ -30,4 +30,5 @@ one in place while a job uses it – write a new file and `mv` it over.
 ## File systems
 
 Runs may live on NTFS: no folder or file name may end with a dot or contain `:`; git there needs
-`core.fileMode false`.
+`core.fileMode false`. With that, git does not see the executable bit: a new shell script needs
+`git update-index --chmod=+x scripts/<name>.sh`, or it is not executable in CI and fresh clones.
