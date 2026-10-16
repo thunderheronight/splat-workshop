@@ -86,7 +86,28 @@ png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4
 (out / (out.name.lower() + ".gallery.png")).write_bytes(png)
 print("Gaussian XR scene transform: " + str(out / "scene.xrSceneTransform.json"), flush=True)
 ''')
-script(BIN / "spirula", "#!/bin/sh\nexit 0\n")
+# spirula: `spirula mesh` writes a tiny room in every format/colour pair the real one writes (tests/fake_mesh.py)
+script(BIN / "spirula", f'''#!{sys.executable}
+import json, sys
+from pathlib import Path
+sys.path.insert(0, "{Path(__file__).parent}")
+with open("{TOOL_LOG}", "a") as log:
+    log.write(json.dumps(["spirula", *sys.argv[1:]]) + "\\n")
+args = sys.argv[1:]
+if args[:1] == ["mesh"]:
+    import fake_mesh
+    opt = lambda k: args[args.index(k) + 1]
+    formats, colours, base = opt("--format").split(","), opt("--color").split(","), Path(opt("--output"))
+    ok = {{("glb", "vertex"), ("glb", "none"), ("glb", "texture"), ("ply", "vertex"), ("ply", "none"),
+          ("obj", "none"), ("obj", "texture"), ("stl", "none")}}
+    tag = {{"vertex": "_vertexcolor", "none": "_nocolor", "texture": "_texture"}}
+    for f in formats:
+        for c in colours:
+            if (f, c) in ok:
+                fake_mesh.write(base.with_name(base.name + (tag[c] if len(colours) > 1 else "") + "." + f), f, c)
+                if c == "texture" and f == "obj":
+                    base.with_name(base.name + (tag[c] if len(colours) > 1 else "") + ".png").write_bytes(b"png")
+''')
 # splat-transform: copies the input (a .ply stays a .ply), writes a small file for .sog
 script(BIN / "splat-transform", f'''#!{sys.executable}
 import json, shutil, sys

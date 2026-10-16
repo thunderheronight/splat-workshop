@@ -429,6 +429,19 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   </div>
 </dialog>
 
+<dialog id="meshDlg" class="wide">
+  <h2 style="margin-top:0" id="meshTitle"></h2>
+  <p class="muted" style="font-size:13px;margin-top:0" data-i18n="mesh.hint"></p>
+  <div id="meshHave" class="vlist"></div>
+  <h3 data-i18n="mesh.new"></h3>
+  <div id="meshFormats" class="opts"></div>
+  <label class="chk" id="meshTexBox" style="margin-top:10px"><input type="checkbox" id="meshTex"> <span id="meshTexText"></span></label>
+  <p class="faint" style="font-size:12px;margin:10px 0 0" data-i18n="mesh.time"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:16px">
+    <button id="meshClose" data-i18n="clean.close"></button>
+    <button class="primary" id="meshMake" data-i18n="mesh.make"></button>
+  </div>
+</dialog>
 <dialog id="verDlg" class="wide">
   <h2 style="margin-top:0" id="verTitle"></h2>
   <p class="muted" style="font-size:13px;margin-top:0" data-i18n="ver.hint"></p>
@@ -968,8 +981,9 @@ function renderJob() {
   $("#jobName").textContent = j.name;
   const qk = QUALITY_ALIAS[j.quality] || j.quality, combine = j.kind === "combine";
   const target = tr(j.upload ? "job.toFrame" : "job.pcOnly"), time = mins(Date.now() / 1000 - j.started);
-  const versions = j.kind === "versions";
-  $("#jobSub").textContent = versions ? tr("job.sub.versions", {n: (j.steps || []).length, time})
+  const versions = j.kind === "versions" || j.kind === "mesh";
+  $("#jobSub").textContent = j.kind === "mesh" ? tr("job.sub.mesh", {time})
+                           : versions ? tr("job.sub.versions", {n: (j.steps || []).length, time})
                            : combine ? tr(j.rooms === 1 && j.recordings > 1 ? "job.sub.combine.room" : "job.sub.combine",
                                           {n: j.rooms === 1 && j.recordings > 1 ? j.recordings : j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
                                      : j.chain ? tr("job.sub.part", {i: j.chain.i + 1, n: j.chain.n, room: j.chain.room, q: tr("q." + qk), time})
@@ -1013,7 +1027,7 @@ function renderJob() {
   if (!j.running) {
     if (j.result === "ok") { res.className = "result ok";
       res.textContent = j.upload ? tr("res.ok.frame", {name: j.name, folder: i.folder ? " (" + i.folder + ")" : ""})
-                                 : tr("res.ok.local", {name: j.name, path: "runs/" + j.slug}); }
+                                 : tr(j.kind === "mesh" ? "res.ok.mesh" : "res.ok.local", {name: j.name, path: "runs/" + j.slug + (j.kind === "mesh" ? "/mesh" : "")}); }
     else if (j.result === "cancelled") { res.className = "result warn"; res.textContent = tr("res.cancelled"); }
     else if (j.phase === 4) { res.className = "result warn"; res.textContent = tr("res.upload_failed"); }
     else { res.className = "result bad"; res.textContent = i.hint ? tr(i.hint) : tr("res.failed"); }
@@ -1048,7 +1062,7 @@ function sceneCard(s) {
         ${s.replacing ? `<div class="fstate faint">${tr("sc.replacing")}</div>` : frameState(s)}
         <div class="acts rows${s.replacing ? " hidden" : ""}">
           ${S.frameConfigured ? `<div class="arow">${uploadBtn(s)}</div>` : ""}
-          <div class="arow">${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button></div>
+          <div class="arow">${s.ply ? `<button class="small pc-only" data-spirula="${esc(s.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}${s.ply ? `<button class="small" data-mesh="${esc(s.slug)}" title="${tr("mesh.button.title")}">${tr(s.mesh ? "mesh.button.has" : "mesh.button")}</button>` : ""}${s.ply ? `<button class="small" data-plan="${esc(s.slug)}">${tr("sc.plan")}</button>` : ""}<button class="small pc-only" data-open="${esc(s.slug)}">${tr("sc.folder")}</button></div>
           <div class="arow"><button class="small icon" data-rename="${esc(s.slug)}" title="${tr("ren.button")}" aria-label="${tr("ren.button")}">✎</button><button class="small icon" data-scale="${esc(s.slug)}" title="${tr("scale.button.title")}">📏${s.scale !== 1 ? " " + ratioText(s.scale) : ""}</button><button class="small icon" data-clean="${esc(s.slug)}" title="${tr("sc.clean.title")}" aria-label="${tr("sc.clean.title")}">${tr("sc.clean")}</button><button class="small icon" data-delete="${esc(s.slug)}" title="${tr("sc.delete.title")}" aria-label="${tr("sc.delete.title")}">${tr("sc.delete")}</button></div></div>
         <div class="toggles${s.replacing ? " hidden" : ""}">${versionsToggle(s.slug, s.versions)}</div>
       </div></div>
@@ -1096,6 +1110,7 @@ function groupBlock(g, bySlug, byGroup) {
           <button class="small${!r || r.stale ? " primary" : ""}" data-combine="${esc(g.slug)}" ${g.busy || scenes.length < 2 ? "disabled" : ""}>${tr(r ? "grp.recombine" : g.room ? "grp.room.combine" : "grp.combine")}</button>
           ${r ? uploadBtn({slug: g.slug, on_frame: r.on_frame, upload: r.upload}) : ""}<i class="sep"></i>
           ${r && r.ply ? `<button class="small pc-only" data-spirula="${esc(g.slug)}" title="${tr("sc.spirula.title")}">${tr("sc.spirula")}</button>` : ""}
+          ${r && r.ply ? `<button class="small" data-mesh="${esc(g.slug)}" title="${tr("mesh.button.title")}">${tr(g.mesh ? "mesh.button.has" : "mesh.button")}</button>` : ""}
           ${scenes.some(s => s.ply) ? `<button class="small" data-gplan="${esc(g.slug)}">${tr("sc.plan")}</button>` : ""}
           ${r ? `<button class="small pc-only" data-open="${esc(g.slug)}">${tr("sc.folder")}</button>` : ""}<i class="sep"></i>
           <button class="small icon" data-gedit="${esc(g.slug)}" title="${tr("grp.edit")}" aria-label="${tr("grp.edit")}">✎</button>
@@ -1151,6 +1166,7 @@ function renderScenes() {
   fillVersionLists();
   document.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => openScale(b.dataset.scale));
   document.querySelectorAll("[data-versions]").forEach(b => b.onclick = () => openVersions(b.dataset.versions));
+  document.querySelectorAll("[data-mesh]").forEach(b => b.onclick = () => openMesh(b.dataset.mesh));
   document.querySelectorAll("[data-gedit]").forEach(b => b.onclick = () => openGroupDlg(S.groups.find(g => g.slug === b.dataset.gedit)));
   document.querySelectorAll("[data-gdelete]").forEach(b => b.onclick = () => deleteGroup(S.groups.find(g => g.slug === b.dataset.gdelete)));
   document.querySelectorAll("[data-combine]").forEach(b => b.onclick = () => openCombine(S.groups.find(g => g.slug === b.dataset.combine)));
@@ -1332,6 +1348,50 @@ async function loadFrameGallery(refresh) {
     if (!res.ok) { toast(trErr(res.error)); return; }
     toast(tr("fg.removed", {name: x.name})); loadFrameGallery(true); loadScenes();
   });
+}
+
+/* ---------- meshes ---------- */
+const MESH_FORMATS = ["glb", "stl", "obj", "ply"];
+async function openMesh(slug) {
+  const g = (S.groups || []).find(x => x.slug === slug), x = g || S.scenes.find(y => y.slug === slug);
+  if (!x) return;
+  $("#meshTitle").textContent = tr("mesh.title", {name: x.name});
+  const draw = async () => {
+    const m = await api("/api/mesh?slug=" + encodeURIComponent(slug));
+    $("#meshHave").innerHTML = m.made ? `<div class="vrow"><div class="vwhat">
+        <b>${tr("mesh.have")}${m.made.stale ? " · " + tr("ver.stale") : ""}</b>
+        <span class="muted">${m.files.map(f => esc(f.name) + " (" + mb(f.size) + ")").join(" · ")}</span></div>
+        <div class="vacts"><button class="small pc-only" id="meshOpen">${tr("sc.folder")}</button>
+        <button class="small" id="meshDel" title="${tr("mesh.delete")}" aria-label="${tr("mesh.delete")}">${tr("sc.delete")}</button></div></div>` : "";
+    if (m.made) {
+      $("#meshOpen").onclick = () => api("/api/open", {slug, what: "mesh"});
+      $("#meshDel").onclick = async () => {
+        if (!confirm(tr("mesh.confirm", {name: x.name}))) return;
+        const r = await api("/api/mesh/delete", {slug});
+        if (!r.ok) { toast(trErr(r.error)); return; }
+        draw(); loadScenes();
+      };
+    }
+    $("#meshTex").disabled = !m.texture_possible;
+    $("#meshTex").checked = m.texture_possible;
+    $("#meshTexText").textContent = tr(m.texture_possible ? "mesh.texture" : "mesh.texture.none");
+  };
+  const was = S.meshFormats || ["glb"];
+  $("#meshFormats").innerHTML = MESH_FORMATS.map(f => `<label class="opt${was.includes(f) ? " active" : ""}">
+      <input type="checkbox" value="${f}" ${was.includes(f) ? "checked" : ""}><div><b>${tr("mesh.f." + f)}</b><span>${tr("mesh.f." + f + ".text")}</span></div></label>`).join("");
+  $("#meshFormats").querySelectorAll("input").forEach(i => i.onchange = () => i.closest(".opt").classList.toggle("active", i.checked));
+  await draw();
+  $("#meshDlg").showModal();
+  $("#meshClose").onclick = () => $("#meshDlg").close();
+  $("#meshMake").onclick = async () => {
+    const formats = [...$("#meshFormats").querySelectorAll("input:checked")].map(i => i.value);
+    if (!formats.length) { toast(tr("mesh.pick")); return; }
+    S.meshFormats = formats;
+    const r = await api("/api/mesh", {slug, formats: formats.join(","), texture: $("#meshTex").checked});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    $("#meshDlg").close(); toast(tr("mesh.started")); await poll();
+    $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
+  };
 }
 
 /* ---------- versions ---------- */

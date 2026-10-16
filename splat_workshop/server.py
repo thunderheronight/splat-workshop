@@ -152,7 +152,7 @@ def pid_alive(pid: int) -> bool:
     try:
         cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
         if cmd:
-            return any(x in cmd for x in ("splat.sh", "combine.sh", "versions.sh"))
+            return any(x in cmd for x in ("splat.sh", "combine.sh", "versions.sh", "mesh.sh"))
     except OSError:
         pass
     if not pid:
@@ -1304,6 +1304,78 @@ def delete_version(slug: str, key: str):
     return None
 
 
+# ---------------------------------------------------------------- meshes (scripts/mesh.sh, 0.5)
+
+MESH_FORMATS = ("glb", "ply", "obj", "stl")
+
+
+def mesh_of(slug: str) -> dict:
+    """The mesh of a scene or tour: its files, and whether a texture is possible (training images still there)."""
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    if not d:
+        return {}
+    texture = (d / "dataset" / "images").is_dir() and (d / "dataset" / "sparse").is_dir()
+    m = d / "mesh"
+    info = {"texture_possible": texture, "files": [], "made": None}
+    if (m / "mesh.json").exists():
+        try:
+            made = json.loads((m / "mesh.json").read_text())
+        except (OSError, ValueError):
+            made = {}
+        src = d / "spirula" / "scene.ply"
+        info["made"] = {**made, "stale": src.exists() and made.get("created", 0) < src.stat().st_mtime}
+        info["files"] = [{"name": f.name, "size": f.stat().st_size} for f in sorted(m.iterdir())
+                         if f.is_file() and f.name != "mesh.json"]
+    return info
+
+
+def start_mesh(p: dict):
+    """A mesh of a scene or tour in the chosen formats (glb, ply, obj, stl), optionally with a texture."""
+    global proc
+    slug = p.get("slug", "")
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    if not d or not (d / "spirula" / "scene.ply").exists():
+        return err("err.no_scene")
+    formats = [f for f in dict.fromkeys((p.get("formats") or "").split(",")) if f]
+    if not formats or any(f not in MESH_FORMATS for f in formats):
+        return err("err.bad_value", key="formats")
+    texture = bool(p.get("texture")) and mesh_of(slug)["texture_possible"]
+    name = read_meta(slug).get("name") or slug
+    with lock:
+        if (cur := load_state().get("job")) and pid_alive(cur["pid"]):
+            return err("err.job_busy")
+        if scene_busy(slug):
+            return err("err.scene_busy")
+        JOBS.mkdir(parents=True, exist_ok=True)
+        out = JOBS / f"{time.strftime('%Y-%m-%d_%H-%M-%S')}_mesh_{slug}.out"
+        with open(out, "wb") as fh:
+            proc = subprocess.Popen(keep_awake([str(SCRIPTS / "mesh.sh"), str(d), ",".join(formats), "1" if texture else "0"],
+                                               t("inhibit.mesh", name=name)), cwd=ROOT, stdout=fh,
+                                    stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+        st = load_state()
+        st["job"] = {"kind": "mesh", "pid": proc.pid, "out": str(out), "name": name, "slug": slug,
+                     "recording": "", "quality": "", "upload": False, "started": time.time(), "overrides": {},
+                     "steps": [t("mesh.step.mesh"), t("mesh.step.upright")]}
+        save_state(st)
+    return None
+
+
+def delete_mesh(slug: str):
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    if not d or not (d / "mesh").is_dir():
+        return err("err.no_mesh")
+    if scene_busy(slug):
+        return err("err.scene_busy")
+    try:
+        r = subprocess.run(["gio", "trash", "--", str(d / "mesh")], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return err("err.trash_failed", detail=str(e))
+    if r.returncode != 0:
+        return err("err.trash_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
+    usage_cache.pop(d, None)
+    return None
+
+
 def start_upload(slug: str, version: str = ""):
     """Copy a scene – or one of its versions – to the Frame. Every version gets its own scene folder there."""
     if not FRAME:
@@ -1461,7 +1533,7 @@ def scenes():
                     "ply": (d / "spirula" / "scene.ply").exists(), "on_frame": on_frame, "disk": disk_usage(d),
                     "upload": upload_status(slug), "replacing": replacing,
                     "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr")),
-                    "versions": len(list(d.glob("versions/*/version.json")))})
+                    "versions": len(list(d.glob("versions/*/version.json"))), "mesh": (d / "mesh" / "mesh.json").exists()})
     return out
 
 
@@ -2020,7 +2092,7 @@ def groups():
                     "rooms": len({r for _, r in inner}),
                     "busy": scene_busy(slug), "options": {k: meta.get(k) for k in ("align", "partition", "frame_splats", "full")},
                     "scale": meta.get("scale") or 1, "scale_xr": bool(meta.get("scale_xr")),
-                    "versions": len(list(d.glob("versions/*/version.json"))),
+                    "versions": len(list(d.glob("versions/*/version.json"))), "mesh": (d / "mesh" / "mesh.json").exists(),
                     "splats": sum(scene_list[m].get("gaussians") or 0 for m, _ in inner)})
     return {"groups": out, "suggestion": suggestion(scene_list, out), "mem_available_gb": mem_available()}
 
@@ -2310,6 +2382,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, data, "image/png", cache=True) if data else self.send(404, b"", "image/png")
         if u.path == "/api/versions":
             return self.send(200, {"versions": versions_of(q.get("slug", ""))})
+        if u.path == "/api/mesh":
+            return self.send(200, mesh_of(q.get("slug", "")))
         if u.path == "/api/floorplan":
             data = floorplan([x for x in q.get("slugs", "").split(",") if x], q.get("style", "pretty"),
                              q.get("lang", "en"), q.get("title", ""), q.get("group", ""))
@@ -2352,7 +2426,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not isinstance(p, dict) or any(not isinstance(v, (str, int, float, bool, type(None))) for v in p.values()) \
                 or any(not isinstance(p.get(k, ""), str) for k in ("name", "new", "slug", "path", "what", "quality", "existing", "members", "key", "version", "sizes", "scales", "folder",
                                                            "names", "place", "where",
-                                                           "align", "partition", "clean")):
+                                                           "align", "partition", "clean", "formats")):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
         e = None
@@ -2387,6 +2461,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                  remove_from_frame(p.get("slug", ""), p.get("version", "")))
         elif path == "/api/frame/move":
             e = move_to_own_folder()
+        elif path == "/api/mesh":
+            e = start_mesh(p)
+        elif path == "/api/mesh/delete":
+            e = delete_mesh(p.get("slug", ""))
         elif path == "/api/version/delete":
             e = delete_version(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/pick":
@@ -2453,7 +2531,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     subprocess.Popen([str(CFG.spirula), str(ply)], cwd=ply.parent.parent,
                                      start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
-                subprocess.Popen(["xdg-open", str(d)], start_new_session=True,
+                folder = d / "mesh" if p.get("what") == "mesh" and (d / "mesh").is_dir() else d
+                subprocess.Popen(["xdg-open", str(folder)], start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif path == "/api/shutdown":
             self.send(200, {"ok": True})
