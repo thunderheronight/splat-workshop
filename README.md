@@ -24,9 +24,12 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's folder for personal scenes on the Frame (`Documents/GaussianXR`).
 5. **Put your home together**: group the rooms – a room may be several recordings – and turn them into one tour you walk through, full size for the PC, smaller for the Frame.
 
-## New in 0.5 *(in progress)*
+## New in 0.5
 
-- 🧊 **Mesh export** – *Mesh …* turns a scene or tour into a surface for Blender and other 3D programs (GLB, OBJ, PLY) or for 3D printing (STL). It stands upright with the floor at height 0 instead of lying on its side; with a texture when the training images are still there.
+- 🧊 **Mesh export** – *Mesh …* turns a scene or tour into a surface for Blender and other 3D programs (GLB, OBJ, PLY) or for 3D printing (STL). It stands upright with the floor at height 0 instead of lying on its side – checked by importing every format in Blender; with a texture when the training images are still there. (Suggested in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)
+
+<img src="docs/mesh.png" width="400" alt="The mesh dialog: GLB and STL ticked, OBJ and PLY to choose, a texture from the training images, the existing mesh with its files"> <img src="docs/mesh-blender.png" width="500" alt="The mesh of an example room in Blender: standing upright on the floor">
+<br><sub>Example data – a synthetic room, rendered in Blender.</sub>
 
 ## New in 0.4
 

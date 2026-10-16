@@ -22,9 +22,12 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den Ordner für eigene Szenen von Gaussian XR auf der Frame (`Documents/GaussianXR`).
 5. **Die Wohnung zusammensetzen**: Räume gruppieren – ein Raum darf aus mehreren Aufnahmen bestehen – und zu einem Rundgang machen, durch den du gehst, voll für den PC, kleiner für die Frame.
 
-## Neu in 0.5 *(in Arbeit)*
+## Neu in 0.5
 
-- 🧊 **Mesh-Export** – *Mesh …* macht aus einer Szene oder einem Rundgang eine Oberfläche für Blender und andere 3D-Programme (GLB, OBJ, PLY) oder für den 3D-Druck (STL). Sie steht aufrecht mit dem Boden auf Höhe 0, statt auf der Seite zu liegen; mit Textur, wenn die Trainingsbilder noch da sind.
+- 🧊 **Mesh-Export** – *Mesh …* macht aus einer Szene oder einem Rundgang eine Oberfläche für Blender und andere 3D-Programme (GLB, OBJ, PLY) oder für den 3D-Druck (STL). Sie steht aufrecht mit dem Boden auf Höhe 0, statt auf der Seite zu liegen – für jedes Format per Import in Blender geprüft; mit Textur, wenn die Trainingsbilder noch da sind. (Angeregt in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)
+
+<img src="docs/mesh.png" width="400" alt="Der Mesh-Dialog: GLB und STL angehakt, OBJ und PLY zur Wahl, Textur aus den Trainingsbildern, das vorhandene Mesh mit seinen Dateien"> <img src="docs/mesh-blender.png" width="500" alt="Das Mesh eines Beispielraums in Blender: aufrecht auf dem Boden">
+<br><sub>Beispieldaten – ein künstlicher Raum, in Blender gerendert (englische Oberfläche).</sub>
 
 ## Neu in 0.4
 
