@@ -24,6 +24,10 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's folder for personal scenes on the Frame (`Documents/GaussianXR`).
 5. **Put your home together**: group the rooms – a room may be several recordings – and turn them into one tour you walk through, full size for the PC, smaller for the Frame.
 
+## New in 0.5 *(in progress)*
+
+- 🧊 **Mesh export** – *Mesh …* turns a scene or tour into a surface for Blender and other 3D programs (GLB, OBJ, PLY) or for 3D printing (STL). It stands upright with the floor at height 0 instead of lying on its side; with a texture when the training images are still there.
+
 ## New in 0.4
 
 - 🧽 **Clean up a version** *(experimental)* – four sliders in the versions dialog: **Ceiling** (a white ceiling turns into a dark veil – the veil goes, the ceiling is closed in its own colour), **Floor** (holes filled), **Haze** (big transparent blobs; thin bars and cables stay), **Edges** (what lies outside the room). The scene itself stays; compare the cleaned version with one without.

@@ -983,7 +983,7 @@ function renderJob() {
   const target = tr(j.upload ? "job.toFrame" : "job.pcOnly"), time = mins(Date.now() / 1000 - j.started);
   const versions = j.kind === "versions" || j.kind === "mesh";
   $("#jobSub").textContent = j.kind === "mesh" ? tr("job.sub.mesh", {time})
-                           : versions ? tr("job.sub.versions", {n: (j.steps || []).length, time})
+                           : versions ? tr((j.steps || []).length === 1 ? "job.sub.versions.1" : "job.sub.versions", {n: (j.steps || []).length, time})
                            : combine ? tr(j.rooms === 1 && j.recordings > 1 ? "job.sub.combine.room" : "job.sub.combine",
                                           {n: j.rooms === 1 && j.recordings > 1 ? j.recordings : j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
                                      : j.chain ? tr("job.sub.part", {i: j.chain.i + 1, n: j.chain.n, room: j.chain.room, q: tr("q." + qk), time})
@@ -1373,6 +1373,7 @@ async function openMesh(slug) {
       };
     }
     $("#meshTex").disabled = !m.texture_possible;
+    $("#meshTex").classList.toggle("hidden", !m.texture_possible);       // not possible: only the note
     $("#meshTex").checked = m.texture_possible;
     $("#meshTexText").textContent = tr(m.texture_possible ? "mesh.texture" : "mesh.texture.none");
   };

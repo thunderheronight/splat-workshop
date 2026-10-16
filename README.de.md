@@ -22,6 +22,10 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den Ordner für eigene Szenen von Gaussian XR auf der Frame (`Documents/GaussianXR`).
 5. **Die Wohnung zusammensetzen**: Räume gruppieren – ein Raum darf aus mehreren Aufnahmen bestehen – und zu einem Rundgang machen, durch den du gehst, voll für den PC, kleiner für die Frame.
 
+## Neu in 0.5 *(in Arbeit)*
+
+- 🧊 **Mesh-Export** – *Mesh …* macht aus einer Szene oder einem Rundgang eine Oberfläche für Blender und andere 3D-Programme (GLB, OBJ, PLY) oder für den 3D-Druck (STL). Sie steht aufrecht mit dem Boden auf Höhe 0, statt auf der Seite zu liegen; mit Textur, wenn die Trainingsbilder noch da sind.
+
 ## Neu in 0.4
 
 - 🧽 **Fassungen bereinigen** *(experimentell)* – vier Schieberegler im Fassungen-Dialog: **Decke** (eine weiße Decke wird zum dunklen Schleier – der Schleier kommt weg, die Decke wird in ihrer eigenen Farbe geschlossen), **Boden** (Löcher gefüllt), **Dunst** (große durchsichtige Wolken; dünne Gitter und Kabel bleiben), **Rand** (was außerhalb des Raums liegt). Die Szene selbst bleibt; die bereinigte Fassung neben einer ohne vergleichen.
