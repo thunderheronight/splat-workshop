@@ -140,6 +140,8 @@ def test_open_in_blender_imports_the_mesh(api, monkeypatch):
     cmd = started[-1]
     assert cmd[:3] == ["flatpak", "run", "org.blender.Blender"] and cmd[3] == "--python-expr"
     assert "import_scene.gltf" in cmd[4] and repr(str(run / "mesh" / "living.glb")) in cmd[4]   # GLB first
+    assert "bpy.app.timers.register" in cmd[4]           # not right at start-up: Blender's window isn't ready then
+    compile(cmd[4], "blender", "exec")                   # valid Python
     monkeypatch.setattr(server, "blender_cmd", lambda: None)
     status, r = api.post("/api/open", {"slug": "Living", "what": "blender"})
     assert status == 400 and r["error"]["code"] == "err.no_blender"

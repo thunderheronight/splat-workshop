@@ -1420,8 +1420,23 @@ def open_in_blender(slug: str):
     ext = next((e for e in importers if e in files), None)
     if not ext:
         return err("err.no_mesh")
-    code = (f"import bpy; bpy.ops.wm.read_factory_settings(use_empty=True); "
-            f"{importers[ext]}(filepath={str(files[ext])!r})")
+    # Right at start-up Blender's window is not ready ("context is incorrect"): import a moment later,
+    # into the 3D view, without the default cube, and show all of it
+    code = f"""import bpy
+def _splat_import():
+    win = bpy.context.window_manager.windows[0]
+    area = next((a for a in win.screen.areas if a.type == "VIEW_3D"), None)
+    over = {{"window": win}}
+    if area:
+        over.update(area=area, region=next(r for r in area.regions if r.type == "WINDOW"))
+    with bpy.context.temp_override(**over):
+        for o in list(bpy.data.objects):
+            bpy.data.objects.remove(o)
+        {importers[ext]}(filepath={str(files[ext])!r})
+        if area:
+            bpy.ops.view3d.view_all()
+bpy.app.timers.register(_splat_import, first_interval=0.5)
+"""
     subprocess.Popen([*cmd, "--python-expr", code], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
     return None
