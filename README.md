@@ -26,7 +26,7 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 
 ## New in 0.6 *(in progress)*
 
-- 📥 **Import your own splats** – a splat file from anywhere (e.g. Spirula Studio, made from DSLR photos; `.ply`, `.sog`, `.spz`, `.splat`, `.ksplat`) becomes a scene like the others: copy it to the Frame, make versions or a mesh. You say which way is up and, if needed, the size.
+- 📥 **Import your own splats** – a splat file from another program (`.ply`, `.sog`, `.spz`, `.splat`, `.ksplat`) becomes a scene like the others: copy it to the Frame, make versions or a mesh. You say which way is up and, if needed, the size.
 
 ## New in 0.5
 

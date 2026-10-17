@@ -24,7 +24,7 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 
 ## Neu in 0.6 *(in Arbeit)*
 
-- 📥 **Eigene Splats importieren** – eine Splat-Datei von irgendwoher (z. B. Spirula Studio, aus DSLR-Fotos; `.ply`, `.sog`, `.spz`, `.splat`, `.ksplat`) wird zu einer Szene wie die anderen: auf die Frame bringen, Fassungen oder ein Mesh machen. Du sagst, wo oben ist, und bei Bedarf die Größe.
+- 📥 **Eigene Splats importieren** – eine Splat-Datei aus einem anderen Programm (`.ply`, `.sog`, `.spz`, `.splat`, `.ksplat`) wird zu einer Szene wie die anderen: auf die Frame bringen, Fassungen oder ein Mesh machen. Du sagst, wo oben ist, und bei Bedarf die Größe.
 
 ## Neu in 0.5
 
