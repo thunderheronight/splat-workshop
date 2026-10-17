@@ -30,7 +30,7 @@ from pathlib import Path
 from . import check, config
 from .i18n import T, detect
 
-VERSION = "0.5.1"
+VERSION = "0.6.0"
 CFG = config.load()
 ROOT = config.ROOT
 WEB = ROOT / "web"

@@ -24,9 +24,11 @@ Arcturus Vision publishes the reconstruction scripts and a Spirula Studio fork, 
 4. **Put it in the gallery**: preview image and name plate in the look of the bundled example scenes, copied into Gaussian XR's folder for personal scenes on the Frame (`Documents/GaussianXR`).
 5. **Put your home together**: group the rooms – a room may be several recordings – and turn them into one tour you walk through, full size for the PC, smaller for the Frame.
 
-## New in 0.6 *(in progress)*
+## New in 0.6
 
 - 📥 **Import your own splats** – a splat file from another program (`.ply`, `.sog`, `.spz`, `.splat`, `.ksplat`) becomes a scene like the others: copy it to the Frame, make versions or a mesh. You say which way is up and, if needed, the size.
+
+<img src="docs/import.png" width="420" alt="The import dialog: choose a file, name it, say which way is up and the size">
 
 ## New in 0.5
 

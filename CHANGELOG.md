@@ -2,7 +2,7 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] – 0.6
+## [0.6.0] – 2026-10-17
 
 ### Added
 
@@ -11,6 +11,10 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
   - **Size**: a factor, e.g. 0.01 for a file in centimetres – a reconstruction from photos has no real scale of its own.
   - The preview in the Frame's gallery comes from the top view, as for tours.
   - Only from this PC (the file dialog opens here). Also on the command line: `scripts/import.sh`.
+
+### Fixed
+
+- **The page did not update any more (0.5.1)**: the new footer stood below the page's script; setting up its *Check for updates* link failed, and the rest of the script – among it the regular status updates – never ran. A finished job stayed on "Converting …" with its progress bar until the page was reloaded. A test now checks that everything the script sets up on load is already in the page.
 
 ## [0.5.1] – 2026-10-17
 
@@ -192,6 +196,7 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.6.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/thunderheronight/splat-workshop/compare/v0.4.1...v0.4.2
