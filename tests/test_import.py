@@ -1,5 +1,5 @@
-"""Your own splats (0.6, scripts/import.sh): a splat file from anywhere – e.g. Spirula Studio from DSLR
-photos – becomes a scene like the others, and goes to the Frame. (Asked for in issue #2.)"""
+"""Your own splats (0.6, scripts/import.sh): a splat file from another program becomes a scene like the
+others, and goes to the Frame."""
 import json
 import time
 

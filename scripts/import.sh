@@ -1,6 +1,6 @@
 #!/bin/bash
-# Your own splat as a scene (0.6): e.g. made in Spirula Studio from DSLR photos, or anywhere else – then
-# copied to the Frame, versions, mesh … like any other scene.
+# A splat file from another program as a scene (0.6) – then copied to the Frame, versions, mesh … like any
+# other scene.
 #
 # Usage: scripts/import.sh <splat file> <run folder> "<display name>" [up] [scale]
 #   <splat file>  .ply .compressed.ply .sog .spz .splat .ksplat (whatever splat-transform reads)
