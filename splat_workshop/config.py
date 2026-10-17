@@ -30,7 +30,7 @@ DEFAULTS = {
         "video_player": "",
     },
     "frame": {"host": ""},
-    "server": {"port": 8771, "lan": False, "idle_minutes": 20, "language": "auto"},
+    "server": {"port": 8771, "lan": False, "idle_minutes": 20, "language": "auto", "check_updates": True},
 }
 
 
@@ -97,6 +97,7 @@ class Config:
         self.lan = (lan != "0") if lan is not None else bool(s["lan"])
         self.idle_minutes = int(s["idle_minutes"])
         self.language = s.get("language", "auto")
+        self.check_updates = bool(s.get("check_updates", True))
         # Internal state (jobs, caches) lives next to the runs, so it moves with the data
         self.state_dir = Path(os.environ.get("SPLAT_WORKSHOP_STATE") or self.runs.parent / ".splat-workshop")
 

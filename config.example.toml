@@ -45,3 +45,6 @@ lan = false
 idle_minutes = 20
 # Interface language: "auto" (browser / system language), "en" or "de".
 language = "auto"
+# Once a day, ask GitHub for the newest release and show a note when there is a newer one
+# (one plain request to api.github.com, nothing about you is sent). false: never ask.
+check_updates = true

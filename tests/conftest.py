@@ -233,6 +233,7 @@ runs = "{RUNS}"
 extra_recording_dirs = []
 [server]
 language = "en"
+check_updates = false
 [frame]
 host = ""
 ''')

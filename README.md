@@ -131,6 +131,17 @@ Downloading recordings and copying scenes uses SSH with a key:
 4. On your PC: `ssh-copy-id steamos@<frame address>` (enter the password once), then check that `ssh steamos@<frame address>` logs in without asking.
 5. Give the Frame a fixed IP address in your router so it does not change, and put `steamos@<that address>` into `[frame] host` in the config.
 
+## Update
+
+```bash
+cd splat-workshop          # the folder you cloned
+git pull
+```
+
+Then quit Splat Workshop (tray icon → *Quit*) and start it again. Your config (`~/.config/splat-workshop/`) and your scenes stay as they are; `./install.sh` is only needed again if the menu entry is missing. If `git pull` complains about local changes, you edited a file in the folder yourself – `git stash` puts your change aside, `git stash pop` brings it back.
+
+Splat Workshop shows a note at the top of the page when a newer release is out: once a day it asks GitHub for the newest release (one plain request, nothing about you is sent). `check_updates = false` under `[server]` in the config switches that off.
+
 ## Usage
 
 Start **Splat Workshop** from the menu (or `./splat-workshop`). The tray icon appears and the page opens in your browser.

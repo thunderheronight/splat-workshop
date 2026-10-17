@@ -2,6 +2,13 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] – 0.5.1
+
+### Added
+
+- **A note when a newer version is out**: once a day Splat Workshop asks GitHub for the newest release (one plain request in the background, nothing about you is sent) and shows *Splat Workshop x.y.z is out* at the top, with *What's new* and how to update; *Later* hides it until the next version. `check_updates = false` under `[server]` switches it off. (Asked in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)
+- **How to update** in the README: `git pull`, restart – config and scenes stay.
+
 ## [0.5.0] – 2026-10-16
 
 ### Added

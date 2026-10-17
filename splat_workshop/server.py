@@ -24,6 +24,7 @@ import threading
 import time
 import traceback
 import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from . import check, config
@@ -1304,6 +1305,76 @@ def delete_version(slug: str, key: str):
     return None
 
 
+# ---------------------------------------------------------------- is there a newer version?
+
+REPO = "thunderheronight/splat-workshop"
+UPDATE_FILE = STATE_DIR / "update.json"        # {"checked": time, "tag": "v0.5.1", "url": release page}
+UPDATE_EVERY = 24 * 3600
+update_lock = threading.Lock()
+
+
+def version_tuple(v: str) -> tuple:
+    """"v0.5.1" / "0.5.1-experimental" -> (0, 5, 1); unparsable -> ()."""
+    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", v or "")
+    return tuple(int(x) for x in m.groups()) if m else ()
+
+
+def fetch_latest_release() -> dict | None:
+    """The newest release on GitHub: one plain request, nothing about the user is sent."""
+    req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
+                                 headers={"Accept": "application/vnd.github+json", "User-Agent": f"SplatWorkshop/{VERSION}"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data = json.loads(r.read())
+    except (OSError, ValueError):
+        return None
+    tag, url = data.get("tag_name"), data.get("html_url")
+    if not isinstance(tag, str) or not version_tuple(tag):
+        return None
+    if not (isinstance(url, str) and url.startswith(f"https://github.com/{REPO}/")):
+        url = f"https://github.com/{REPO}/releases/latest"
+    return {"tag": tag, "url": url}
+
+
+def ask_for_update():
+    """At most once a day, in the background (switched off with check_updates = false)."""
+    if not CFG.check_updates or not update_lock.acquire(blocking=False):
+        return
+    try:
+        try:
+            last = json.loads(UPDATE_FILE.read_text())
+        except (OSError, ValueError):
+            last = {}
+        if time.time() - last.get("checked", 0) < UPDATE_EVERY:
+            update_lock.release()
+            return
+    except Exception:
+        update_lock.release()
+        raise
+
+    def run():
+        try:
+            found = fetch_latest_release()
+            write_json(UPDATE_FILE, {"checked": time.time(), **(found or {})})
+        finally:
+            update_lock.release()
+    threading.Thread(target=run, daemon=True).start()
+
+
+def update_info() -> dict | None:
+    """A newer release than this one, or None."""
+    if not CFG.check_updates:
+        return None
+    try:
+        last = json.loads(UPDATE_FILE.read_text())
+    except (OSError, ValueError):
+        return None
+    latest = version_tuple(last.get("tag", ""))
+    if latest and latest > version_tuple(VERSION):
+        return {"latest": last["tag"].lstrip("v"), "url": last.get("url"), "current": VERSION}
+    return None
+
+
 # ---------------------------------------------------------------- meshes (scripts/mesh.sh, 0.5)
 
 MESH_FORMATS = ("glb", "ply", "obj", "stl")
@@ -2341,13 +2412,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, (WEB / f).read_bytes(), ctype)
         if u.path == "/api/ping":
             here = self._from_this_pc()
+            ask_for_update()
             ip = lan_ip() if CFG.lan else None
             return self.send(200, {
                 "ok": True, "app": "splat-workshop", "version": VERSION, "local": here,
                 "lan_url": f"http://{ip}:{CFG.port}/" if ip and here else None,
                 "language": CFG.language, "frame_configured": bool(FRAME),
                 "problems": [err(k, **p) for k, p in CFG.problems()],
-                "config": str(CFG.source or config.CONFIG_FILE) if here else None})
+                "config": str(CFG.source or config.CONFIG_FILE) if here else None, "update": update_info()})
         if u.path == "/api/activity":
             return self.send(200, activity())
         if u.path == "/api/recordings":

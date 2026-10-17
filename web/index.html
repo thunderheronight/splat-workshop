@@ -223,6 +223,9 @@ dialog.plan { max-width: min(1200px, 94vw); width: 94vw; }
 .pick label span { color: var(--faint); font-size: 12px; margin-left: auto; }
 .pick input { accent-color: var(--accent); }
 #lanPill { cursor: pointer; } #lanPill:hover { color: var(--text); }
+.update { border-color: color-mix(in srgb, var(--accent, #7c9cff) 45%, var(--line)); padding-top: 12px; padding-bottom: 12px; }
+.update code { background: var(--bg); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+a.btnlink { display: inline-flex; align-items: center; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; text-decoration: none; font-size: 13px; }
 .setup { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 .setup h2 { color: var(--warn); }
 .setup li { margin: 4px 0; font-size: 14px; }
@@ -244,6 +247,14 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 <main>
   <div class="card offline-note hidden" id="offline" role="alert"><b data-i18n="offline.title"></b> <span class="muted" data-i18n="offline.text"></span></div>
   <!-- missing prerequisites -->
+  <section class="card update hidden" id="updateCard">
+    <div class="row" style="justify-content:space-between;gap:10px">
+      <span id="updateText"></span>
+      <span class="row" style="gap:6px"><a class="small btnlink" id="updateLink" target="_blank" rel="noopener" data-i18n="update.notes"></a>
+      <button class="small" id="updateLater" data-i18n="update.later"></button></span>
+    </div>
+    <p class="faint" style="font-size:13px;margin:6px 0 0" id="updateHow"></p>
+  </section>
   <section class="card setup hidden" id="setupCard">
     <h2 data-i18n="setup.title"></h2>
     <ul id="setupList"></ul>
@@ -576,11 +587,26 @@ function renderPing() {
     pill.classList.remove("hidden");
     pill.onclick = () => navigator.clipboard?.writeText(r.lan_url).then(() => toast(tr("copied")), () => toast(r.lan_url));
   }
+  renderUpdate();
   if (r.problems && r.problems.length) {
     $("#setupCard").classList.remove("hidden");
     $("#setupList").innerHTML = r.problems.map(p => `<li>${esc(trErr(p))}</li>`).join("");
     $("#setupHint").innerHTML = r.config ? tr("setup.hint", {file: `<code>${esc(r.config)}</code>`}) : "";
   }
+}
+
+// A newer release on GitHub (the server asks once a day, see check_updates in the config)
+function renderUpdate() {
+  const u = (S.ping || {}).update;
+  let later = "";
+  try { later = localStorage.getItem("updateLater") || ""; } catch {}
+  const show = !!u && later !== u.latest && !document.body.classList.contains("remote");
+  $("#updateCard").classList.toggle("hidden", !show);
+  if (!show) return;
+  $("#updateText").innerHTML = tr("update.text", {latest: `<b>${esc(u.latest)}</b>`, current: esc(u.current)});
+  $("#updateLink").href = u.url;
+  $("#updateHow").innerHTML = tr("update.how", {cmd: "<code>git pull</code>"});
+  $("#updateLater").onclick = () => { try { localStorage.setItem("updateLater", u.latest); } catch {} renderUpdate(); };
 }
 
 /* ---------- recordings ---------- */
@@ -1793,6 +1819,10 @@ api("/api/ping").then(r => {
   setupLang(r.language);
   loadRecs(); poll();
 });
+// the check for a newer version runs in the background: ask again a little later, then every few hours
+const repingForUpdate = () => api("/api/ping").then(r => { if (r && r.app) { S.ping = r; renderUpdate(); } });
+setTimeout(repingForUpdate, 15000);
+setInterval(repingForUpdate, 3 * 3600 * 1000);
 setInterval(poll, 2000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 </script>
