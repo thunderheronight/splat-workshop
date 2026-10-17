@@ -552,6 +552,9 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
 </dialog>
 <div class="toast" id="toast"></div>
 
+<footer class="foot"><span id="footVersion"></span> · <a href="https://github.com/thunderheronight/splat-workshop" target="_blank" rel="noopener">GitHub</a>
+  · <a href="https://github.com/thunderheronight/splat-workshop/releases" target="_blank" rel="noopener" data-i18n="foot.releases"></a>
+  · <a href="#" id="footCheck" data-i18n="foot.check"></a></footer>
 <script src="/i18n.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -1899,8 +1902,6 @@ setInterval(repingForUpdate, 3 * 3600 * 1000);
 setInterval(poll, 2000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 </script>
-<footer class="foot"><span id="footVersion"></span> · <a href="https://github.com/thunderheronight/splat-workshop" target="_blank" rel="noopener">GitHub</a>
-  · <a href="https://github.com/thunderheronight/splat-workshop/releases" target="_blank" rel="noopener" data-i18n="foot.releases"></a>
-  · <a href="#" id="footCheck" data-i18n="foot.check"></a></footer>
+
 </body>
 </html>
