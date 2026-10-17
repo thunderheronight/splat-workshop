@@ -2,6 +2,16 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] – 0.6
+
+### Added
+
+- **Import your own splats**: *＋ Import a splat …* above the finished scenes turns a splat file from anywhere – e.g. one made in Spirula Studio from DSLR photos – into a scene like the others, so it can go to the Frame, get versions or a mesh. Reads `.ply`, `.sog`, `.spz`, `.splat` and `.ksplat` (via splat-transform); the file itself stays where it is. (Asked for in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)
+  - **Which way is up**: Y down as Spirula Studio, COLMAP and the Frame's own scenes have it (the usual case), Y up or Z up for files from other tools.
+  - **Size**: a factor, e.g. 0.01 for a file in centimetres – a reconstruction from photos has no real scale of its own.
+  - The preview in the Frame's gallery comes from the top view, as for tours.
+  - Only from this PC (the file dialog opens here). Also on the command line: `scripts/import.sh`.
+
 ## [0.5.1] – 2026-10-17
 
 ### Added

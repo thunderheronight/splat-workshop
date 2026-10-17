@@ -153,7 +153,7 @@ def pid_alive(pid: int) -> bool:
     try:
         cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
         if cmd:
-            return any(x in cmd for x in ("splat.sh", "combine.sh", "versions.sh", "mesh.sh"))
+            return any(x in cmd for x in ("splat.sh", "combine.sh", "versions.sh", "mesh.sh", "import.sh"))
     except OSError:
         pass
     if not pid:
@@ -927,6 +927,8 @@ def watch_once(was_running):
                    t("notify.done.frame" if js["upload"] else "notify.done.local", name=js["name"], mins=mins))
         elif js["result"] == "failed":
             notify(t("notify.failed.title"), t("notify.failed", name=js["name"]))
+        if js.get("kind") == "import" and js["result"] != "ok" and not (RUNS / js["slug"]).exists():
+            meta_file(js["slug"]).unlink(missing_ok=True)   # nothing came of it: the name is free again
     if not running:
         restore_previous()
         advance_parts()
@@ -1302,6 +1304,51 @@ def delete_version(slug: str, key: str):
     if r.returncode != 0:
         return err("err.trash_failed", detail=(r.stderr.strip().splitlines() or [""])[-1])
     usage_cache.pop(d, None)
+    return None
+
+
+# ---------------------------------------------------------------- your own splats (scripts/import.sh, 0.6)
+
+SPLAT_EXTS = (".ply", ".sog", ".spz", ".splat", ".ksplat")
+IMPORT_UP = ("y-down", "y-up", "z-up")
+
+
+def start_import(p: dict):
+    """A splat file from this PC (picked in the file dialog) as a new scene."""
+    global proc
+    src = Path(p.get("path") or "")
+    if not src.is_absolute() or not src.is_file() or src.suffix.lower() not in SPLAT_EXTS:
+        return err("err.import_file")
+    name = (p.get("name") or "").strip() or src.stem
+    slug = config.slugify(name)
+    if not slug or slug.startswith("."):
+        return err("err.bad_name")
+    if (RUNS / slug).exists() or meta_file(slug).exists():
+        return err("err.scene_name_taken")
+    up = p.get("up") or "y-down"
+    if up not in IMPORT_UP:
+        return err("err.bad_value", key="up")
+    try:
+        scale = float(p.get("scale") or 1)
+    except (TypeError, ValueError):
+        return err("err.bad_value", key="scale")
+    if not 0.0001 <= scale <= 10000 or scale != scale:
+        return err("err.range", key="scale", lo=0.0001, hi=10000)
+    with lock:
+        if (cur := load_state().get("job")) and pid_alive(cur["pid"]):
+            return err("err.job_busy")
+        RUNS.mkdir(parents=True, exist_ok=True)
+        out = RUNS / f"{slug}.log"                   # also the scene's log (to-frame.sh looks for it)
+        write_meta(slug, name=name, imported=src.name)
+        with open(out, "wb") as fh:
+            proc = subprocess.Popen(keep_awake([str(SCRIPTS / "import.sh"), str(src), str(RUNS / slug), name, up, f"{scale:g}"],
+                                               t("inhibit.import", name=name)), cwd=ROOT, stdout=fh,
+                                    stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+        st = load_state()
+        st["job"] = {"kind": "import", "pid": proc.pid, "out": str(out), "name": name, "slug": slug,
+                     "recording": "", "quality": "", "upload": False, "started": time.time(), "overrides": {},
+                     "steps": [t("import.step.convert"), t("import.step.preview")]}
+        save_state(st)
     return None
 
 
@@ -2394,11 +2441,15 @@ def start_combine(p: dict):
     return None
 
 
-def pick_file():
-    start = str(REC if REC.exists() else Path.home())
-    title = "Aufnahme wählen" if t.lang == "de" else "Choose a recording"
-    for cmd in (["kdialog", "--title", title, "--getopenfilename", start, "Videos (*.mp4)"],
-                ["zenity", "--file-selection", f"--title={title}", f"--filename={start}/", "--file-filter=*.mp4"]):
+def pick_file(kind: str = "recording"):
+    if kind == "splat":
+        start, title = str(Path.home()), t("pick.splat")
+        kde, gtk = "Splats (" + " ".join(f"*{e}" for e in SPLAT_EXTS) + ")", " ".join(f"*{e}" for e in SPLAT_EXTS)
+    else:
+        start = str(REC if REC.exists() else Path.home())
+        title, kde, gtk = t("pick.recording"), "Videos (*.mp4)", "*.mp4"
+    for cmd in (["kdialog", "--title", title, "--getopenfilename", start, kde],
+                ["zenity", "--file-selection", f"--title={title}", f"--filename={start}/", f"--file-filter={gtk}"]):
         if shutil.which(cmd[0]):
             r = subprocess.run(cmd, capture_output=True, text=True)
             return r.stdout.strip() or None
@@ -2594,7 +2645,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
         e = None
-        if path in ("/api/pick", "/api/play", "/api/open", "/api/shutdown") and not self._from_this_pc():
+        if path in ("/api/pick", "/api/play", "/api/open", "/api/shutdown", "/api/import") and not self._from_this_pc():
             # These open windows on this PC's screen or stop the program – only allowed from the PC itself
             return self.send(403, {"error": err("err.pc_only")})
         if path == "/api/start":
@@ -2625,6 +2676,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                  remove_from_frame(p.get("slug", ""), p.get("version", "")))
         elif path == "/api/frame/move":
             e = move_to_own_folder()
+        elif path == "/api/import":
+            e = start_import(p)
         elif path == "/api/update/check":
             return self.send(200, check_update_now())
         elif path == "/api/mesh":
@@ -2634,7 +2687,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/version/delete":
             e = delete_version(p.get("slug", ""), p.get("version", ""))
         elif path == "/api/pick":
-            chosen = pick_file()
+            chosen = pick_file(p.get("kind") or "recording")
+            if p.get("kind") == "splat":
+                return self.send(200, {"path": chosen})
             if chosen:
                 picked.add(chosen)
             return self.send(200, {"path": chosen})

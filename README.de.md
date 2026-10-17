@@ -22,6 +22,10 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 4. **In die Galerie**: Vorschaubild und Namensschild im Stil der Beispielszenen, kopiert in den Ordner für eigene Szenen von Gaussian XR auf der Frame (`Documents/GaussianXR`).
 5. **Die Wohnung zusammensetzen**: Räume gruppieren – ein Raum darf aus mehreren Aufnahmen bestehen – und zu einem Rundgang machen, durch den du gehst, voll für den PC, kleiner für die Frame.
 
+## Neu in 0.6 *(in Arbeit)*
+
+- 📥 **Eigene Splats importieren** – eine Splat-Datei von irgendwoher (z. B. Spirula Studio, aus DSLR-Fotos; `.ply`, `.sog`, `.spz`, `.splat`, `.ksplat`) wird zu einer Szene wie die anderen: auf die Frame bringen, Fassungen oder ein Mesh machen. Du sagst, wo oben ist, und bei Bedarf die Größe.
+
 ## Neu in 0.5
 
 - 🧊 **Mesh-Export** – *Mesh …* macht aus einer Szene oder einem Rundgang eine Oberfläche für Blender und andere 3D-Programme (GLB, OBJ, PLY) oder für den 3D-Druck (STL). Sie steht aufrecht mit dem Boden auf Höhe 0, statt auf der Seite zu liegen – für jedes Format per Import in Blender geprüft; mit Textur, wenn die Trainingsbilder noch da sind. Die Dateien lassen sich herunterladen – auch von anderen Geräten im Heimnetz – oder mit einem Klick in Blender öffnen. (Angeregt in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)

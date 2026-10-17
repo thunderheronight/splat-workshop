@@ -373,7 +373,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   <section class="card">
     <div class="row" style="justify-content:space-between;margin-bottom:14px">
       <h2 data-i18n="scenes.title" style="margin:0"></h2>
-      <div class="row"><button class="small" id="groupNewBtn" data-i18n="grp.new" data-i18n-title="grp.new.tip"></button></div>
+      <div class="row"><button class="small pc-only" id="importBtn" data-i18n="imp.button" data-i18n-title="imp.button.title"></button><button class="small" id="groupNewBtn" data-i18n="grp.new" data-i18n-title="grp.new.tip"></button></div>
     </div>
     <div class="tabs" id="sceneTabs">
       <button class="tab active" data-stab="pc" data-i18n="stab.pc"></button>
@@ -445,6 +445,19 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
   </div>
 </dialog>
 
+<dialog id="importDlg" class="wide">
+  <h2 style="margin-top:0" data-i18n="imp.title"></h2>
+  <p class="muted" style="font-size:13px;margin-top:0" data-i18n="imp.hint"></p>
+  <div class="row" style="gap:8px"><button class="small" id="impPick" data-i18n="imp.pick"></button><span id="impFile" class="muted" style="overflow-wrap:anywhere"></span></div>
+  <label class="row" style="gap:8px;margin-top:12px"><span data-i18n="imp.name"></span><input id="impName" style="flex:1"></label>
+  <h3 data-i18n="imp.up"></h3>
+  <div class="opts" id="impUp"></div>
+  <label class="row" style="gap:8px;margin-top:12px"><span data-i18n="imp.scale"></span><input id="impScale" type="number" min="0.0001" max="10000" step="any" value="1" style="width:110px"><span class="faint" style="font-size:12.5px" data-i18n="imp.scale.hint"></span></label>
+  <div class="row" style="justify-content:flex-end;margin-top:16px">
+    <button id="impClose" data-i18n="clean.close"></button>
+    <button class="primary" id="impMake" data-i18n="imp.make" disabled></button>
+  </div>
+</dialog>
 <dialog id="meshDlg" class="wide">
   <h2 style="margin-top:0" id="meshTitle"></h2>
   <p class="muted" style="font-size:13px;margin-top:0" data-i18n="mesh.hint"></p>
@@ -1012,8 +1025,8 @@ function renderJob() {
   $("#jobName").textContent = j.name;
   const qk = QUALITY_ALIAS[j.quality] || j.quality, combine = j.kind === "combine";
   const target = tr(j.upload ? "job.toFrame" : "job.pcOnly"), time = mins(Date.now() / 1000 - j.started);
-  const versions = j.kind === "versions" || j.kind === "mesh";
-  $("#jobSub").textContent = j.kind === "mesh" ? tr("job.sub.mesh", {time})
+  const versions = j.kind === "versions" || j.kind === "mesh" || j.kind === "import";
+  $("#jobSub").textContent = j.kind === "mesh" ? tr("job.sub.mesh", {time}) : j.kind === "import" ? tr("job.sub.import", {time})
                            : versions ? tr((j.steps || []).length === 1 ? "job.sub.versions.1" : "job.sub.versions", {n: (j.steps || []).length, time})
                            : combine ? tr(j.rooms === 1 && j.recordings > 1 ? "job.sub.combine.room" : "job.sub.combine",
                                           {n: j.rooms === 1 && j.recordings > 1 ? j.recordings : j.rooms, align: ALIGN_LETTER[j.quality] || "?", target, time})
@@ -1387,6 +1400,33 @@ async function loadFrameGallery(refresh) {
     toast(tr("fg.removed", {name: x.name})); loadFrameGallery(true); loadScenes();
   });
 }
+
+/* ---------- your own splats ---------- */
+$("#importBtn").onclick = () => {
+  let file = null;
+  $("#impFile").textContent = tr("imp.none"); $("#impName").value = ""; $("#impScale").value = "1"; $("#impMake").disabled = true;
+  $("#impUp").innerHTML = ["y-down", "y-up", "z-up"].map((u, i) => `<label class="opt${i ? "" : " active"}">
+      <input type="radio" name="impUp" value="${u}" ${i ? "" : "checked"}><div><b>${tr("imp.up." + u)}</b><span>${tr("imp.up." + u + ".text")}</span></div></label>`).join("");
+  $("#impUp").querySelectorAll("input").forEach(i => i.onchange = () =>
+    $("#impUp").querySelectorAll(".opt").forEach(l => l.classList.toggle("active", l.querySelector("input").checked)));
+  $("#impPick").onclick = async () => {
+    const r = await api("/api/pick", {kind: "splat"});
+    if (!r.path) return;
+    file = r.path;
+    $("#impFile").textContent = file;
+    if (!$("#impName").value) $("#impName").value = file.split("/").pop().replace(/(\.compressed)?\.[^.]+$/, "").replace(/[_-]+/g, " ");
+    $("#impMake").disabled = false;
+  };
+  $("#impClose").onclick = () => $("#importDlg").close();
+  $("#impMake").onclick = async () => {
+    const r = await api("/api/import", {path: file, name: $("#impName").value.trim(),
+      up: document.querySelector('input[name="impUp"]:checked').value, scale: $("#impScale").value || "1"});
+    if (!r.ok) { toast(trErr(r.error)); return; }
+    $("#importDlg").close(); toast(tr("imp.started")); await poll();
+    $("#jobCard").scrollIntoView({behavior: "smooth", block: "start"});
+  };
+  $("#importDlg").showModal();
+};
 
 /* ---------- meshes ---------- */
 const MESH_FORMATS = ["glb", "stl", "obj", "ply"];
