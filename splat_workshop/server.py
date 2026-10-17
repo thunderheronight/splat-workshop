@@ -30,7 +30,7 @@ from pathlib import Path
 from . import check, config
 from .i18n import T, detect
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 CFG = config.load()
 ROOT = config.ROOT
 WEB = ROOT / "web"
@@ -1361,9 +1361,18 @@ def ask_for_update():
     threading.Thread(target=run, daemon=True).start()
 
 
-def update_info() -> dict | None:
+def check_update_now() -> dict:
+    """Asked for by hand (tray menu, page): right away, also when the daily check is switched off."""
+    with update_lock:
+        found = fetch_latest_release()
+        if found:
+            write_json(UPDATE_FILE, {"checked": time.time(), **found})
+    return {"reached": found is not None, "current": VERSION, "update": update_info(force=True)}
+
+
+def update_info(force=False) -> dict | None:
     """A newer release than this one, or None."""
-    if not CFG.check_updates:
+    if not CFG.check_updates and not force:
         return None
     try:
         last = json.loads(UPDATE_FILE.read_text())
@@ -1554,6 +1563,9 @@ def start_upload(slug: str, version: str = ""):
     return None
 
 
+RX_UPBYTES = re.compile(r"^@@ upbytes (\d+) (\d+)$", re.M)
+
+
 def upload_status(slug: str):
     u = uploads.get(slug)
     if not u:
@@ -1561,6 +1573,10 @@ def upload_status(slug: str):
     rc = u["proc"].poll()
     text = u["out"].read_text(errors="replace") if u["out"].exists() else ""
     res = {"running": rc is None, "ok": rc == 0}
+    if rc is None and (m := RX_UPBYTES.findall(text)):          # how far the copy is
+        done, total = (int(x) for x in m[-1])
+        if total > 0:
+            res.update(pct=min(99, round(100 * done / total)), done=done, total=total)
     if rc is not None and not u["notified"]:
         u["notified"] = True
         name = read_meta(slug).get("name") or slug
@@ -2609,6 +2625,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                  remove_from_frame(p.get("slug", ""), p.get("version", "")))
         elif path == "/api/frame/move":
             e = move_to_own_folder()
+        elif path == "/api/update/check":
+            return self.send(200, check_update_now())
         elif path == "/api/mesh":
             e = start_mesh(p)
         elif path == "/api/mesh/delete":

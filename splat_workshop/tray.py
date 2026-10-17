@@ -8,6 +8,7 @@ or be cancelled (it can be resumed later).
 import json
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -95,13 +96,17 @@ class Tray:
         self.a_status = QAction("", self.menu, enabled=False)
         self.a_lan = QAction("", self.menu, triggered=self.copy_lan, visible=False)
         self.a_cancel = QAction(t("tray.cancel"), self.menu, triggered=self.cancel, enabled=False)
+        self.a_update = QAction(t("tray.update"), self.menu, triggered=self.check_update)
+        self.update_result = None                      # from the background check, shown by refresh()
+        self.update_url = None
         self.a_quit = QAction(t("tray.quit"), self.menu, triggered=self.quit)
         f = self.a_open.font()
         f.setBold(True)
         self.a_open.setFont(f)
-        for a in (self.a_open, None, self.a_status, self.a_lan, None, self.a_cancel, None, self.a_quit):
+        for a in (self.a_open, None, self.a_status, self.a_lan, None, self.a_cancel, None, self.a_update, self.a_quit):
             self.menu.addSeparator() if a is None else self.menu.addAction(a)
         self.tray.setContextMenu(self.menu)
+        self.tray.messageClicked.connect(self.open_update)
         self.lan_url = None
 
         self.ensure_server()
@@ -128,6 +133,8 @@ class Tray:
             pass
 
     def refresh(self):
+        if self.update_result is not None:
+            self.show_update()
         try:
             self.act = request("/api/activity")
             self.fails = 0
@@ -178,6 +185,34 @@ class Tray:
 
     def open(self):
         webbrowser.open(BASE + "/")
+
+    def check_update(self):
+        """Ask GitHub now (in the background; the answer comes as a notification)."""
+        self.a_update.setEnabled(False)
+
+        def run():
+            try:
+                self.update_result = request("/api/update/check", {}, timeout=20)
+            except (OSError, ValueError):
+                self.update_result = {"reached": False}
+        threading.Thread(target=run, daemon=True).start()
+
+    def show_update(self):
+        r, self.update_result = self.update_result, None
+        self.a_update.setEnabled(True)
+        u = r.get("update")
+        if u:
+            self.update_url = u.get("url")
+            self.tray.showMessage(t("app"), t("tray.update.new", latest=u["latest"], current=u["current"]),
+                                  QSystemTrayIcon.Information, 10000)
+        else:
+            self.update_url = None
+            self.tray.showMessage(t("app"), t("tray.update.none", current=r.get("current", "")) if r.get("reached")
+                                  else t("tray.update.offline"), QSystemTrayIcon.Information, 5000)
+
+    def open_update(self):
+        if self.update_url:
+            webbrowser.open(self.update_url)
 
     def copy_lan(self):
         QGuiApplication.clipboard().setText(self.lan_url or "")

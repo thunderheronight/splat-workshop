@@ -1,5 +1,6 @@
 """Finished scenes: renaming, cleaning up, deleting, and runs that did not finish."""
 import json
+import os
 
 from conftest import RUNS, TRASH, server
 import synth
@@ -89,3 +90,20 @@ def test_unfinished_runs_resume_or_start_over(api):
     assert api.post("/api/resume", {"slug": "Broken"})[1]["error"]["code"] == "err.not_resumable"
     assert api.post("/api/delete", {"slug": "old-test"})[0] == 200
     assert not (RUNS / "old-test.log").exists()
+
+
+def test_copying_to_the_frame_says_how_far_it_is(api, frame):
+    """to-frame.sh reports every 2 s how much is on the Frame already (\"@@ upbytes\"); the page shows a percentage."""
+    import time
+    synth.make_room(RUNS, "Kitchen", "A")
+    (RUNS / "Kitchen" / "scene.sog").write_bytes(b"s" * 200_000)
+    os.environ["FAKE_SCP_SLOW"] = "1"
+    assert api.post("/api/upload", {"slug": "Kitchen"})[0] == 200
+    seen = []
+    end = time.time() + 30
+    while (u := server.upload_status("Kitchen")) and u["running"] and time.time() < end:
+        if "pct" in u:
+            seen.append(u)
+        time.sleep(0.2)
+    assert server.upload_status("Kitchen")["ok"]
+    assert seen and seen[0]["total"] > 200_000 and 0 <= seen[-1]["pct"] <= 99

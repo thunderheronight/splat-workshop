@@ -84,3 +84,15 @@ def test_switched_off_never_asks(github, monkeypatch):
 def test_versions_compare_as_numbers():
     assert server.version_tuple("v0.10.0") > server.version_tuple("0.9.9")
     assert server.version_tuple("0.5.0-experimental") == (0, 5, 0) and server.version_tuple("x") == ()
+
+
+def test_checking_by_hand_asks_right_away(github, api, monkeypatch):
+    """Tray menu or page: asks now, even right after the daily check, and even when that is switched off."""
+    ask()
+    github["reply"]["tag_name"] = "v9.2.0"
+    monkeypatch.setattr(server.CFG, "check_updates", False)
+    status, r = api.post("/api/update/check", {})
+    assert status == 200 and r["reached"] and r["update"]["latest"] == "9.2.0" and github["n"] == 2
+    github["reply"] = None
+    r = api.post("/api/update/check", {})[1]
+    assert r["reached"] is False and r["current"] == server.VERSION

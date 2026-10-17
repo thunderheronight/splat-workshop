@@ -225,6 +225,8 @@ dialog.plan { max-width: min(1200px, 94vw); width: 94vw; }
 #lanPill { cursor: pointer; } #lanPill:hover { color: var(--text); }
 .meshfiles { margin-top: 10px; }
 .meshfiles a.btnlink .faint { margin-left: 6px; }
+.foot { text-align: center; font-size: 12.5px; color: var(--muted, #9aa3b2); padding: 18px 16px 28px; }
+.foot a { color: inherit; }
 .update { border-color: color-mix(in srgb, var(--accent, #7c9cff) 45%, var(--line)); padding-top: 12px; padding-bottom: 12px; }
 .update code { background: var(--bg); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
 a.btnlink { display: inline-flex; align-items: center; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; text-decoration: none; font-size: 13px; }
@@ -1075,7 +1077,7 @@ function renderJob() {
 /* ---------- finished scenes ---------- */
 function frameState(s) {
   const u = s.upload;
-  if (u && u.running) return `<div class="fstate">${tr("sc.uploading")}</div>`;
+  if (u && u.running) return `<div class="fstate">${u.total ? tr("sc.uploading.pct", {pct: u.pct, done: mb(u.done), total: mb(u.total)}) : tr("sc.uploading")}</div>`;
   if (u && u.error) return `<div class="fstate err" title="${esc(u.error)}">${tr("sc.uploadFailed")}</div>`;
   if (s.on_frame === true) return `<div class="fstate yes">${tr("sc.onFrame")}</div>`;
   if (s.on_frame === false) return `<div class="fstate no">${tr("sc.notOnFrame")}</div>`;
@@ -1841,8 +1843,15 @@ api("/api/ping").then(r => {
   document.body.classList.toggle("remote", r.local === false);
   S.ping = r; S.frameConfigured = r.frame_configured;
   setupLang(r.language);
+  $("#footVersion").textContent = tr("foot.version", {v: r.version});     // after the language is known
   loadRecs(); poll();
 });
+$("#footCheck").onclick = async e => {
+  e.preventDefault();
+  const r = await api("/api/update/check", {});
+  if (r.update) { try { localStorage.removeItem("updateLater"); } catch {} S.ping.update = r.update; renderUpdate(); window.scrollTo({top: 0, behavior: "smooth"}); }
+  toast(r.update ? tr("update.text.plain", {latest: r.update.latest}) : r.reached ? tr("update.none", {current: r.current}) : tr("update.offline"));
+};
 // the check for a newer version runs in the background: ask again a little later, then every few hours
 const repingForUpdate = () => api("/api/ping").then(r => { if (r && r.app) { S.ping = r; renderUpdate(); } });
 setTimeout(repingForUpdate, 15000);
@@ -1850,5 +1859,8 @@ setInterval(repingForUpdate, 3 * 3600 * 1000);
 setInterval(poll, 2000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 </script>
+<footer class="foot"><span id="footVersion"></span> · <a href="https://github.com/thunderheronight/splat-workshop" target="_blank" rel="noopener">GitHub</a>
+  · <a href="https://github.com/thunderheronight/splat-workshop/releases" target="_blank" rel="noopener" data-i18n="foot.releases"></a>
+  · <a href="#" id="footCheck" data-i18n="foot.check"></a></footer>
 </body>
 </html>

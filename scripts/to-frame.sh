@@ -77,7 +77,19 @@ ssh -o ConnectTimeout=8 "$FRAME_HOST" "mkdir -p $FRAME_SCENES && \
     for f in *.sog *.xrSceneTransform.json *.gallery.png *.sceneinfo.png; do
         case \$f in $stem.*) ;; *) rm -f -- \"\$f\" ;; esac
     done"
+# How far it is: every 2 s the size of the folder on the Frame against what is being copied ("@@ upbytes")
+total=$(du -cb "$out/$stem".{sog,xrSceneTransform.json,gallery.png,sceneinfo.png} | tail -1 | cut -f1)
+echo "@@ upbytes 0 $total"
+( while sleep 2; do
+      now=$(ssh -o ConnectTimeout=5 "$FRAME_HOST" "du -cb $FRAME_SCENES/$folder 2>/dev/null | tail -1 | cut -f1" 2>/dev/null) || continue
+      [ -n "$now" ] && echo "@@ upbytes $now $total"
+  done ) &
+watch=$!
+trap 'kill $watch 2>/dev/null || true' EXIT
 scp -q "$out/$stem".{sog,xrSceneTransform.json,gallery.png,sceneinfo.png} "$FRAME_HOST:$FRAME_SCENES/$folder/"
+kill $watch 2>/dev/null || true
+trap - EXIT
+echo "@@ upbytes $total $total"
 ssh "$FRAME_HOST" "chmod 755 $FRAME_SCENES/$folder/*"
 echo "@@ done frame $folder"
 echo

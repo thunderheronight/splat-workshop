@@ -140,7 +140,7 @@ git pull
 
 Then quit Splat Workshop (tray icon → *Quit*) and start it again. Your config (`~/.config/splat-workshop/`) and your scenes stay as they are; `./install.sh` is only needed again if the menu entry is missing. If `git pull` complains about local changes, you edited a file in the folder yourself – `git stash` puts your change aside, `git stash pop` brings it back.
 
-Splat Workshop shows a note at the top of the page when a newer release is out: once a day it asks GitHub for the newest release (one plain request, nothing about you is sent). `check_updates = false` under `[server]` in the config switches that off.
+Splat Workshop shows a note at the top of the page when a newer release is out: once a day it asks GitHub for the newest release (one plain request, nothing about you is sent). `check_updates = false` under `[server]` in the config switches that off; *Check for updates* in the tray icon's menu or at the bottom of the page asks right away.
 
 ## Usage
 

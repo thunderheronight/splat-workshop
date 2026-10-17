@@ -97,7 +97,7 @@ cd splat-workshop
 ./install.sh --desktop        # Menüeintrag + Desktop-Verknüpfung; --autostart für das Tray beim Anmelden
 ```
 
-**Aktualisieren:** im geklonten Ordner `git pull`, dann die Splat-Werkstatt beenden (Tray-Symbol → *Beenden*) und neu starten. Config (`~/.config/splat-workshop/`) und Szenen bleiben, wie sie sind; `./install.sh` braucht es nur, wenn der Menüeintrag fehlt. Meckert `git pull` über lokale Änderungen, hast du selbst eine Datei im Ordner geändert – `git stash` legt die Änderung beiseite, `git stash pop` holt sie zurück. Gibt es ein neueres Release, zeigt die Werkstatt oben einen Hinweis: Einmal am Tag fragt sie GitHub nach dem neuesten Release (eine einfache Anfrage, nichts über dich). `check_updates = false` unter `[server]` in der Config schaltet das ab.
+**Aktualisieren:** im geklonten Ordner `git pull`, dann die Splat-Werkstatt beenden (Tray-Symbol → *Beenden*) und neu starten. Config (`~/.config/splat-workshop/`) und Szenen bleiben, wie sie sind; `./install.sh` braucht es nur, wenn der Menüeintrag fehlt. Meckert `git pull` über lokale Änderungen, hast du selbst eine Datei im Ordner geändert – `git stash` legt die Änderung beiseite, `git stash pop` holt sie zurück. Gibt es ein neueres Release, zeigt die Werkstatt oben einen Hinweis: Einmal am Tag fragt sie GitHub nach dem neuesten Release (eine einfache Anfrage, nichts über dich). `check_updates = false` unter `[server]` in der Config schaltet das ab; *Nach Updates suchen* im Menü des Tray-Symbols oder unten auf der Seite fragt sofort nach.
 
 **Läuft unter Linux** (getestet mit Nobara/Fedora und einer RTX 4070 SUPER). macOS ist ungetestet, Windows wird von der Arcturus-Pipeline noch nicht unterstützt.
 
