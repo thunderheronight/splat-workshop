@@ -2,6 +2,18 @@
 
 All notable changes to Splat Workshop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] – 2026-10-17
+
+### Changed
+
+- **Which way is up – pick the picture**: the import dialog shows a small picture for each choice, the scene as it would stand on the Frame seen from its start, so you simply pick the one standing upright. Our guess is preselected and marked (the vertical is the smaller of the scene's Y and Z extents).
+  - The choices say what you see: *Upright in Blender (Z up)*, *Like the Workshop's and the Frame's scenes (Y down)*, *Upside down (Y up)*.
+  - The pictures take a second or two (a few more for `.sog`, `.spz` and the like, which are read through splat-transform) and are kept, so picking the same file again is instant.
+
+### Fixed
+
+- **Scenes made from photos in Spirula Studio lay on their side**: 0.6.0 said Spirula Studio files have Y down and preselected that. That is only true for the Frame's own scenes, which are aligned to its tracking; a scene Spirula Studio makes from photos alone (`spirula sfm auto`) has Z up – checked with a scene made from 70 photos. The dialog now says so, and the guess picks Z up for such files.
+
 ## [0.6.0] – 2026-10-17
 
 ### Added
@@ -196,6 +208,7 @@ First release.
 - **Floor plans** (experimental) in two styles with a measuring tool.
 - Configurable video player; English and German interface.
 
+[0.6.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/thunderheronight/splat-workshop/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/thunderheronight/splat-workshop/compare/v0.4.2...v0.5.0
