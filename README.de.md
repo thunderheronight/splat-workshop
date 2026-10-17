@@ -24,7 +24,7 @@ Arcturus Vision stellt die Rekonstruktions-Skripte und einen Spirula-Studio-Fork
 
 ## Neu in 0.5
 
-- 🧊 **Mesh-Export** – *Mesh …* macht aus einer Szene oder einem Rundgang eine Oberfläche für Blender und andere 3D-Programme (GLB, OBJ, PLY) oder für den 3D-Druck (STL). Sie steht aufrecht mit dem Boden auf Höhe 0, statt auf der Seite zu liegen – für jedes Format per Import in Blender geprüft; mit Textur, wenn die Trainingsbilder noch da sind. (Angeregt in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)
+- 🧊 **Mesh-Export** – *Mesh …* macht aus einer Szene oder einem Rundgang eine Oberfläche für Blender und andere 3D-Programme (GLB, OBJ, PLY) oder für den 3D-Druck (STL). Sie steht aufrecht mit dem Boden auf Höhe 0, statt auf der Seite zu liegen – für jedes Format per Import in Blender geprüft; mit Textur, wenn die Trainingsbilder noch da sind. Die Dateien lassen sich herunterladen – auch von anderen Geräten im Heimnetz – oder mit einem Klick in Blender öffnen. (Angeregt in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)
 
 <img src="docs/mesh.png" width="400" alt="Der Mesh-Dialog: GLB und STL angehakt, OBJ und PLY zur Wahl, Textur aus den Trainingsbildern, das vorhandene Mesh mit seinen Dateien"> <img src="docs/mesh-blender.png" width="500" alt="Das Mesh eines Beispielraums in Blender: aufrecht auf dem Boden">
 <br><sub>Beispieldaten – ein künstlicher Raum, in Blender gerendert (englische Oberfläche).</sub>

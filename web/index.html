@@ -223,6 +223,8 @@ dialog.plan { max-width: min(1200px, 94vw); width: 94vw; }
 .pick label span { color: var(--faint); font-size: 12px; margin-left: auto; }
 .pick input { accent-color: var(--accent); }
 #lanPill { cursor: pointer; } #lanPill:hover { color: var(--text); }
+.meshfiles { margin-top: 10px; }
+.meshfiles a.btnlink .faint { margin-left: 6px; }
 .update { border-color: color-mix(in srgb, var(--accent, #7c9cff) 45%, var(--line)); padding-top: 12px; padding-bottom: 12px; }
 .update code { background: var(--bg); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
 a.btnlink { display: inline-flex; align-items: center; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; text-decoration: none; font-size: 13px; }
@@ -283,6 +285,7 @@ select.lang { font: inherit; font-size: 12.5px; color: var(--muted); background:
         <defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7c9cff"/><stop offset="1" stop-color="#7c9cff" stop-opacity="0"/></linearGradient></defs></svg>
     </div>
     <div id="result" class="result hidden"></div>
+    <div id="resultExtra" class="hidden"></div>
     <details style="margin-top:12px"><summary class="muted" style="cursor:pointer;font-size:13.5px" data-i18n="job.log"></summary><pre class="log" id="log"></pre></details>
   </section>
 
@@ -1058,6 +1061,13 @@ function renderJob() {
     else if (j.phase === 4) { res.className = "result warn"; res.textContent = tr("res.upload_failed"); }
     else { res.className = "result bad"; res.textContent = i.hint ? tr(i.hint) : tr("res.failed"); }
   }
+  // after a mesh: its files to download, Blender, the folder
+  const extra = $("#resultExtra"), meshDone = !j.running && j.result === "ok" && j.kind === "mesh";
+  extra.classList.toggle("hidden", !meshDone);
+  if (meshDone && extra.dataset.for !== j.out) {
+    extra.dataset.for = j.out;
+    api("/api/mesh?slug=" + encodeURIComponent(j.slug)).then(m => { extra.innerHTML = meshFiles(j.slug, m); bindMeshFiles(extra, j.slug); });
+  }
   const log = $("#log"), atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
   log.textContent = j.tail || ""; if (atBottom) log.scrollTop = log.scrollHeight;
 }
@@ -1378,6 +1388,21 @@ async function loadFrameGallery(refresh) {
 
 /* ---------- meshes ---------- */
 const MESH_FORMATS = ["glb", "stl", "obj", "ply"];
+// A mesh's files to download (also from other devices at home), Blender and the folder (on this PC)
+function meshFiles(slug, m) {
+  if (!m || !m.files || !m.files.length) return "";
+  const link = f => `<a class="btnlink" href="/api/mesh/file?slug=${encodeURIComponent(slug)}&amp;name=${encodeURIComponent(f.name)}" download="${esc(f.name)}" title="${tr("mesh.download.title")}">⬇ ${esc(f.name)} <span class="faint">${mb(f.size)}</span></a>`;
+  return `<div class="meshfiles"><div class="row" style="gap:6px;flex-wrap:wrap">${m.files.map(link).join("")}</div>
+    <div class="row" style="gap:6px;margin-top:8px">${m.blender ? `<button class="small pc-only" data-mblender>${tr("mesh.blender")}</button>` : ""}
+      <button class="small pc-only" data-mfolder>${tr("sc.folder")}</button></div></div>`;
+}
+function bindMeshFiles(box, slug) {
+  box.querySelectorAll("[data-mblender]").forEach(b => b.onclick = async () => {
+    const r = await api("/api/open", {slug, what: "blender"});
+    toast(r.ok === false ? trErr(r.error) : tr("mesh.blender.starting"));
+  });
+  box.querySelectorAll("[data-mfolder]").forEach(b => b.onclick = () => api("/api/open", {slug, what: "mesh"}));
+}
 async function openMesh(slug) {
   const g = (S.groups || []).find(x => x.slug === slug), x = g || S.scenes.find(y => y.slug === slug);
   if (!x) return;
@@ -1385,12 +1410,11 @@ async function openMesh(slug) {
   const draw = async () => {
     const m = await api("/api/mesh?slug=" + encodeURIComponent(slug));
     $("#meshHave").innerHTML = m.made ? `<div class="vrow"><div class="vwhat">
-        <b>${tr("mesh.have")}${m.made.stale ? " · " + tr("ver.stale") : ""}</b>
-        <span class="muted">${m.files.map(f => esc(f.name) + " (" + mb(f.size) + ")").join(" · ")}</span></div>
-        <div class="vacts"><button class="small pc-only" id="meshOpen">${tr("sc.folder")}</button>
-        <button class="small" id="meshDel" title="${tr("mesh.delete")}" aria-label="${tr("mesh.delete")}">${tr("sc.delete")}</button></div></div>` : "";
+        <b>${tr("mesh.have")}${m.made.stale ? " · " + tr("ver.stale") : ""}</b></div>
+        <div class="vacts"><button class="small" id="meshDel" title="${tr("mesh.delete")}" aria-label="${tr("mesh.delete")}">${tr("sc.delete")}</button></div></div>
+        ${meshFiles(slug, m)}` : "";
     if (m.made) {
-      $("#meshOpen").onclick = () => api("/api/open", {slug, what: "mesh"});
+      bindMeshFiles($("#meshHave"), slug);
       $("#meshDel").onclick = async () => {
         if (!confirm(tr("mesh.confirm", {name: x.name}))) return;
         const r = await api("/api/mesh/delete", {slug});

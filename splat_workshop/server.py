@@ -1380,6 +1380,53 @@ def update_info() -> dict | None:
 MESH_FORMATS = ("glb", "ply", "obj", "stl")
 
 
+MESH_TYPES = {".glb": "model/gltf-binary", ".gltf": "model/gltf+json", ".obj": "model/obj", ".mtl": "text/plain",
+              ".ply": "application/octet-stream", ".stl": "model/stl", ".png": "image/png", ".jpg": "image/jpeg"}
+
+
+@functools.cache
+def blender_cmd() -> list | None:
+    """How to start Blender here: installed as a program, or as the Flatpak from Flathub; None = not there."""
+    if shutil.which("blender"):
+        return ["blender"]
+    if shutil.which("flatpak"):
+        try:
+            if subprocess.run(["flatpak", "info", "org.blender.Blender"], capture_output=True, timeout=10).returncode == 0:
+                return ["flatpak", "run", "org.blender.Blender"]
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return None
+
+
+def mesh_file(slug: str, name: str) -> Path | None:
+    """One file of a scene's mesh, by its plain name (nothing outside the mesh folder)."""
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    if not d or not name or Path(name).name != name or name.startswith(".") or name == "mesh.json":
+        return None
+    f = d / "mesh" / name
+    return f if f.is_file() and f.suffix.lower() in MESH_TYPES else None
+
+
+def open_in_blender(slug: str):
+    """Blender with the mesh imported – GLB if there is one, else OBJ, PLY or STL."""
+    cmd = blender_cmd()
+    if not cmd:
+        return err("err.no_blender")
+    d = scene_dir(slug) if slug and not slug.startswith(".") else None
+    m = d / "mesh" if d else None
+    files = {f.suffix.lower(): f for f in m.iterdir()} if m and m.is_dir() else {}
+    importers = {".glb": "bpy.ops.import_scene.gltf", ".obj": "bpy.ops.wm.obj_import",
+                 ".ply": "bpy.ops.wm.ply_import", ".stl": "bpy.ops.wm.stl_import"}
+    ext = next((e for e in importers if e in files), None)
+    if not ext:
+        return err("err.no_mesh")
+    code = (f"import bpy; bpy.ops.wm.read_factory_settings(use_empty=True); "
+            f"{importers[ext]}(filepath={str(files[ext])!r})")
+    subprocess.Popen([*cmd, "--python-expr", code], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    return None
+
+
 def mesh_of(slug: str) -> dict:
     """The mesh of a scene or tour: its files, and whether a texture is possible (training images still there)."""
     d = scene_dir(slug) if slug and not slug.startswith(".") else None
@@ -1387,7 +1434,7 @@ def mesh_of(slug: str) -> dict:
         return {}
     texture = (d / "dataset" / "images").is_dir() and (d / "dataset" / "sparse").is_dir()
     m = d / "mesh"
-    info = {"texture_possible": texture, "files": [], "made": None}
+    info = {"texture_possible": texture, "files": [], "made": None, "blender": blender_cmd() is not None}
     if (m / "mesh.json").exists():
         try:
             made = json.loads((m / "mesh.json").read_text())
@@ -2456,6 +2503,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(200, {"versions": versions_of(q.get("slug", ""))})
         if u.path == "/api/mesh":
             return self.send(200, mesh_of(q.get("slug", "")))
+        if u.path == "/api/mesh/file":
+            f = mesh_file(q.get("slug", ""), q.get("name", ""))
+            if not f:
+                return self.send(404, {"error": err("err.no_mesh")})
+            self.send_response(200)
+            self.send_header("Content-Type", MESH_TYPES[f.suffix.lower()])
+            self.send_header("Content-Length", str(f.stat().st_size))
+            self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + urllib.parse.quote(f.name))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            with open(f, "rb") as fh:
+                shutil.copyfileobj(fh, self.wfile, 1 << 20)
+            return None
         if u.path == "/api/floorplan":
             data = floorplan([x for x in q.get("slugs", "").split(",") if x], q.get("style", "pretty"),
                              q.get("lang", "en"), q.get("title", ""), q.get("group", ""))
@@ -2591,6 +2652,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             d = scene_dir(p.get("slug", ""))
             if not d:
                 e = err("err.no_scene")
+            elif p.get("what") == "blender":
+                e = open_in_blender(p.get("slug", ""))
             elif p.get("what") == "spirula":
                 ply = d / "spirula" / "scene.ply"
                 if p.get("version"):                    # a version: its own ply, or the scene's for a plain "all"

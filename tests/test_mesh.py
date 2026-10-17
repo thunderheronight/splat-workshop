@@ -57,7 +57,8 @@ def mesh_calls():
 
 def test_a_mesh_for_blender_and_3d_printing(api):
     run = scene()
-    assert server.mesh_of("Living") == {"texture_possible": False, "files": [], "made": None}
+    m = server.mesh_of("Living")
+    assert {k: m[k] for k in ("texture_possible", "files", "made")} == {"texture_possible": False, "files": [], "made": None}
     status, r = api.post("/api/mesh", {"slug": "Living", "formats": "glb,stl", "texture": True})
     assert status == 200, r
     js = wait_job()
@@ -113,3 +114,32 @@ def test_mesh_sh_refuses_unknown_formats():
     run = scene()
     r = subprocess.run([str(ROOT / "scripts" / "mesh.sh"), str(run), "glb,fbx"], capture_output=True, text=True)
     assert r.returncode == 1 and "Unknown mesh format: fbx" in r.stderr and not mesh_calls()
+
+
+def test_mesh_files_can_be_downloaded(api):
+    run = scene()
+    api.post("/api/mesh", {"slug": "Living", "formats": "glb,stl"})
+    wait_job()
+    import urllib.parse
+    status, body, headers = api.raw("/api/mesh/file?slug=Living&name=living.glb")
+    assert status == 200 and body == (run / "mesh" / "living.glb").read_bytes()
+    assert headers["Content-Type"] == "model/gltf-binary" and "attachment" in headers["Content-Disposition"]
+    for bad in ("../scene.sog", "mesh.json", ".hidden", "living.sog", "", "/etc/passwd"):
+        assert api.raw("/api/mesh/file?slug=Living&name=" + urllib.parse.quote(bad))[0] == 404, bad
+    assert api.raw("/api/mesh/file?slug=..&name=living.glb")[0] == 404
+
+
+def test_open_in_blender_imports_the_mesh(api, monkeypatch):
+    run = scene()
+    api.post("/api/mesh", {"slug": "Living", "formats": "stl,glb"})
+    wait_job()
+    started = []
+    monkeypatch.setattr(server, "blender_cmd", lambda: ["flatpak", "run", "org.blender.Blender"])
+    monkeypatch.setattr(server.subprocess, "Popen", lambda cmd, **kw: started.append(cmd))
+    assert api.post("/api/open", {"slug": "Living", "what": "blender"})[0] == 200
+    cmd = started[-1]
+    assert cmd[:3] == ["flatpak", "run", "org.blender.Blender"] and cmd[3] == "--python-expr"
+    assert "import_scene.gltf" in cmd[4] and repr(str(run / "mesh" / "living.glb")) in cmd[4]   # GLB first
+    monkeypatch.setattr(server, "blender_cmd", lambda: None)
+    status, r = api.post("/api/open", {"slug": "Living", "what": "blender"})
+    assert status == 400 and r["error"]["code"] == "err.no_blender"

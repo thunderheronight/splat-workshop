@@ -8,6 +8,7 @@ All notable changes to Splat Workshop. The format follows [Keep a Changelog](htt
 
 - **A note when a newer version is out**: once a day Splat Workshop asks GitHub for the newest release (one plain request in the background, nothing about you is sent) and shows *Splat Workshop x.y.z is out* at the top, with *What's new* and how to update; *Later* hides it until the next version. `check_updates = false` under `[server]` switches it off. (Asked in [#2](https://github.com/thunderheronight/splat-workshop/issues/2).)
 - **How to update** in the README: `git pull`, restart – config and scenes stay.
+- **After a mesh, what to do with it**: the finished job and the mesh dialog show the files to **download** – also from a phone or laptop at home – plus **Open in Blender** (when Blender is installed, as a program or the Flatpak from Flathub: the mesh is imported right away, GLB first) and the folder.
 
 ## [0.5.0] – 2026-10-16
 

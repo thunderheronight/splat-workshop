@@ -350,6 +350,13 @@ class Client:
     def get(self, path, headers=None):
         return self.request("GET", path, headers=headers)
 
+    def raw(self, path):
+        """GET without decoding: status, body bytes, headers."""
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+        c.request("GET", path)
+        r = c.getresponse()
+        return r.status, r.read(), dict(r.getheaders())
+
     def post(self, path, body=None, headers=None):
         return self.request("POST", path, body if body is not None else {}, headers)
 
