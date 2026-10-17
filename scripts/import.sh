@@ -4,7 +4,8 @@
 #
 # Usage: scripts/import.sh <splat file> <run folder> "<display name>" [up] [scale]
 #   <splat file>  .ply .compressed.ply .sog .spz .splat .ksplat (whatever splat-transform reads)
-#   up            where "up" is in the file: y-down (Spirula Studio, COLMAP, the Frame – default), y-up, z-up
+#   up            where "up" is in the file: y-down (COLMAP, the Workshop's own scenes – default), y-up,
+#                 z-up (Blender, Spirula Studio from photos alone)
 #   scale         factor for the size, e.g. 0.01 if the file is in centimetres (default 1)
 # Writes <run folder>/ with spirula/scene.ply, scene.sog, scene.xrSceneTransform.json, a preview from the
 # top view and a name plate. Lines starting with "@@" are progress markers.

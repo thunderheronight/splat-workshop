@@ -9,6 +9,7 @@ Without the tray icon (--no-idle-exit) it stops after idle_minutes with nothing 
 Start: ./splat-workshop  (or python3 -m splat_workshop.server)
 """
 import argparse
+import base64
 import functools
 import hashlib
 import http.server
@@ -1352,6 +1353,35 @@ def start_import(p: dict):
     return None
 
 
+def import_preview(p: dict) -> dict:
+    """Small pictures of the picked file, one per choice of "up", and a guess which one stands upright
+    (scripts/import_preview.py) – kept per file, so picking it again is instant."""
+    src = Path(p.get("path") or "")
+    if not src.is_absolute() or not src.is_file() or src.suffix.lower() not in SPLAT_EXTS:
+        return {"error": err("err.import_file")}
+    st = src.stat()
+    key = hashlib.sha1(f"{src}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:16]
+    out = CACHE / "import" / key
+    if not (out / "guess.json").exists():
+        tmp = out.with_name(key + ".tmp")
+        shutil.rmtree(tmp, ignore_errors=True)
+        try:
+            r = subprocess.run(["uv", "run", "-q", str(SCRIPTS / "import_preview.py"), str(src), str(tmp),
+                                str(CFG.splat_transform or "")], capture_output=True, text=True, timeout=300)
+        except (OSError, subprocess.TimeoutExpired):
+            r = None
+        if r is None or r.returncode:
+            shutil.rmtree(tmp, ignore_errors=True)
+            return {"error": err("err.import_preview", detail=((r.stderr if r else "").strip().splitlines() or [""])[-1])}
+        (tmp / "guess.json").write_text(r.stdout.strip().splitlines()[-1])
+        shutil.rmtree(out, ignore_errors=True)
+        tmp.rename(out)
+    guess = json.loads((out / "guess.json").read_text()).get("guess")
+    return {"guess": guess if guess in IMPORT_UP else "y-down",
+            "images": {u: "data:image/png;base64," + base64.b64encode((out / f"{u}.png").read_bytes()).decode()
+                       for u in IMPORT_UP}}
+
+
 # ---------------------------------------------------------------- is there a newer version?
 
 REPO = "thunderheronight/splat-workshop"
@@ -2645,7 +2675,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": err("err.bad_request")})
         path = urllib.parse.urlparse(self.path).path
         e = None
-        if path in ("/api/pick", "/api/play", "/api/open", "/api/shutdown", "/api/import") and not self._from_this_pc():
+        if path in ("/api/pick", "/api/play", "/api/open", "/api/shutdown", "/api/import", "/api/import/preview") \
+                and not self._from_this_pc():
             # These open windows on this PC's screen or stop the program – only allowed from the PC itself
             return self.send(403, {"error": err("err.pc_only")})
         if path == "/api/start":
@@ -2678,6 +2709,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             e = move_to_own_folder()
         elif path == "/api/import":
             e = start_import(p)
+        elif path == "/api/import/preview":
+            r = import_preview(p)
+            return self.send(400 if "error" in r else 200, r)
         elif path == "/api/update/check":
             return self.send(200, check_update_now())
         elif path == "/api/mesh":

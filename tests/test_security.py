@@ -100,7 +100,7 @@ def test_no_paths_outside_the_runs_folder(api, leak, slug):
 
 @pytest.mark.parametrize("path,body", [
     ("/api/open", {"slug": "Room", "what": "folder"}), ("/api/play", {"name": "x.mp4"}),
-    ("/api/pick", {}), ("/api/shutdown", {}),
+    ("/api/pick", {}), ("/api/shutdown", {}), ("/api/import", {"path": "/x.ply"}), ("/api/import/preview", {"path": "/x.ply"}),
 ])
 def test_actions_on_the_screen_only_from_this_pc(api, monkeypatch, path, body):
     # video player, file dialog, folder, Spirula and quitting: not from another device in the LAN
